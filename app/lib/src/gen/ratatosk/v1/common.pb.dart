@@ -172,6 +172,13 @@ class User extends $pb.GeneratedMessage {
 }
 
 /// A stored file. Bytes live on disk on the server; clients only see the URL.
+///
+/// With end-to-end encryption the stored bytes are ciphertext and the original
+/// filename and content type travel inside the message's sealed content, so the
+/// server sees neither. The fields here are then the server's own view:
+/// `filename` is the opaque blob id, `content_type` is
+/// "application/octet-stream", and `encrypted` is true. Clients read the real
+/// values from the decrypted envelope (docs/E2EE.md).
 class Attachment extends $pb.GeneratedMessage {
   factory Attachment({
     $core.String? id,
@@ -182,6 +189,7 @@ class Attachment extends $pb.GeneratedMessage {
     $core.int? width,
     $core.int? height,
     $core.bool? isImage,
+    $core.bool? encrypted,
   }) {
     final result = Attachment._();
     if (id != null) result.id = id;
@@ -192,6 +200,7 @@ class Attachment extends $pb.GeneratedMessage {
     if (width != null) result.width = width;
     if (height != null) result.height = height;
     if (isImage != null) result.isImage = isImage;
+    if (encrypted != null) result.encrypted = encrypted;
     return result;
   }
 
@@ -216,6 +225,7 @@ class Attachment extends $pb.GeneratedMessage {
     ..aI(6, _omitFieldNames ? '' : 'width')
     ..aI(7, _omitFieldNames ? '' : 'height')
     ..aOB(8, _omitFieldNames ? '' : 'isImage')
+    ..aOB(9, _omitFieldNames ? '' : 'encrypted')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -312,6 +322,16 @@ class Attachment extends $pb.GeneratedMessage {
   $core.bool hasIsImage() => $_has(7);
   @$pb.TagNumber(8)
   void clearIsImage() => $_clearField(8);
+
+  /// The bytes on the server are a client-side seal, not the file itself.
+  @$pb.TagNumber(9)
+  $core.bool get encrypted => $_getBF(8);
+  @$pb.TagNumber(9)
+  set encrypted($core.bool value) => $_setBool(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasEncrypted() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearEncrypted() => $_clearField(9);
 }
 
 /// A compact quote of the message being replied to.

@@ -67,6 +67,9 @@ func (h *harness) previewAnonymous(ctx context.Context, code string) (*ratatoskv
 // newServerOn boots a full server rooted at dir and returns it with its store.
 func newServerOn(t *testing.T, dir string) (*httptest.Server, *store.Store) {
 	t.Helper()
+	// The store logs its own key generation through the default logger before
+	// the test's logger reaches it; keep the suite's output clean.
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st, err := store.Open(dir, log)
 	if err != nil {
@@ -106,11 +109,27 @@ func (h *harness) authed(token string) (ratatoskv1connect.AuthServiceClient, rat
 // calls. Streaming needs its own hook: an interceptor that only implements the
 // unary side silently sends an unauthenticated Subscribe, which looks exactly
 // like a server bug.
-type bearerInterceptor struct{ token string }
+//
+// `deviceKey` is the extra header a client uses to name the device key it
+// holds, which the key-envelope calls are scoped to.
+type bearerInterceptor struct {
+	token     string
+	deviceKey string
+}
+
+func (b bearerInterceptor) headers() map[string]string {
+	out := map[string]string{"Authorization": "Bearer " + b.token}
+	if b.deviceKey != "" {
+		out["X-Ratatosk-Device-Key"] = b.deviceKey
+	}
+	return out
+}
 
 func (b bearerInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-		req.Header().Set("Authorization", "Bearer "+b.token)
+		for name, value := range b.headers() {
+			req.Header().Set(name, value)
+		}
 		return next(ctx, req)
 	}
 }
@@ -118,7 +137,9 @@ func (b bearerInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 func (b bearerInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return func(ctx context.Context, spec connect.Spec) connect.StreamingClientConn {
 		conn := next(ctx, spec)
-		conn.RequestHeader().Set("Authorization", "Bearer "+b.token)
+		for name, value := range b.headers() {
+			conn.RequestHeader().Set(name, value)
+		}
 		return conn
 	}
 }

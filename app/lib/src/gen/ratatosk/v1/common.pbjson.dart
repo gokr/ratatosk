@@ -81,6 +81,7 @@ const Attachment$json = {
     {'1': 'width', '3': 6, '4': 1, '5': 5, '10': 'width'},
     {'1': 'height', '3': 7, '4': 1, '5': 5, '10': 'height'},
     {'1': 'is_image', '3': 8, '4': 1, '5': 8, '10': 'isImage'},
+    {'1': 'encrypted', '3': 9, '4': 1, '5': 8, '10': 'encrypted'},
   ],
 };
 
@@ -89,7 +90,8 @@ final $typed_data.Uint8List attachmentDescriptor = $convert.base64Decode(
     'CgpBdHRhY2htZW50Eg4KAmlkGAEgASgJUgJpZBIaCghmaWxlbmFtZRgCIAEoCVIIZmlsZW5hbW'
     'USIQoMY29udGVudF90eXBlGAMgASgJUgtjb250ZW50VHlwZRISCgRzaXplGAQgASgDUgRzaXpl'
     'EhAKA3VybBgFIAEoCVIDdXJsEhQKBXdpZHRoGAYgASgFUgV3aWR0aBIWCgZoZWlnaHQYByABKA'
-    'VSBmhlaWdodBIZCghpc19pbWFnZRgIIAEoCFIHaXNJbWFnZQ==');
+    'VSBmhlaWdodBIZCghpc19pbWFnZRgIIAEoCFIHaXNJbWFnZRIcCgllbmNyeXB0ZWQYCSABKAhS'
+    'CWVuY3J5cHRlZA==');
 
 @$core.Deprecated('Use replyPreviewDescriptor instead')
 const ReplyPreview$json = {

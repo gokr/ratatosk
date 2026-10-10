@@ -113,7 +113,10 @@ type ChatServiceClient interface {
 	MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error)
 	// Broadcast a typing indicator for a few seconds. Nothing is persisted.
 	SetTyping(context.Context, *connect.Request[v1.SetTypingRequest]) (*connect.Response[v1.SetTypingResponse], error)
-	// Full-text substring search over the caller's conversations.
+	// Substring search over the caller's conversations. It can only match
+	// plaintext: end-to-end encrypted message bodies are opaque to the server, so
+	// an encrypted conversation returns nothing here and the client searches
+	// locally instead (docs/E2EE.md).
 	SearchMessages(context.Context, *connect.Request[v1.SearchMessagesRequest]) (*connect.Response[v1.SearchMessagesResponse], error)
 	// Upload one file (attachment or profile picture) and get its id back.
 	UploadAttachment(context.Context, *connect.Request[v1.UploadAttachmentRequest]) (*connect.Response[v1.UploadAttachmentResponse], error)
@@ -387,7 +390,10 @@ type ChatServiceHandler interface {
 	MarkRead(context.Context, *connect.Request[v1.MarkReadRequest]) (*connect.Response[v1.MarkReadResponse], error)
 	// Broadcast a typing indicator for a few seconds. Nothing is persisted.
 	SetTyping(context.Context, *connect.Request[v1.SetTypingRequest]) (*connect.Response[v1.SetTypingResponse], error)
-	// Full-text substring search over the caller's conversations.
+	// Substring search over the caller's conversations. It can only match
+	// plaintext: end-to-end encrypted message bodies are opaque to the server, so
+	// an encrypted conversation returns nothing here and the client searches
+	// locally instead (docs/E2EE.md).
 	SearchMessages(context.Context, *connect.Request[v1.SearchMessagesRequest]) (*connect.Response[v1.SearchMessagesResponse], error)
 	// Upload one file (attachment or profile picture) and get its id back.
 	UploadAttachment(context.Context, *connect.Request[v1.UploadAttachmentRequest]) (*connect.Response[v1.UploadAttachmentResponse], error)

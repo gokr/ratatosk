@@ -330,7 +330,29 @@ func (s *ChatService) SendMessage(ctx context.Context, req *connect.Request[rata
 		return nil, connect.NewError(connect.CodeInvalidArgument, errInvalid("message is too long"))
 	}
 	attachmentIDs := req.Msg.GetAttachmentIds()
-	if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
+	ciphertext := req.Msg.GetCiphertext()
+	cryptoVersion := req.Msg.GetCryptoVersion()
+
+	// An encrypted message carries its body where the server cannot read it, so
+	// the only thing to validate is that the sender was consistent: sealed
+	// bytes with no nonce or version could never be decrypted by anyone.
+	if len(ciphertext) > 0 {
+		if len(req.Msg.GetNonce()) == 0 || cryptoVersion == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errInvalid("an encrypted message needs its nonce and crypto version"))
+		}
+		if req.Msg.GetSenderDeviceKeyId() == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errInvalid("an encrypted message needs a sender device key"))
+		}
+		if len(ciphertext) > maxCiphertextBytes {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errInvalid("message is too long"))
+		}
+		if text != "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errInvalid("send either plaintext or ciphertext, not both"))
+		}
+	} else if strings.TrimSpace(text) == "" && len(attachmentIDs) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errInvalid("write something first"))
 	}
 	if len(attachmentIDs) > 10 {
@@ -349,6 +371,10 @@ func (s *ChatService) SendMessage(ctx context.Context, req *connect.Request[rata
 		return connect.NewResponse(&ratatoskv1.SendMessageResponse{Message: s.messageProto(existing)}), nil
 	}
 
+	// The reply target is validated whenever the client names it, which is what
+	// keeps a reply from pointing outside the conversation. An encrypted client
+	// leaves this empty and puts the text it quotes inside the sealed body, so
+	// the server does not learn which message is being replied to.
 	replyTo := req.Msg.GetReplyToId()
 	if replyTo != "" {
 		parent, err := s.st.MessageByID(replyTo)
@@ -365,6 +391,12 @@ func (s *ChatService) SendMessage(ctx context.Context, req *connect.Request[rata
 		Attachments:     attachmentIDs,
 		ReplyToID:       replyTo,
 		ClientMessageID: clientID,
+		// Sealed content: stored as received, opaque to this server.
+		Ciphertext:        ciphertext,
+		Nonce:             req.Msg.GetNonce(),
+		SenderDeviceKeyID: req.Msg.GetSenderDeviceKeyId(),
+		KeyEpoch:          req.Msg.GetKeyEpoch(),
+		CryptoVersion:     cryptoVersion,
 	}, now())
 	if err != nil {
 		if errors.Is(err, store.ErrNotMember) {
@@ -386,14 +418,33 @@ func (s *ChatService) EditMessage(ctx context.Context, req *connect.Request[rata
 		return nil, err
 	}
 	text := strings.TrimSpace(req.Msg.GetText())
-	if text == "" && len(msg.Attachments) == 0 {
+	ciphertext := req.Msg.GetCiphertext()
+	switch {
+	case len(ciphertext) > 0:
+		if len(req.Msg.GetNonce()) == 0 || req.Msg.GetCryptoVersion() == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errInvalid("an encrypted message needs its nonce and crypto version"))
+		}
+		if text != "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errInvalid("send either plaintext or ciphertext, not both"))
+		}
+	case text == "" && len(msg.Attachments) == 0:
 		return nil, connect.NewError(connect.CodeInvalidArgument, errInvalid("a message cannot be empty"))
-	}
-	if len(text) > 8000 {
+	case len(text) > 8000:
 		return nil, connect.NewError(connect.CodeInvalidArgument, errInvalid("message is too long"))
 	}
 	updated, err := s.st.UpdateMessage(msg.ID, func(m *store.Message) {
-		m.Text = text
+		if len(ciphertext) > 0 {
+			// Replace the seal wholesale: the old plaintext, if any, must not
+			// survive an edit that was supposed to hide it.
+			m.Text = ""
+			m.Ciphertext = append([]byte(nil), ciphertext...)
+			m.Nonce = append([]byte(nil), req.Msg.GetNonce()...)
+			m.CryptoVersion = req.Msg.GetCryptoVersion()
+		} else {
+			m.Text = text
+		}
 		m.EditedAt = now()
 	})
 	if err != nil {
@@ -574,7 +625,14 @@ func (s *ChatService) UploadAttachment(ctx context.Context, req *connect.Request
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	att, err := s.st.PutAttachment(user.ID, filename, contentType, data, 0, 0, now())
+	if req.Msg.GetEncrypted() {
+		// The bytes are a client-side seal and the real name and type live
+		// inside the message envelope. What the server records is a placeholder
+		// so it stores neither the filename nor the content type.
+		contentType = "application/octet-stream"
+		filename = ""
+	}
+	att, err := s.st.PutAttachment(user.ID, filename, contentType, data, req.Msg.GetEncrypted(), 0, 0, now())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}

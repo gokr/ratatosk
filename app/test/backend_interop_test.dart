@@ -14,12 +14,16 @@
 // skips itself when nothing is listening, so it never breaks a plain
 // `flutter test` on a machine without the server running.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ratatosk/src/api/connect_backend.dart';
+import 'package:ratatosk/src/crypto/identity.dart';
+import 'package:ratatosk/src/crypto/manager.dart';
+import 'package:ratatosk/src/crypto/message_content.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/chat.pb.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/common.pb.dart';
 
@@ -86,7 +90,10 @@ void main() {
     // transport were wrong.
     final events = <Event>[];
     final subscription = ada.backend.subscribe().listen(events.add);
-    addTearDown(subscription.cancel);
+    // Cancelling a live server stream does not complete while its HTTP response
+    // is open, so it is not awaited: the subscription stops delivering either
+    // way, and the test does not hang on teardown.
+    addTearDown(() => unawaited(subscription.cancel()));
 
     await _waitFor(events, (e) => e.hasHello(), 'the hello frame');
     expect(events.first.hello.user.id, ada.user.id);
@@ -96,7 +103,7 @@ void main() {
     // the send would legitimately see nothing.
     final graceEvents = <Event>[];
     final graceSub = grace.backend.subscribe().listen(graceEvents.add);
-    addTearDown(graceSub.cancel);
+    addTearDown(() => unawaited(graceSub.cancel()));
     await _waitFor(graceEvents, (e) => e.hasHello(), 'grace hello');
 
     final conversation = await ada.backend.createDirectConversation(username: grace.user.username);
@@ -216,6 +223,178 @@ void main() {
     expect(revoked.detail, contains('cancel'));
   });
 
+  test('an encrypted message is sealed, relayed, and opened by the peer', () async {
+    if (!serverUp) return;
+    final ada = await _newClient(baseUrl, handle('e2eada'), 'Ada');
+    final grace = await _newClient(baseUrl, handle('e2egrace'), 'Grace');
+
+    final conversation = await ada.backend.createDirectConversation(username: grace.user.username);
+    expect(conversation.hasPeer(), isTrue);
+
+    // Both devices publish a key; each can see the other's.
+    expect(ada.crypto.ownDeviceKeyId, isNotEmpty);
+    final graceKeys = await ada.backend.listDeviceKeys([grace.user.id]);
+    expect(graceKeys, hasLength(1));
+    expect(graceKeys.single.identityPublicKey, hasLength(32));
+
+    // Ada prepares the conversation (which fetches Grace's device key) and
+    // seals a body.
+    await ada.crypto.prepareConversation(conversation);
+    const secret = 'the server must never read this';
+    final seal = await ada.crypto.sealMessage(
+      conversation: conversation,
+      content: const MessageContent(text: secret, attachments: []),
+    );
+
+    // The ciphertext must not contain the plaintext: this is the assertion the
+    // whole feature rests on.
+    expect(utf8.decode(seal.ciphertext, allowMalformed: true), isNot(contains(secret)));
+
+    final sent = await ada.backend.sendEncryptedMessage(
+      conversation.id,
+      ciphertext: seal.ciphertext,
+      nonce: seal.nonce,
+      senderDeviceKeyId: seal.deviceKeyId,
+      keyEpoch: seal.epoch,
+      cryptoVersion: 'ratatosk/v1',
+      clientMessageId: 'sealed-interop-1',
+    );
+    expect(sent.encrypted, isTrue);
+    expect(sent.text, isEmpty, reason: 'the server must not be handed plaintext');
+    expect(sent.ciphertext, equals(seal.ciphertext));
+
+    // Grace pulls it back and opens it with the key derived from her own
+    // private key and Ada's public one — no key material crossed the server.
+    final page = await grace.backend.listMessages(conversation.id);
+    expect(page.messages, hasLength(1));
+    final stored = page.messages.single;
+
+    // Grace renders the conversation from her own point of view, exactly as the
+    // app does: `peer` is viewer-specific, the member list is not.
+    final graceView = await grace.backend.getConversation(conversation.id);
+    expect(graceView.peer.id, ada.user.id);
+    await grace.crypto.prepareConversation(graceView);
+    final opened = await grace.crypto.decryptMessage(
+      conversation: graceView,
+      message: stored,
+      ownMessage: false,
+    );
+    expect(opened.ok, isTrue, reason: opened.unreadable ?? '');
+    expect(opened.text, secret);
+
+    // Their safety numbers agree, which is what a user compares out of band.
+    final adaView = await ada.crypto.safetyNumberFor(graceKeys.single);
+    final graceKeysOfAda = await grace.backend.listDeviceKeys([ada.user.id]);
+    final graceNumber = await grace.crypto.safetyNumberFor(graceKeysOfAda.single);
+    expect(adaView, equals(graceNumber));
+    expect(adaView, matches(RegExp(r'^\d{5} ')));
+
+    // A third party cannot even fetch the conversation the message lives in.
+    final mallory = await _newClient(baseUrl, handle('e2emal'), 'Mallory');
+    await mallory.backend.addContact(ada.user.username);
+    await expectLater(
+      mallory.backend.getConversation(conversation.id),
+      throwsA(isA<Object>()),
+      reason: 'the server must refuse a conversation the caller is not in',
+    );
+
+    // And if the ciphertext leaked, it still would not open: the key derives
+    // from the pair of identities, so a conversation with the wrong peer
+    // produces a different key.
+    await mallory.crypto.prepareConversation(
+      Conversation(
+        id: conversation.id,
+        kind: 'direct',
+        members: [
+          Member(user: ada.user),
+          Member(user: mallory.user),
+        ],
+      ),
+    );
+    final stolen = await mallory.crypto.decryptMessage(
+      conversation: Conversation(
+        id: conversation.id,
+        kind: 'direct',
+        members: [
+          Member(user: ada.user),
+          Member(user: mallory.user),
+        ],
+      ),
+      message: stored,
+      ownMessage: false,
+    );
+    expect(stolen.ok, isFalse);
+    expect(stolen.unreadable, isNotNull);
+  });
+
+  test('an encrypted attachment round-trips as sealed bytes', () async {
+    if (!serverUp) return;
+    final ada = await _newClient(baseUrl, handle('fileada'), 'Ada');
+    final grace = await _newClient(baseUrl, handle('filegrace'), 'Grace');
+    final conversation = await ada.backend.createDirectConversation(username: grace.user.username);
+    await ada.crypto.prepareConversation(conversation);
+
+    // A file the sender seals before it ever reaches the server.
+    final plain = Uint8List.fromList(List.generate(2048, (i) => i % 256));
+    final sealedFile = await ada.crypto.sealFile(plain);
+    final uploaded = await ada.backend.uploadAttachment(
+      filename: 'contract.pdf',
+      contentType: 'application/pdf',
+      data: sealedFile.ciphertext,
+      encrypted: true,
+    );
+    // The server kept neither the name nor the type.
+    expect(uploaded.encrypted, isTrue);
+    expect(uploaded.filename, isEmpty);
+    expect(uploaded.contentType, isEmpty);
+
+    final seal = await ada.crypto.sealMessage(
+      conversation: conversation,
+      content: MessageContent(
+        text: 'here it is',
+        attachments: [
+          EncryptedAttachment(
+            blobId: uploaded.id,
+            fileKey: sealedFile.key,
+            nonce: sealedFile.nonce,
+            filename: 'contract.pdf',
+            contentType: 'application/pdf',
+            size: plain.length,
+          ),
+        ],
+      ),
+    );
+    await ada.backend.sendEncryptedMessage(
+      conversation.id,
+      ciphertext: seal.ciphertext,
+      nonce: seal.nonce,
+      senderDeviceKeyId: seal.deviceKeyId,
+      keyEpoch: seal.epoch,
+      cryptoVersion: 'ratatosk/v1',
+    );
+
+    // Grace opens the message, then the file, and gets the original bytes back.
+    final graceView = await grace.backend.getConversation(conversation.id);
+    await grace.crypto.prepareConversation(graceView);
+    final page = await grace.backend.listMessages(conversation.id);
+    final opened = await grace.crypto.decryptMessage(
+      conversation: graceView,
+      message: page.messages.single,
+      ownMessage: false,
+    );
+    expect(opened.ok, isTrue);
+    expect(opened.attachments.single.filename, 'contract.pdf');
+    expect(opened.attachments.single.contentType, 'application/pdf');
+    expect(opened.attachments.single.isImage, isFalse);
+
+    final fetched = await grace.backend.fetchBytes('/files/${uploaded.id}');
+    final decrypted = await grace.crypto.openFile(
+      ciphertext: fetched,
+      attachment: opened.attachments.single,
+    );
+    expect(decrypted, equals(plain));
+  });
+
   test('groups, typing and a stranger is kept out', () async {
     if (!serverUp) return;
     final owner = await _newClient(baseUrl, handle('own'), 'Owner');
@@ -236,7 +415,7 @@ void main() {
     // Typing indicators ride the stream.
     final events = <Event>[];
     final sub = owner.backend.subscribe().listen(events.add);
-    addTearDown(sub.cancel);
+    addTearDown(() => unawaited(sub.cancel()));
     await _waitFor(events, (e) => e.hasHello(), 'owner hello');
     await member.backend.setTyping(group.id, true);
     final typing = await _waitFor(events, (e) => e.hasTyping() && e.typing.typing, 'typing');
@@ -260,8 +439,8 @@ void main() {
   });
 }
 
-/// A signed-in client plus its user.
-typedef _Client = ({ConnectBackend backend, User user});
+/// A signed-in client plus its user, with its own encryption identity.
+typedef _Client = ({ConnectBackend backend, User user, CryptoManager crypto});
 
 Future<_Client> _newClient(Uri baseUrl, String username, String displayName) async {
   final backend = ConnectBackend(baseUrl: baseUrl);
@@ -271,7 +450,11 @@ Future<_Client> _newClient(Uri baseUrl, String username, String displayName) asy
     displayName: displayName,
   );
   backend.setToken(result.token);
-  return (backend: backend, user: result.user);
+  // A real device: keys are generated here, registered with the server, and the
+  // private halves never leave this object.
+  final crypto = CryptoManager(backend: backend, storage: MemoryKeyStorage());
+  await crypto.initialize(userId: result.user.id, label: 'interop', platform: 'test');
+  return (backend: backend, user: result.user, crypto: crypto);
 }
 
 /// Waits for an event matching [predicate], failing the test on timeout.

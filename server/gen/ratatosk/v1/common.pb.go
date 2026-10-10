@@ -185,6 +185,13 @@ func (x *User) GetAccentColor() string {
 }
 
 // A stored file. Bytes live on disk on the server; clients only see the URL.
+//
+// With end-to-end encryption the stored bytes are ciphertext and the original
+// filename and content type travel inside the message's sealed content, so the
+// server sees neither. The fields here are then the server's own view:
+// `filename` is the opaque blob id, `content_type` is
+// "application/octet-stream", and `encrypted` is true. Clients read the real
+// values from the decrypted envelope (docs/E2EE.md).
 type Attachment struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -197,7 +204,9 @@ type Attachment struct {
 	Width  int32  `protobuf:"varint,6,opt,name=width,proto3" json:"width,omitempty"`
 	Height int32  `protobuf:"varint,7,opt,name=height,proto3" json:"height,omitempty"`
 	// True for content types under image/.
-	IsImage       bool `protobuf:"varint,8,opt,name=is_image,json=isImage,proto3" json:"is_image,omitempty"`
+	IsImage bool `protobuf:"varint,8,opt,name=is_image,json=isImage,proto3" json:"is_image,omitempty"`
+	// The bytes on the server are a client-side seal, not the file itself.
+	Encrypted     bool `protobuf:"varint,9,opt,name=encrypted,proto3" json:"encrypted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -284,6 +293,13 @@ func (x *Attachment) GetHeight() int32 {
 func (x *Attachment) GetIsImage() bool {
 	if x != nil {
 		return x.IsImage
+	}
+	return false
+}
+
+func (x *Attachment) GetEncrypted() bool {
+	if x != nil {
+		return x.Encrypted
 	}
 	return false
 }
@@ -387,7 +403,7 @@ const file_ratatosk_v1_common_proto_rawDesc = "" +
 	"\x03bio\x18\x05 \x01(\tR\x03bio\x121\n" +
 	"\bpresence\x18\x06 \x01(\x0e2\x15.ratatosk.v1.PresenceR\bpresence\x127\n" +
 	"\tlast_seen\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\x12!\n" +
-	"\faccent_color\x18\b \x01(\tR\vaccentColor\"\xca\x01\n" +
+	"\faccent_color\x18\b \x01(\tR\vaccentColor\"\xe8\x01\n" +
 	"\n" +
 	"Attachment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
@@ -397,7 +413,8 @@ const file_ratatosk_v1_common_proto_rawDesc = "" +
 	"\x03url\x18\x05 \x01(\tR\x03url\x12\x14\n" +
 	"\x05width\x18\x06 \x01(\x05R\x05width\x12\x16\n" +
 	"\x06height\x18\a \x01(\x05R\x06height\x12\x19\n" +
-	"\bis_image\x18\b \x01(\bR\aisImage\"\xc0\x01\n" +
+	"\bis_image\x18\b \x01(\bR\aisImage\x12\x1c\n" +
+	"\tencrypted\x18\t \x01(\bR\tencrypted\"\xc0\x01\n" +
 	"\fReplyPreview\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x1b\n" +

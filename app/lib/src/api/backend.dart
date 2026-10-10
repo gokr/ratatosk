@@ -6,6 +6,7 @@ import 'package:connectrpc/protobuf.dart';
 
 import '../gen/ratatosk/v1/chat.pb.dart';
 import '../gen/ratatosk/v1/common.pb.dart';
+import '../gen/ratatosk/v1/keys.pb.dart';
 import '../gen/ratatosk/v1/social.pb.dart';
 import 'http_client.dart';
 
@@ -30,9 +31,20 @@ abstract interface class ChatBackend {
   /// Replaces the session token used for every subsequent call.
   void setToken(String? token);
 
+  /// Names the device key this install holds, so the server can scope the
+  /// key-envelope calls to it. Sent as a header, not as part of the token.
+  void setDeviceKeyId(String? deviceKeyId);
+
   /// A URL the platform can load directly, with the session token appended for
   /// the cases where a plain <img> cannot send an Authorization header.
   String fileUrl(String path);
+
+  /// Fetches attachment bytes through the authenticated transport.
+  ///
+  /// Needed because the server stores ciphertext for an encrypted conversation:
+  /// an image widget cannot open a sealed blob, so the bytes have to be
+  /// downloaded and decrypted in the app.
+  Future<Uint8List> fetchBytes(String path);
 
   // --- accounts ----------------------------------------------------------
 
@@ -93,12 +105,35 @@ abstract interface class ChatBackend {
     int limit = 50,
   });
 
+  /// Sends a plaintext message. Only used for a conversation without
+  /// encryption; the app's normal path is [sendEncryptedMessage].
   Future<Message> sendMessage(
     String conversationId, {
     required String text,
     List<String> attachmentIds,
     String? replyToId,
     String? clientMessageId,
+  });
+
+  /// Sends a sealed message body. The server stores the ciphertext and the
+  /// coordinates of the key that opens it, and nothing else.
+  Future<Message> sendEncryptedMessage(
+    String conversationId, {
+    required Uint8List ciphertext,
+    required Uint8List nonce,
+    required String senderDeviceKeyId,
+    required int keyEpoch,
+    required String cryptoVersion,
+    List<String> attachmentIds,
+    String? clientMessageId,
+  });
+
+  /// Replaces the body of an existing message with a fresh seal.
+  Future<Message> editEncryptedMessage(
+    String messageId, {
+    required Uint8List ciphertext,
+    required Uint8List nonce,
+    required String cryptoVersion,
   });
 
   Future<Message> editMessage(String messageId, String text);
@@ -119,6 +154,7 @@ abstract interface class ChatBackend {
     required String filename,
     required String contentType,
     required Uint8List data,
+    bool encrypted,
   });
 
   /// The stream of everything that happens to the signed-in user.
@@ -143,6 +179,38 @@ abstract interface class ChatBackend {
   Future<InvitePreview> previewInvite(String code);
 
   Future<RedeemResult> redeemInvite(String code);
+
+  // --- end-to-end encryption ---------------------------------------------
+
+  /// Registers this install's public keys, or refreshes an existing record.
+  /// An empty [id] registers a new device.
+  Future<DeviceKey> publishDeviceKey({
+    String id,
+    required Uint8List identityPublicKey,
+    required Uint8List signingPublicKey,
+    String label,
+    String platform,
+  });
+
+  /// The device keys of the given users. Only contacts and conversation
+  /// partners can be asked about, so this cannot enumerate a stranger's devices.
+  Future<List<DeviceKey>> listDeviceKeys(List<String> userIds, {bool includeRevoked});
+
+  /// Marks a device key unusable and drops the envelopes addressed to it.
+  Future<void> revokeDeviceKey(String id);
+
+  /// Deposits one wrapped sender key for one recipient device.
+  Future<void> putKeyEnvelope({
+    required String conversationId,
+    required String senderDeviceKeyId,
+    required String recipientDeviceKeyId,
+    required int epoch,
+    required Uint8List wrappedKey,
+    required Uint8List nonce,
+  });
+
+  /// The envelopes addressed to this device, and the keys they carry.
+  Future<List<KeyEnvelope>> listKeyEnvelopes({String conversationId});
 }
 
 /// One page of messages plus whether older ones exist.
@@ -183,7 +251,7 @@ connect_rpc.Transport createConnectTransport({
   return connect.Transport(
     baseUrl: baseUrl.toString(),
     codec: const ProtoCodec(),
-    httpClient: createHttpClient(),
+    httpClient: createConnectHttpClient(),
     interceptors: interceptors,
   );
 }

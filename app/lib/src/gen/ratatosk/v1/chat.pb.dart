@@ -103,6 +103,12 @@ class Message extends $pb.GeneratedMessage {
     $fixnum.Int64? seq,
     $0.ReplyPreview? replyTo,
     $core.String? replyToId,
+    $core.List<$core.int>? ciphertext,
+    $core.List<$core.int>? nonce,
+    $core.String? senderDeviceKeyId,
+    $core.int? keyEpoch,
+    $core.bool? encrypted,
+    $core.String? cryptoVersion,
   }) {
     final result = Message._();
     if (id != null) result.id = id;
@@ -119,6 +125,12 @@ class Message extends $pb.GeneratedMessage {
     if (seq != null) result.seq = seq;
     if (replyTo != null) result.replyTo = replyTo;
     if (replyToId != null) result.replyToId = replyToId;
+    if (ciphertext != null) result.ciphertext = ciphertext;
+    if (nonce != null) result.nonce = nonce;
+    if (senderDeviceKeyId != null) result.senderDeviceKeyId = senderDeviceKeyId;
+    if (keyEpoch != null) result.keyEpoch = keyEpoch;
+    if (encrypted != null) result.encrypted = encrypted;
+    if (cryptoVersion != null) result.cryptoVersion = cryptoVersion;
     return result;
   }
 
@@ -155,6 +167,14 @@ class Message extends $pb.GeneratedMessage {
     ..aOM<$0.ReplyPreview>(13, _omitFieldNames ? '' : 'replyTo',
         subBuilder: $0.ReplyPreview.$_createMessage)
     ..aOS(14, _omitFieldNames ? '' : 'replyToId')
+    ..a<$core.List<$core.int>>(
+        15, _omitFieldNames ? '' : 'ciphertext', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        16, _omitFieldNames ? '' : 'nonce', $pb.PbFieldType.OY)
+    ..aOS(17, _omitFieldNames ? '' : 'senderDeviceKeyId')
+    ..aI(18, _omitFieldNames ? '' : 'keyEpoch')
+    ..aOB(19, _omitFieldNames ? '' : 'encrypted')
+    ..aOS(20, _omitFieldNames ? '' : 'cryptoVersion')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -204,6 +224,9 @@ class Message extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   void clearSenderId() => $_clearField(3);
 
+  /// Plain text, used only for server-authored system notes ("Ada added
+  /// Grace") and for messages written before encryption was introduced. User
+  /// messages carry their text inside `ciphertext` instead.
   @$pb.TagNumber(4)
   $core.String get text => $_getSZ(3);
   @$pb.TagNumber(4)
@@ -239,7 +262,7 @@ class Message extends $pb.GeneratedMessage {
   @$pb.TagNumber(7)
   $1.Timestamp ensureEditedAt() => $_ensure(6);
 
-  /// Tombstone: text and attachments are cleared, the row keeps its place.
+  /// Tombstone: content is cleared, the row keeps its place.
   @$pb.TagNumber(8)
   $core.bool get deleted => $_getBF(7);
   @$pb.TagNumber(8)
@@ -301,6 +324,70 @@ class Message extends $pb.GeneratedMessage {
   $core.bool hasReplyToId() => $_has(13);
   @$pb.TagNumber(14)
   void clearReplyToId() => $_clearField(14);
+
+  /// XChaCha20-Poly1305 seal of the message content: text, attachments and the
+  /// reply preview all live in here. Empty for system notes and for
+  /// unencrypted legacy messages. The server never holds the key.
+  @$pb.TagNumber(15)
+  $core.List<$core.int> get ciphertext => $_getN(14);
+  @$pb.TagNumber(15)
+  set ciphertext($core.List<$core.int> value) => $_setBytes(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasCiphertext() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearCiphertext() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.List<$core.int> get nonce => $_getN(15);
+  @$pb.TagNumber(16)
+  set nonce($core.List<$core.int> value) => $_setBytes(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasNonce() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearNonce() => $_clearField(16);
+
+  /// Which device's sender key sealed this. In a direct conversation the key is
+  /// derived from both identity keys, so the field is informational there; in a
+  /// group it names the sender key to unwrap. With `key_epoch` it identifies
+  /// the key to try.
+  @$pb.TagNumber(17)
+  $core.String get senderDeviceKeyId => $_getSZ(16);
+  @$pb.TagNumber(17)
+  set senderDeviceKeyId($core.String value) => $_setString(16, value);
+  @$pb.TagNumber(17)
+  $core.bool hasSenderDeviceKeyId() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearSenderDeviceKeyId() => $_clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.int get keyEpoch => $_getIZ(17);
+  @$pb.TagNumber(18)
+  set keyEpoch($core.int value) => $_setSignedInt32(17, value);
+  @$pb.TagNumber(18)
+  $core.bool hasKeyEpoch() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearKeyEpoch() => $_clearField(18);
+
+  /// True when `ciphertext` holds the content, which means `text`, `attachments`
+  /// and `reply_to` are empty on the wire.
+  @$pb.TagNumber(19)
+  $core.bool get encrypted => $_getBF(18);
+  @$pb.TagNumber(19)
+  set encrypted($core.bool value) => $_setBool(18, value);
+  @$pb.TagNumber(19)
+  $core.bool hasEncrypted() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearEncrypted() => $_clearField(19);
+
+  /// Encryption scheme that produced the ciphertext, e.g. "ratatosk/v1".
+  @$pb.TagNumber(20)
+  $core.String get cryptoVersion => $_getSZ(19);
+  @$pb.TagNumber(20)
+  set cryptoVersion($core.String value) => $_setString(19, value);
+  @$pb.TagNumber(20)
+  $core.bool hasCryptoVersion() => $_has(19);
+  @$pb.TagNumber(20)
+  void clearCryptoVersion() => $_clearField(20);
 }
 
 /// A conversation participant, from the viewer's point of view.
@@ -1820,6 +1907,11 @@ class SendMessageRequest extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? attachmentIds,
     $core.String? replyToId,
     $core.String? clientMessageId,
+    $core.List<$core.int>? ciphertext,
+    $core.List<$core.int>? nonce,
+    $core.String? senderDeviceKeyId,
+    $core.int? keyEpoch,
+    $core.String? cryptoVersion,
   }) {
     final result = SendMessageRequest._();
     if (conversationId != null) result.conversationId = conversationId;
@@ -1827,6 +1919,11 @@ class SendMessageRequest extends $pb.GeneratedMessage {
     if (attachmentIds != null) result.attachmentIds.addAll(attachmentIds);
     if (replyToId != null) result.replyToId = replyToId;
     if (clientMessageId != null) result.clientMessageId = clientMessageId;
+    if (ciphertext != null) result.ciphertext = ciphertext;
+    if (nonce != null) result.nonce = nonce;
+    if (senderDeviceKeyId != null) result.senderDeviceKeyId = senderDeviceKeyId;
+    if (keyEpoch != null) result.keyEpoch = keyEpoch;
+    if (cryptoVersion != null) result.cryptoVersion = cryptoVersion;
     return result;
   }
 
@@ -1848,6 +1945,13 @@ class SendMessageRequest extends $pb.GeneratedMessage {
     ..pPS(3, _omitFieldNames ? '' : 'attachmentIds')
     ..aOS(4, _omitFieldNames ? '' : 'replyToId')
     ..aOS(5, _omitFieldNames ? '' : 'clientMessageId')
+    ..a<$core.List<$core.int>>(
+        6, _omitFieldNames ? '' : 'ciphertext', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        7, _omitFieldNames ? '' : 'nonce', $pb.PbFieldType.OY)
+    ..aOS(8, _omitFieldNames ? '' : 'senderDeviceKeyId')
+    ..aI(9, _omitFieldNames ? '' : 'keyEpoch')
+    ..aOS(10, _omitFieldNames ? '' : 'cryptoVersion')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1881,6 +1985,8 @@ class SendMessageRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearConversationId() => $_clearField(1);
 
+  /// Plain text. Only accepted for unencrypted sends; an encrypted client sends
+  /// `ciphertext` instead.
   @$pb.TagNumber(2)
   $core.String get text => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -1912,6 +2018,52 @@ class SendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasClientMessageId() => $_has(4);
   @$pb.TagNumber(5)
   void clearClientMessageId() => $_clearField(5);
+
+  /// The sealed content, plus what a reader needs to find the key.
+  @$pb.TagNumber(6)
+  $core.List<$core.int> get ciphertext => $_getN(5);
+  @$pb.TagNumber(6)
+  set ciphertext($core.List<$core.int> value) => $_setBytes(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCiphertext() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCiphertext() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.List<$core.int> get nonce => $_getN(6);
+  @$pb.TagNumber(7)
+  set nonce($core.List<$core.int> value) => $_setBytes(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasNonce() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearNonce() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.String get senderDeviceKeyId => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set senderDeviceKeyId($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasSenderDeviceKeyId() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSenderDeviceKeyId() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get keyEpoch => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set keyEpoch($core.int value) => $_setSignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasKeyEpoch() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearKeyEpoch() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get cryptoVersion => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set cryptoVersion($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasCryptoVersion() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearCryptoVersion() => $_clearField(10);
 }
 
 class SendMessageResponse extends $pb.GeneratedMessage {
@@ -1979,10 +2131,16 @@ class EditMessageRequest extends $pb.GeneratedMessage {
   factory EditMessageRequest({
     $core.String? messageId,
     $core.String? text,
+    $core.List<$core.int>? ciphertext,
+    $core.List<$core.int>? nonce,
+    $core.String? cryptoVersion,
   }) {
     final result = EditMessageRequest._();
     if (messageId != null) result.messageId = messageId;
     if (text != null) result.text = text;
+    if (ciphertext != null) result.ciphertext = ciphertext;
+    if (nonce != null) result.nonce = nonce;
+    if (cryptoVersion != null) result.cryptoVersion = cryptoVersion;
     return result;
   }
 
@@ -2001,6 +2159,11 @@ class EditMessageRequest extends $pb.GeneratedMessage {
       createEmptyInstance: EditMessageRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'messageId')
     ..aOS(2, _omitFieldNames ? '' : 'text')
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'ciphertext', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        4, _omitFieldNames ? '' : 'nonce', $pb.PbFieldType.OY)
+    ..aOS(5, _omitFieldNames ? '' : 'cryptoVersion')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2034,6 +2197,7 @@ class EditMessageRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearMessageId() => $_clearField(1);
 
+  /// Plain text, for unencrypted conversations only.
   @$pb.TagNumber(2)
   $core.String get text => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -2042,6 +2206,35 @@ class EditMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasText() => $_has(1);
   @$pb.TagNumber(2)
   void clearText() => $_clearField(2);
+
+  /// The re-sealed content. The server replaces the stored ciphertext, so it
+  /// never sees the new text either.
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get ciphertext => $_getN(2);
+  @$pb.TagNumber(3)
+  set ciphertext($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasCiphertext() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearCiphertext() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.int> get nonce => $_getN(3);
+  @$pb.TagNumber(4)
+  set nonce($core.List<$core.int> value) => $_setBytes(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasNonce() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearNonce() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get cryptoVersion => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set cryptoVersion($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasCryptoVersion() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearCryptoVersion() => $_clearField(5);
 }
 
 class EditMessageResponse extends $pb.GeneratedMessage {
@@ -3002,11 +3195,13 @@ class UploadAttachmentRequest extends $pb.GeneratedMessage {
     $core.String? filename,
     $core.String? contentType,
     $core.List<$core.int>? data,
+    $core.bool? encrypted,
   }) {
     final result = UploadAttachmentRequest._();
     if (filename != null) result.filename = filename;
     if (contentType != null) result.contentType = contentType;
     if (data != null) result.data = data;
+    if (encrypted != null) result.encrypted = encrypted;
     return result;
   }
 
@@ -3027,6 +3222,7 @@ class UploadAttachmentRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'contentType')
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'data', $pb.PbFieldType.OY)
+    ..aOB(4, _omitFieldNames ? '' : 'encrypted')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3053,6 +3249,9 @@ class UploadAttachmentRequest extends $pb.GeneratedMessage {
           UploadAttachmentRequest.$_createMessage);
   static UploadAttachmentRequest? _defaultInstance;
 
+  /// Advisory labels. An encrypted client sends the sealed bytes and leaves the
+  /// real filename and type inside the message envelope, so the server stores
+  /// these as opaque placeholders.
   @$pb.TagNumber(1)
   $core.String get filename => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -3071,6 +3270,7 @@ class UploadAttachmentRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearContentType() => $_clearField(2);
 
+  /// The file itself, or its ciphertext when the client is encrypting.
   @$pb.TagNumber(3)
   $core.List<$core.int> get data => $_getN(2);
   @$pb.TagNumber(3)
@@ -3079,6 +3279,15 @@ class UploadAttachmentRequest extends $pb.GeneratedMessage {
   $core.bool hasData() => $_has(2);
   @$pb.TagNumber(3)
   void clearData() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.bool get encrypted => $_getBF(3);
+  @$pb.TagNumber(4)
+  set encrypted($core.bool value) => $_setBool(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasEncrypted() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearEncrypted() => $_clearField(4);
 }
 
 class UploadAttachmentResponse extends $pb.GeneratedMessage {
@@ -4090,7 +4299,10 @@ class ChatServiceApi {
       _client.invoke<SetTypingResponse>(
           ctx, 'ChatService', 'SetTyping', request, SetTypingResponse());
 
-  /// Full-text substring search over the caller's conversations.
+  /// Substring search over the caller's conversations. It can only match
+  /// plaintext: end-to-end encrypted message bodies are opaque to the server, so
+  /// an encrypted conversation returns nothing here and the client searches
+  /// locally instead (docs/E2EE.md).
   $async.Future<SearchMessagesResponse> searchMessages(
           $pb.ClientContext? ctx, SearchMessagesRequest request) =>
       _client.invoke<SearchMessagesResponse>(ctx, 'ChatService',

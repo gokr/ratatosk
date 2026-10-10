@@ -115,6 +115,18 @@ const Message$json = {
       '10': 'replyTo'
     },
     {'1': 'reply_to_id', '3': 14, '4': 1, '5': 9, '10': 'replyToId'},
+    {'1': 'ciphertext', '3': 15, '4': 1, '5': 12, '10': 'ciphertext'},
+    {'1': 'nonce', '3': 16, '4': 1, '5': 12, '10': 'nonce'},
+    {
+      '1': 'sender_device_key_id',
+      '3': 17,
+      '4': 1,
+      '5': 9,
+      '10': 'senderDeviceKeyId'
+    },
+    {'1': 'key_epoch', '3': 18, '4': 1, '5': 5, '10': 'keyEpoch'},
+    {'1': 'encrypted', '3': 19, '4': 1, '5': 8, '10': 'encrypted'},
+    {'1': 'crypto_version', '3': 20, '4': 1, '5': 9, '10': 'cryptoVersion'},
   ],
 };
 
@@ -130,7 +142,10 @@ final $typed_data.Uint8List messageDescriptor = $convert.base64Decode(
     'lkGAogASgJUg9jbGllbnRNZXNzYWdlSWQSLAoEa2luZBgLIAEoDjIYLnJhdGF0b3NrLnYxLk1l'
     'c3NhZ2VLaW5kUgRraW5kEhAKA3NlcRgMIAEoA1IDc2VxEjQKCHJlcGx5X3RvGA0gASgLMhkucm'
     'F0YXRvc2sudjEuUmVwbHlQcmV2aWV3UgdyZXBseVRvEh4KC3JlcGx5X3RvX2lkGA4gASgJUgly'
-    'ZXBseVRvSWQ=');
+    'ZXBseVRvSWQSHgoKY2lwaGVydGV4dBgPIAEoDFIKY2lwaGVydGV4dBIUCgVub25jZRgQIAEoDF'
+    'IFbm9uY2USLwoUc2VuZGVyX2RldmljZV9rZXlfaWQYESABKAlSEXNlbmRlckRldmljZUtleUlk'
+    'EhsKCWtleV9lcG9jaBgSIAEoBVIIa2V5RXBvY2gSHAoJZW5jcnlwdGVkGBMgASgIUgllbmNyeX'
+    'B0ZWQSJQoOY3J5cHRvX3ZlcnNpb24YFCABKAlSDWNyeXB0b1ZlcnNpb24=');
 
 @$core.Deprecated('Use memberDescriptor instead')
 const Member$json = {
@@ -554,6 +569,17 @@ const SendMessageRequest$json = {
     {'1': 'attachment_ids', '3': 3, '4': 3, '5': 9, '10': 'attachmentIds'},
     {'1': 'reply_to_id', '3': 4, '4': 1, '5': 9, '10': 'replyToId'},
     {'1': 'client_message_id', '3': 5, '4': 1, '5': 9, '10': 'clientMessageId'},
+    {'1': 'ciphertext', '3': 6, '4': 1, '5': 12, '10': 'ciphertext'},
+    {'1': 'nonce', '3': 7, '4': 1, '5': 12, '10': 'nonce'},
+    {
+      '1': 'sender_device_key_id',
+      '3': 8,
+      '4': 1,
+      '5': 9,
+      '10': 'senderDeviceKeyId'
+    },
+    {'1': 'key_epoch', '3': 9, '4': 1, '5': 5, '10': 'keyEpoch'},
+    {'1': 'crypto_version', '3': 10, '4': 1, '5': 9, '10': 'cryptoVersion'},
   ],
 };
 
@@ -562,7 +588,10 @@ final $typed_data.Uint8List sendMessageRequestDescriptor = $convert.base64Decode
     'ChJTZW5kTWVzc2FnZVJlcXVlc3QSJwoPY29udmVyc2F0aW9uX2lkGAEgASgJUg5jb252ZXJzYX'
     'Rpb25JZBISCgR0ZXh0GAIgASgJUgR0ZXh0EiUKDmF0dGFjaG1lbnRfaWRzGAMgAygJUg1hdHRh'
     'Y2htZW50SWRzEh4KC3JlcGx5X3RvX2lkGAQgASgJUglyZXBseVRvSWQSKgoRY2xpZW50X21lc3'
-    'NhZ2VfaWQYBSABKAlSD2NsaWVudE1lc3NhZ2VJZA==');
+    'NhZ2VfaWQYBSABKAlSD2NsaWVudE1lc3NhZ2VJZBIeCgpjaXBoZXJ0ZXh0GAYgASgMUgpjaXBo'
+    'ZXJ0ZXh0EhQKBW5vbmNlGAcgASgMUgVub25jZRIvChRzZW5kZXJfZGV2aWNlX2tleV9pZBgIIA'
+    'EoCVIRc2VuZGVyRGV2aWNlS2V5SWQSGwoJa2V5X2Vwb2NoGAkgASgFUghrZXlFcG9jaBIlCg5j'
+    'cnlwdG9fdmVyc2lvbhgKIAEoCVINY3J5cHRvVmVyc2lvbg==');
 
 @$core.Deprecated('Use sendMessageResponseDescriptor instead')
 const SendMessageResponse$json = {
@@ -590,13 +619,17 @@ const EditMessageRequest$json = {
   '2': [
     {'1': 'message_id', '3': 1, '4': 1, '5': 9, '10': 'messageId'},
     {'1': 'text', '3': 2, '4': 1, '5': 9, '10': 'text'},
+    {'1': 'ciphertext', '3': 3, '4': 1, '5': 12, '10': 'ciphertext'},
+    {'1': 'nonce', '3': 4, '4': 1, '5': 12, '10': 'nonce'},
+    {'1': 'crypto_version', '3': 5, '4': 1, '5': 9, '10': 'cryptoVersion'},
   ],
 };
 
 /// Descriptor for `EditMessageRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List editMessageRequestDescriptor = $convert.base64Decode(
     'ChJFZGl0TWVzc2FnZVJlcXVlc3QSHQoKbWVzc2FnZV9pZBgBIAEoCVIJbWVzc2FnZUlkEhIKBH'
-    'RleHQYAiABKAlSBHRleHQ=');
+    'RleHQYAiABKAlSBHRleHQSHgoKY2lwaGVydGV4dBgDIAEoDFIKY2lwaGVydGV4dBIUCgVub25j'
+    'ZRgEIAEoDFIFbm9uY2USJQoOY3J5cHRvX3ZlcnNpb24YBSABKAlSDWNyeXB0b1ZlcnNpb24=');
 
 @$core.Deprecated('Use editMessageResponseDescriptor instead')
 const EditMessageResponse$json = {
@@ -847,13 +880,15 @@ const UploadAttachmentRequest$json = {
     {'1': 'filename', '3': 1, '4': 1, '5': 9, '10': 'filename'},
     {'1': 'content_type', '3': 2, '4': 1, '5': 9, '10': 'contentType'},
     {'1': 'data', '3': 3, '4': 1, '5': 12, '10': 'data'},
+    {'1': 'encrypted', '3': 4, '4': 1, '5': 8, '10': 'encrypted'},
   ],
 };
 
 /// Descriptor for `UploadAttachmentRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List uploadAttachmentRequestDescriptor = $convert.base64Decode(
     'ChdVcGxvYWRBdHRhY2htZW50UmVxdWVzdBIaCghmaWxlbmFtZRgBIAEoCVIIZmlsZW5hbWUSIQ'
-    'oMY29udGVudF90eXBlGAIgASgJUgtjb250ZW50VHlwZRISCgRkYXRhGAMgASgMUgRkYXRh');
+    'oMY29udGVudF90eXBlGAIgASgJUgtjb250ZW50VHlwZRISCgRkYXRhGAMgASgMUgRkYXRhEhwK'
+    'CWVuY3J5cHRlZBgEIAEoCFIJZW5jcnlwdGVk');
 
 @$core.Deprecated('Use uploadAttachmentResponseDescriptor instead')
 const UploadAttachmentResponse$json = {

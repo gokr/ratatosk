@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package ratatosk.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1";
+
+// The public half of the end-to-end encryption keys, plus the key envelopes
+// that distribute group sender keys. See docs/E2EE.md for the protocol itself.
+//
+// Nothing here is secret. The server is a directory for public keys and an
+// opaque mailbox for wrapped sender keys; it can neither read a message nor
+// forge a key envelope.
+service KeyService {
+  // Publish (or update) this device's public keys. Idempotent per key id, so a
+  // client may call it on every start.
+  rpc PublishDeviceKey(PublishDeviceKeyRequest) returns (PublishDeviceKeyResponse) {}
+  // The device keys of the named users. Clients need this before they can
+  // encrypt anything, so it is one call for a whole member list.
+  rpc ListDeviceKeys(ListDeviceKeysRequest) returns (ListDeviceKeysResponse) {}
+  // Stop using a device key: it disappears from ListDeviceKeys. Messages
+  // already encrypted to it stay unreadable, which is the point.
+  rpc RevokeDeviceKey(RevokeDeviceKeyRequest) returns (RevokeDeviceKeyResponse) {}
+
+  // Deposit a wrapped sender key for one recipient device. The receiver finds
+  // it with ListKeyEnvelopes.
+  rpc PutKeyEnvelope(PutKeyEnvelopeRequest) returns (PutKeyEnvelopeResponse) {}
+  // The envelopes addressed to this device, newest first. `since` makes the
+  // call cheap to repeat.
+  rpc ListKeyEnvelopes(ListKeyEnvelopesRequest) returns (ListKeyEnvelopesResponse) {}
+}
+
+// One install's public keys. The private halves never leave the device.
+message DeviceKey {
+  // Opaque server-assigned id, referenced by envelopes and by messages.
+  string id = 1;
+  string user_id = 2;
+  // X25519 public key (32 bytes), for key agreement.
+  bytes identity_public_key = 3;
+  // Ed25519 public key (32 bytes), for signatures and future key transparency.
+  bytes signing_public_key = 4;
+  // Human label, e.g. "Pixel 8" or "Firefox on Linux".
+  string label = 5;
+  // The app that owns the key: "linux", "android", "ios", "web", "macos",
+  // "windows". A client shows it to explain where a key came from.
+  string platform = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp last_seen = 8;
+  // Hex SHA-256 over both public keys, in the exact form safety numbers digest.
+  // Convenience only: clients verify it themselves.
+  string fingerprint = 9;
+  bool revoked = 10;
+}
+
+// A sender key, sealed once per recipient device. The server sees opaque bytes.
+//
+// The sender key itself is identified by the triple
+// (conversation_id, sender_device_key_id, epoch): a device's sender key for a
+// conversation, at one generation. Rotating membership means a new epoch.
+message KeyEnvelope {
+  string id = 1;
+  string conversation_id = 2;
+  // The device whose sender key this wraps.
+  string sender_device_key_id = 3;
+  // The device the wrapped key is addressed to.
+  string recipient_device_key_id = 4;
+  int32 epoch = 5;
+  // XChaCha20-Poly1305 seal of the 32-byte sender key.
+  bytes wrapped_key = 6;
+  bytes nonce = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message PublishDeviceKeyRequest {
+  // Set to rotate an existing key; empty registers a new device.
+  string id = 1;
+  bytes identity_public_key = 2;
+  bytes signing_public_key = 3;
+  string label = 4;
+  string platform = 5;
+}
+
+message PublishDeviceKeyResponse {
+  DeviceKey device_key = 1;
+}
+
+message ListDeviceKeysRequest {
+  // Users whose device keys are wanted. Empty lists the caller's own.
+  repeated string user_ids = 1;
+  // Include revoked keys, for auditing what a conversation's history was
+  // encrypted to.
+  bool include_revoked = 2;
+}
+
+message ListDeviceKeysResponse {
+  repeated DeviceKey device_keys = 1;
+}
+
+message RevokeDeviceKeyRequest {
+  string id = 1;
+}
+
+message RevokeDeviceKeyResponse {}
+
+message PutKeyEnvelopeRequest {
+  string conversation_id = 1;
+  string sender_device_key_id = 2;
+  string recipient_device_key_id = 3;
+  int32 epoch = 4;
+  bytes wrapped_key = 5;
+  bytes nonce = 6;
+}
+
+message PutKeyEnvelopeResponse {
+  KeyEnvelope envelope = 1;
+}
+
+message ListKeyEnvelopesRequest {
+  // Only envelopes for this conversation; empty means all of them.
+  string conversation_id = 1;
+  // Only envelopes created after this time, for cheap polling.
+  google.protobuf.Timestamp since = 2;
+}
+
+message ListKeyEnvelopesResponse {
+  repeated KeyEnvelope envelopes = 1;
+}

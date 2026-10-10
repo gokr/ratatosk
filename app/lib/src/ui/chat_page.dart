@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../crypto/manager.dart';
 import '../gen/ratatosk/v1/chat.pb.dart';
 import '../gen/ratatosk/v1/common.pb.dart';
 import '../state/app_state.dart';
 import 'conversation_details_page.dart';
+import 'encryption_sheet.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets/avatar.dart';
 import 'widgets/composer.dart';
+import 'widgets/encrypted_image.dart';
 import 'widgets/message_bubble.dart';
 
 /// One conversation: the message thread, its header and the composer.
@@ -147,6 +150,10 @@ class _ChatPageState extends State<ChatPage> {
         ),
       ),
       actions: [
+        EncryptionBadge(
+          verified: state.isVerified(conversation.id),
+          onTap: () => showEncryptionSheet(context, conversation.id),
+        ),
         IconButton(
           tooltip: conversation.muted ? 'Unmute' : 'Mute',
           icon: Icon(conversation.muted ? Icons.notifications_off : Icons.notifications_none),
@@ -266,7 +273,9 @@ class _ChatPageState extends State<ChatPage> {
     return sameDay ? null : ChatFormat.dayLabel(created);
   }
 
-  void _viewImage(BuildContext context, AppState state, Attachment attachment) {
+  /// Opens one image full screen. The bytes are decrypted into memory first,
+  /// because what the server holds is ciphertext.
+  void _viewImage(BuildContext context, AppState state, DecryptedAttachment attachment) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
@@ -274,7 +283,11 @@ class _ChatPageState extends State<ChatPage> {
           appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
           body: Center(
             child: InteractiveViewer(
-              child: Image.network(state.fileUrl(attachment.url)),
+              child: EncryptedImage(
+                attachment: attachment,
+                url: state.fileUrl('/files/${attachment.blobId}'),
+                fit: BoxFit.contain,
+              ),
             ),
           ),
         ),

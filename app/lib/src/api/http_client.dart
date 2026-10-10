@@ -6,4 +6,5 @@
 // choice is made at compile time through a conditional export.
 export 'http_client_stub.dart'
     if (dart.library.io) 'http_client_io.dart'
-    if (dart.library.js_interop) 'http_client_web.dart';
+    if (dart.library.js_interop) 'http_client_web.dart'
+    show createConnectHttpClient;

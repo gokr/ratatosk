@@ -133,7 +133,10 @@ abstract final class ChatService {
     ratatoskv1chat.SetTypingResponse.new,
   );
 
-  /// Full-text substring search over the caller's conversations.
+  /// Substring search over the caller's conversations. It can only match
+  /// plaintext: end-to-end encrypted message bodies are opaque to the server, so
+  /// an encrypted conversation returns nothing here and the client searches
+  /// locally instead (docs/E2EE.md).
   static const searchMessages = connect.Spec(
     '/$name/SearchMessages',
     connect.StreamType.unary,

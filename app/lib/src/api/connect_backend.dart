@@ -8,9 +8,12 @@ import '../gen/ratatosk/v1/auth.pb.dart';
 import '../gen/ratatosk/v1/chat.connect.client.dart';
 import '../gen/ratatosk/v1/chat.pb.dart';
 import '../gen/ratatosk/v1/common.pb.dart';
+import '../gen/ratatosk/v1/keys.connect.client.dart';
+import '../gen/ratatosk/v1/keys.pb.dart';
 import '../gen/ratatosk/v1/social.connect.client.dart';
 import '../gen/ratatosk/v1/social.pb.dart';
 import 'backend.dart';
+import 'http_client.dart';
 
 /// [ChatBackend] on top of the generated Connect clients.
 ///
@@ -21,6 +24,7 @@ class ConnectBackend implements ChatBackend {
     auth = AuthServiceClient(_transport);
     chat = ChatServiceClient(_transport);
     social = SocialServiceClient(_transport);
+    keys = KeyServiceClient(_transport);
   }
 
   @override
@@ -38,9 +42,17 @@ class ConnectBackend implements ChatBackend {
   late final AuthServiceClient auth;
   late final ChatServiceClient chat;
   late final SocialServiceClient social;
+  late final KeyServiceClient keys;
+
+  /// The device key this install holds, sent as a header so the server can
+  /// scope the key-envelope calls to it.
+  String? _deviceKeyId;
 
   @override
   void setToken(String? token) => _token = token;
+
+  @override
+  void setDeviceKeyId(String? deviceKeyId) => _deviceKeyId = deviceKeyId;
 
   @override
   String fileUrl(String path) {
@@ -52,6 +64,32 @@ class ConnectBackend implements ChatBackend {
     // on native clients this is equally harmless and keeps one code path.
     final separator = resolved.contains('?') ? '&' : '?';
     return '$resolved${separator}token=$_token';
+  }
+
+  @override
+  Future<Uint8List> fetchBytes(String path) async {
+    // A plain authenticated GET outside the Connect transport: this is file
+    // transfer, not an RPC, and it has to stream bytes rather than a message.
+    final client = createConnectHttpClient();
+    final headers = connect_rpc.Headers();
+    if (_token != null) {
+      headers.set('authorization', ['Bearer $_token']);
+    }
+    final response = await client(connect_rpc.HttpRequest(
+      baseUrl.resolve(path).toString(),
+      'GET',
+      headers,
+      null,
+      null,
+    ));
+    if (response.status != 200) {
+      throw StateError('could not fetch $path (HTTP ${response.status})');
+    }
+    final chunks = <int>[];
+    await for (final chunk in response.body) {
+      chunks.addAll(chunk);
+    }
+    return Uint8List.fromList(chunks);
   }
 
   /// One interceptor for every call, unary and streaming alike: this is what
@@ -68,6 +106,10 @@ class ConnectBackend implements ChatBackend {
           // `set` rather than the `[]=` extension: the extension only resolves
           // when its library is imported without a prefix.
           request.headers.set('authorization', ['Bearer $token']);
+        }
+        final deviceKeyId = _deviceKeyId;
+        if (deviceKeyId != null && deviceKeyId.isNotEmpty) {
+          request.headers.set('x-ratatosk-device-key', [deviceKeyId]);
         }
         return next(request);
       };
@@ -231,6 +273,46 @@ class ConnectBackend implements ChatBackend {
   }
 
   @override
+  Future<Message> sendEncryptedMessage(
+    String conversationId, {
+    required Uint8List ciphertext,
+    required Uint8List nonce,
+    required String senderDeviceKeyId,
+    required int keyEpoch,
+    required String cryptoVersion,
+    List<String> attachmentIds = const [],
+    String? clientMessageId,
+  }) async {
+    final response = await chat.sendMessage(SendMessageRequest(
+      conversationId: conversationId,
+      ciphertext: ciphertext,
+      nonce: nonce,
+      senderDeviceKeyId: senderDeviceKeyId,
+      keyEpoch: keyEpoch,
+      cryptoVersion: cryptoVersion,
+      attachmentIds: attachmentIds,
+      clientMessageId: clientMessageId ?? '',
+    ));
+    return response.message;
+  }
+
+  @override
+  Future<Message> editEncryptedMessage(
+    String messageId, {
+    required Uint8List ciphertext,
+    required Uint8List nonce,
+    required String cryptoVersion,
+  }) async {
+    final response = await chat.editMessage(EditMessageRequest(
+      messageId: messageId,
+      ciphertext: ciphertext,
+      nonce: nonce,
+      cryptoVersion: cryptoVersion,
+    ));
+    return response.message;
+  }
+
+  @override
   Future<Message> editMessage(String messageId, String text) async {
     final response = await chat.editMessage(EditMessageRequest(messageId: messageId, text: text));
     return response.message;
@@ -289,13 +371,76 @@ class ConnectBackend implements ChatBackend {
     required String filename,
     required String contentType,
     required Uint8List data,
+    bool encrypted = false,
   }) async {
     final response = await chat.uploadAttachment(UploadAttachmentRequest(
       filename: filename,
       contentType: contentType,
       data: data,
+      encrypted: encrypted,
     ));
     return response.attachment;
+  }
+
+  // --- end-to-end encryption ---------------------------------------------
+
+  @override
+  Future<DeviceKey> publishDeviceKey({
+    String id = '',
+    required Uint8List identityPublicKey,
+    required Uint8List signingPublicKey,
+    String label = '',
+    String platform = '',
+  }) async {
+    final response = await keys.publishDeviceKey(PublishDeviceKeyRequest(
+      id: id,
+      identityPublicKey: identityPublicKey,
+      signingPublicKey: signingPublicKey,
+      label: label,
+      platform: platform,
+    ));
+    return response.deviceKey;
+  }
+
+  @override
+  Future<List<DeviceKey>> listDeviceKeys(List<String> userIds, {bool includeRevoked = false}) async {
+    final response = await keys.listDeviceKeys(ListDeviceKeysRequest(
+      userIds: userIds,
+      includeRevoked: includeRevoked,
+    ));
+    return response.deviceKeys;
+  }
+
+  @override
+  Future<void> revokeDeviceKey(String id) async {
+    await keys.revokeDeviceKey(RevokeDeviceKeyRequest(id: id));
+  }
+
+  @override
+  Future<void> putKeyEnvelope({
+    required String conversationId,
+    required String senderDeviceKeyId,
+    required String recipientDeviceKeyId,
+    required int epoch,
+    required Uint8List wrappedKey,
+    required Uint8List nonce,
+  }) async {
+    await keys.putKeyEnvelope(PutKeyEnvelopeRequest(
+      conversationId: conversationId,
+      senderDeviceKeyId: senderDeviceKeyId,
+      recipientDeviceKeyId: recipientDeviceKeyId,
+      epoch: epoch,
+      wrappedKey: wrappedKey,
+      nonce: nonce,
+    ));
+  }
+
+  @override
+  Future<List<KeyEnvelope>> listKeyEnvelopes({String conversationId = ''}) async {
+    final response = await keys.listKeyEnvelopes(ListKeyEnvelopesRequest(
+      conversationId: conversationId,
+    ));
+    return response.envelopes;
   }
 
   @override

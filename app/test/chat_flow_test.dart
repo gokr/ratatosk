@@ -9,6 +9,8 @@ import 'package:watch_it/watch_it.dart';
 
 import 'package:ratatosk/src/api/backend.dart';
 import 'package:ratatosk/src/app.dart';
+import 'package:ratatosk/src/crypto/identity.dart';
+import 'package:ratatosk/src/crypto/manager.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/chat.pb.dart';
 import 'package:ratatosk/src/link_controller.dart';
 import 'package:ratatosk/src/session_store.dart';
@@ -16,6 +18,7 @@ import 'package:ratatosk/src/state/app_state.dart';
 import 'package:ratatosk/src/ui/chat_list_page.dart';
 import 'package:ratatosk/src/ui/chat_page.dart';
 import 'package:ratatosk/src/ui/theme.dart';
+import 'package:ratatosk/src/ui/widgets/encrypted_image.dart';
 
 import 'fake_backend.dart';
 
@@ -30,10 +33,18 @@ void main() {
   setUp(() {
     backend = FakeBackend();
     now = DateTime.now();
-    state = AppState(backend: backend, clock: () => now);
+    // Encryption runs against the in-memory key store: the widget tests cover
+    // the UI, and the crypto itself has its own test file.
+    final crypto = CryptoManager(
+      backend: backend,
+      storage: MemoryKeyStorage(),
+    );
+    state = AppState(backend: backend, crypto: crypto, clock: () => now);
     // The widget tree reaches for these through get_it; registering the fake as
     // the backend is all it takes to run the UI without a network.
     di.registerSingleton<ChatBackend>(backend);
+    di.registerSingleton<CryptoManager>(crypto);
+    di.registerSingleton<AttachmentCache>(AttachmentCache());
     di.registerSingleton<AppState>(state);
     di.registerSingleton<LinkController>(LinkController());
     di.registerSingleton<SessionStore>(SessionStore());

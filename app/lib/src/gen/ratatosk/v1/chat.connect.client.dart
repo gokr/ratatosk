@@ -281,7 +281,10 @@ extension type ChatServiceClient (connect.Transport _transport) {
     );
   }
 
-  /// Full-text substring search over the caller's conversations.
+  /// Substring search over the caller's conversations. It can only match
+  /// plaintext: end-to-end encrypted message bodies are opaque to the server, so
+  /// an encrypted conversation returns nothing here and the client searches
+  /// locally instead (docs/E2EE.md).
   Future<ratatoskv1chat.SearchMessagesResponse> searchMessages(
     ratatoskv1chat.SearchMessagesRequest input, {
     connect.Headers? headers,

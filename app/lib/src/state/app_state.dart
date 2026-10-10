@@ -5,9 +5,16 @@ import 'package:flutter/foundation.dart';
 import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 
 import '../api/backend.dart';
+import '../crypto/crypto.dart';
+import '../crypto/manager.dart';
+import '../crypto/message_content.dart';
 import '../gen/ratatosk/v1/chat.pb.dart';
 import '../gen/ratatosk/v1/common.pb.dart';
 import '../gen/ratatosk/v1/social.pb.dart';
+
+/// A file the user picked, before it is sealed and uploaded. The bytes are
+/// already in memory, so sealing them costs nothing extra.
+typedef AttachmentUpload = ({String filename, String contentType, Uint8List bytes});
 
 /// How far a message has got on its way to the server.
 enum SendState {
@@ -72,10 +79,16 @@ class TypingIndicator {
 ///    and catches up from the store. A chat client that quietly stops updating
 ///    is worse than one that reloads slightly more than it had to.
 class AppState extends ChangeNotifier {
-  AppState({required this.backend, DateTime Function()? clock})
-      : _clock = clock ?? DateTime.now;
+  AppState({
+    required this.backend,
+    required this.crypto,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now;
 
   final ChatBackend backend;
+
+  /// End-to-end encryption: keys, sender keys and the decrypted message cache.
+  final CryptoManager crypto;
 
   /// The clock the manager reads. Injectable so tests can advance time without
   /// waiting; every expiry decision goes through it.
@@ -130,6 +143,7 @@ class AppState extends ChangeNotifier {
       backend.setToken(savedToken);
       _me = await backend.getMe();
       _signedIn = true;
+      await _setUpEncryption();
       await _loadInitialData();
       _startRealtime();
     } catch (error) {
@@ -166,6 +180,7 @@ class AppState extends ChangeNotifier {
       _me = result.user;
       _signedIn = true;
       _persistToken(result.token);
+      await _setUpEncryption();
       await _loadInitialData();
       _startRealtime();
     } catch (error) {
@@ -215,6 +230,52 @@ class AppState extends ChangeNotifier {
     _typingRefreshTimer?.cancel();
     super.dispose();
   }
+
+  /// Brings up this install's encryption identity.
+  ///
+  /// A failure here is not fatal to the session: the app works, but messages
+  /// are visibly unencrypted/unreadable and the UI says so, which is better
+  /// than refusing to start.
+  Future<void> _setUpEncryption() async {
+    final me = _me;
+    if (me == null) return;
+    try {
+      await crypto.initialize(
+        userId: me.id,
+        label: _deviceLabel(),
+        platform: _platformName(),
+      );
+    } catch (error) {
+      _lastError = 'Encryption is not available on this device: ${describeError(error)}';
+    }
+  }
+
+  static String _deviceLabel() => defaultTargetPlatform == TargetPlatform.linux
+      ? 'Linux desktop'
+      : defaultTargetPlatform == TargetPlatform.macOS
+          ? 'macOS desktop'
+          : defaultTargetPlatform == TargetPlatform.windows
+              ? 'Windows desktop'
+              : defaultTargetPlatform == TargetPlatform.android
+                  ? 'Android device'
+                  : defaultTargetPlatform == TargetPlatform.iOS
+                      ? 'iOS device'
+                      : 'This device';
+
+  static String _platformName() => switch (defaultTargetPlatform) {
+        TargetPlatform.android => 'android',
+        TargetPlatform.iOS => 'ios',
+        TargetPlatform.macOS => 'macos',
+        TargetPlatform.windows => 'windows',
+        TargetPlatform.linux => 'linux',
+        TargetPlatform.fuchsia => 'fuchsia',
+      };
+
+  /// Whether this device can encrypt and decrypt.
+  bool get encryptionReady => crypto.ready;
+
+  /// This device's key fingerprint, for the safety-number screen.
+  String get ownFingerprint => crypto.ownFingerprint;
 
   Future<void> _loadInitialData() async {
     final results = await Future.wait([
@@ -391,8 +452,15 @@ class AppState extends ChangeNotifier {
   Future<void> openConversation(String conversationId) async {
     _openConversationId = conversationId;
     notifyListeners();
+    final conversation = _conversations[conversationId];
+    if (conversation != null) {
+      // Keys first: history that arrives before the sender keys is unreadable.
+      await crypto.prepareConversation(conversation);
+    }
     if (!_loadedConversations.contains(conversationId)) {
       await _loadHistory(conversationId);
+    } else {
+      await _decryptHistory(conversationId);
     }
     await markRead(conversationId);
   }
@@ -424,6 +492,7 @@ class AppState extends ChangeNotifier {
       _messages[conversationId] = page.messages.map(ChatMessage.new).toList();
       _hasOlder[conversationId] = page.hasMore;
       _loadedConversations.add(conversationId);
+      await _decryptHistory(conversationId);
     } catch (error) {
       if (isAuthFailure(error)) {
         await _forgetSession();
@@ -452,6 +521,7 @@ class AppState extends ChangeNotifier {
         ...existing,
       ]);
       _hasOlder[conversationId] = page.hasMore;
+      await _decryptHistory(conversationId);
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
     } finally {
@@ -498,6 +568,71 @@ class AppState extends ChangeNotifier {
       });
   }
 
+  /// Opens every sealed message in a loaded thread.
+  ///
+  /// Unreadable ones stay uncached, so the next attempt (after a sender key
+  /// arrives) can succeed. A message whose key is still missing is reported once
+  /// per pass, not per rebuild.
+  Future<void> _decryptHistory(String conversationId) async {
+    final conversation = _conversations[conversationId];
+    final list = _messages[conversationId];
+    if (conversation == null || list == null || !crypto.ready) return;
+    var missing = 0;
+    for (final entry in list) {
+      if (!entry.message.encrypted || entry.message.deleted) continue;
+      if (crypto.cached(entry.message) != null || _localBodies.containsKey(entry.id)) continue;
+      final body = await crypto.decryptMessage(
+        conversation: conversation,
+        message: entry.message,
+        ownMessage: entry.message.senderId == _me?.id,
+      );
+      if (body.ok) {
+        _cacheLocalBody(entry.id, body);
+      } else {
+        missing++;
+      }
+    }
+    if (missing > 0) {
+      // A key may have been deposited since we last looked.
+      final learned = await crypto.collectKeys(conversation);
+      if (learned > 0) {
+        await _decryptHistory(conversationId);
+      }
+    }
+  }
+
+  /// The body the UI renders for a message: decrypted text, or a reason it
+  /// cannot be shown.
+  DecryptedMessage bodyOf(ChatMessage entry) {
+    final local = _localBodies[entry.id];
+    if (local != null) return local;
+    if (entry.message.deleted) {
+      return const DecryptedMessage(text: '');
+    }
+    final cached = crypto.cached(entry.message);
+    if (cached != null) return cached;
+    if (entry.message.encrypted) {
+      // Sealed and not openable yet: say so rather than rendering an empty
+      // bubble, which would read as "they sent nothing".
+      return const DecryptedMessage(text: '', unreadable: 'Opening…');
+    }
+    return DecryptedMessage(
+      text: entry.message.text,
+      replyToId: entry.message.replyToId.isEmpty ? null : entry.message.replyToId,
+      replyToText: entry.message.hasReplyTo() ? entry.message.replyTo.text : null,
+      attachments: entry.message.attachments
+          .map((a) => DecryptedAttachment(
+                blobId: a.id,
+                filename: a.filename,
+                contentType: a.contentType,
+                size: a.size.toInt(),
+                fileKey: Uint8List(0),
+                nonce: Uint8List(0),
+              ))
+          .toList(),
+    );
+  }
+
   /// Merges one stored message into a loaded thread. A conversation that was
   /// never opened is left alone: its history is fetched when it is.
   void _mergeMessage(String conversationId, Message message) {
@@ -516,7 +651,11 @@ class AppState extends ChangeNotifier {
 
   /// Sends a message, showing it immediately.
   ///
-  /// The optimistic copy carries a `clientMessageId`; the stored message
+  /// The body is sealed here, before anything leaves the device: the optimistic
+  /// copy the UI shows carries the plaintext only in memory, and the record that
+  /// replaces it holds the ciphertext the server stored.
+  ///
+  /// The optimistic copy also carries a `clientMessageId`; the stored message
   /// replaces it when the server answers. A failure keeps the bubble on screen
   /// with a retry affordance rather than losing what the user typed.
   Future<void> sendMessage(
@@ -524,19 +663,85 @@ class AppState extends ChangeNotifier {
     required String text,
     List<Attachment> attachments = const [],
     String? replyToId,
+    MessageContent? sealedBody,
   }) async {
+    final conversation = _conversations[conversationId];
     final clientMessageId = _newClientMessageId();
-    final draft = Message(
-      id: 'pending-$clientMessageId',
-      conversationId: conversationId,
-      senderId: _me?.id ?? '',
-      text: text,
-      attachments: attachments,
-      replyToId: replyToId ?? '',
-      clientMessageId: clientMessageId,
-      createdAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
-      kind: MessageKind.MESSAGE_KIND_TEXT,
-    );
+
+    // What the reader will see, once opened on their device.
+    final body = sealedBody ??
+        MessageContent(
+          text: text,
+          attachments: attachments
+              .map((a) => EncryptedAttachment(
+                    blobId: a.id,
+                    fileKey: Uint8List(0),
+                    nonce: Uint8List(0),
+                    filename: a.filename,
+                    contentType: a.contentType,
+                    size: a.size.toInt(),
+                  ))
+              .toList(),
+        );
+
+    // The wire copy: sealed bytes only. Locally the UI keeps the plaintext in
+    // the decryption cache, so it does not have to be sent to itself to be read.
+    Message? sealedRecord;
+    if (conversation != null && crypto.ready) {
+      try {
+        final seal = await crypto.sealMessage(conversation: conversation, content: body);
+        sealedRecord = Message(
+          id: 'pending-$clientMessageId',
+          conversationId: conversationId,
+          senderId: _me?.id ?? '',
+          ciphertext: seal.ciphertext,
+          nonce: seal.nonce,
+          senderDeviceKeyId: seal.deviceKeyId,
+          keyEpoch: seal.epoch,
+          cryptoVersion: cryptoVersion,
+          encrypted: true,
+          attachments: attachments,
+          clientMessageId: clientMessageId,
+          createdAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
+          kind: MessageKind.MESSAGE_KIND_TEXT,
+        );
+      } catch (error) {
+        _lastError = error is CryptoFailure ? error.message : describeError(error);
+        notifyListeners();
+        return;
+      }
+    }
+
+    final draft = sealedRecord ??
+        Message(
+          id: 'pending-$clientMessageId',
+          conversationId: conversationId,
+          senderId: _me?.id ?? '',
+          text: text,
+          attachments: attachments,
+          replyToId: replyToId ?? '',
+          clientMessageId: clientMessageId,
+          createdAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
+          kind: MessageKind.MESSAGE_KIND_TEXT,
+        );
+
+    // Cache the plaintext under the pending id so the bubble renders at once,
+    // and again under the stored id when the server answers.
+    _cacheLocalBody(draft.id, DecryptedMessage(
+      text: body.text,
+      attachments: body.attachments
+          .map((a) => DecryptedAttachment(
+                blobId: a.blobId,
+                filename: a.filename,
+                contentType: a.contentType,
+                size: a.size,
+                fileKey: a.fileKey,
+                nonce: a.nonce,
+              ))
+          .toList(),
+      replyToId: replyToId,
+      replyToText: _replyPreviewText(conversationId, replyToId),
+    ));
 
     final list = _messages.putIfAbsent(conversationId, () => []);
     list.add(ChatMessage(draft, state: SendState.sending));
@@ -550,6 +755,81 @@ class AppState extends ChangeNotifier {
     await _deliver(conversationId, draft);
   }
 
+  /// Sends a message with files: each file is sealed, uploaded as ciphertext,
+  /// and described inside the message envelope so only the reader can see what
+  /// it is.
+  ///
+  /// This is the path the composer uses. Keeping it here rather than in the
+  /// widget means the UI never touches key material.
+  Future<void> sendMessageWithFiles(
+    String conversationId, {
+    required String text,
+    List<AttachmentUpload> files = const [],
+    String? replyToId,
+  }) async {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return;
+
+    final sealedAttachments = <EncryptedAttachment>[];
+    final plainAttachments = <Attachment>[];
+    for (final file in files) {
+      try {
+        if (crypto.ready) {
+          final sealed = await crypto.sealFile(file.bytes);
+          final uploaded = await backend.uploadAttachment(
+            filename: file.filename,
+            contentType: file.contentType,
+            data: sealed.ciphertext,
+            encrypted: true,
+          );
+          sealedAttachments.add(EncryptedAttachment(
+            blobId: uploaded.id,
+            fileKey: sealed.key,
+            nonce: sealed.nonce,
+            filename: file.filename,
+            contentType: file.contentType,
+            size: file.bytes.length,
+          ));
+        } else {
+          // Without encryption set up there is nothing to seal the file with, so
+          // the file goes as it is and the UI shows it straight from the server.
+          plainAttachments.add(await backend.uploadAttachment(
+            filename: file.filename,
+            contentType: file.contentType,
+            data: file.bytes,
+          ));
+        }
+      } catch (error) {
+        _lastError = 'Could not attach ${file.filename}: ${describeError(error)}';
+        notifyListeners();
+        return;
+      }
+    }
+
+    final body = MessageContent(
+      text: text,
+      attachments: sealedAttachments,
+      replyTo: _replyQuoteFor(conversationId, replyToId),
+    );
+    await sendMessage(
+      conversationId,
+      text: text,
+      attachments: plainAttachments,
+      replyToId: replyToId,
+      sealedBody: crypto.ready ? body : null,
+    );
+  }
+
+  ReplyQuote? _replyQuoteFor(String conversationId, String? replyToId) {
+    if (replyToId == null) return null;
+    for (final entry in messages(conversationId)) {
+      if (entry.id == replyToId) {
+        return ReplyQuote(messageId: replyToId, text: bodyOf(entry).text);
+      }
+    }
+    return ReplyQuote(messageId: replyToId, text: '');
+  }
+
   /// Re-sends a message that failed.
   Future<void> retry(String conversationId, String pendingMessageId) async {
     final list = _messages[conversationId];
@@ -560,24 +840,62 @@ class AppState extends ChangeNotifier {
     if (!failed.isPending) return;
     list[index] = failed.copyWith(state: SendState.sending, error: null);
     notifyListeners();
+    // The sealed bytes are re-sent unchanged, so the server's idempotency key
+    // still matches if the first attempt actually landed.
     await _deliver(conversationId, failed.message);
   }
 
   Future<void> _deliver(String conversationId, Message draft) async {
     try {
-      final stored = await backend.sendMessage(
-        conversationId,
-        text: draft.text,
-        attachmentIds: draft.attachments.map((a) => a.id).toList(),
-        replyToId: draft.replyToId.isEmpty ? null : draft.replyToId,
-        clientMessageId: draft.clientMessageId,
-      );
+      final Message stored;
+      if (draft.encrypted) {
+        stored = await backend.sendEncryptedMessage(
+          conversationId,
+          ciphertext: Uint8List.fromList(draft.ciphertext),
+          nonce: Uint8List.fromList(draft.nonce),
+          senderDeviceKeyId: draft.senderDeviceKeyId,
+          keyEpoch: draft.keyEpoch,
+          cryptoVersion: draft.cryptoVersion,
+          attachmentIds: draft.attachments.map((a) => a.id).toList(),
+          clientMessageId: draft.clientMessageId,
+        );
+      } else {
+        stored = await backend.sendMessage(
+          conversationId,
+          text: draft.text,
+          attachmentIds: draft.attachments.map((a) => a.id).toList(),
+          replyToId: draft.replyToId.isEmpty ? null : draft.replyToId,
+          clientMessageId: draft.clientMessageId,
+        );
+      }
+      // The plaintext was cached under the pending id; carry it over so the
+      // bubble does not flicker into "opening" the moment the server answers.
+      _adoptLocalBody(draft.id, stored.id);
       _replacePending(conversationId, draft, stored);
     } catch (error) {
       if (isAuthFailure(error)) _lastError = describeError(error);
       _markFailed(conversationId, draft, describeError(error));
     }
   }
+
+  /// Caches a decrypted body locally, keyed by message id.
+  void _cacheLocalBody(String messageId, DecryptedMessage body) => _localBodies[messageId] = body;
+
+  void _adoptLocalBody(String fromId, String toId) {
+    final body = _localBodies.remove(fromId);
+    if (body != null) _localBodies[toId] = body;
+  }
+
+  String? _replyPreviewText(String conversationId, String? replyToId) {
+    if (replyToId == null) return null;
+    for (final entry in messages(conversationId)) {
+      if (entry.id == replyToId) return bodyOf(entry).text;
+    }
+    return null;
+  }
+
+  /// Plaintext bodies for messages this device sealed or opened.
+  final Map<String, DecryptedMessage> _localBodies = {};
 
   void _replacePending(String conversationId, Message draft, Message stored) {
     final list = _messages[conversationId];
@@ -609,8 +927,47 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> editMessage(String conversationId, String messageId, String text) async {
+    final conversation = _conversations[conversationId];
     try {
-      _mergeMessage(conversationId, await backend.editMessage(messageId, text));
+      Message stored;
+      if (conversation != null && crypto.ready) {
+        // The new text is sealed too: an edit must not be the one message the
+        // server can read.
+        final existing = _localBodies[messageId];
+        final body = MessageContent(
+          text: text,
+          attachments: existing?.attachments
+                  .map((a) => EncryptedAttachment(
+                        blobId: a.blobId,
+                        fileKey: a.fileKey,
+                        nonce: a.nonce,
+                        filename: a.filename,
+                        contentType: a.contentType,
+                        size: a.size,
+                      ))
+                  .toList() ??
+              const [],
+          replyTo: existing?.replyToId != null
+              ? ReplyQuote(messageId: existing!.replyToId!, text: existing.replyToText ?? '')
+              : null,
+        );
+        final seal = await crypto.sealMessage(conversation: conversation, content: body);
+        stored = await backend.editEncryptedMessage(
+          messageId,
+          ciphertext: seal.ciphertext,
+          nonce: seal.nonce,
+          cryptoVersion: cryptoVersion,
+        );
+        _cacheLocalBody(messageId, DecryptedMessage(
+          text: text,
+          attachments: existing?.attachments ?? const [],
+          replyToId: existing?.replyToId,
+          replyToText: existing?.replyToText,
+        ));
+        _mergeMessage(conversationId, stored);
+      } else {
+        _mergeMessage(conversationId, await backend.editMessage(messageId, text));
+      }
       notifyListeners();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
@@ -824,6 +1181,9 @@ class AppState extends ChangeNotifier {
 
   void _onMessageEvent(Message message) {
     _mergeMessage(message.conversationId, message);
+    if (message.encrypted && !message.deleted) {
+      unawaited(_decryptArrival(message));
+    }
     final conversation = _conversations[message.conversationId];
     if (conversation != null) {
       _upsertConversation(conversation.deepCopy()..lastMessage = message);
@@ -833,6 +1193,30 @@ class AppState extends ChangeNotifier {
     if (_openConversationId == message.conversationId && message.senderId != _me?.id) {
       unawaited(markRead(message.conversationId));
     }
+    notifyListeners();
+  }
+
+  /// Opens a message that just arrived, then repaints.
+  Future<void> _decryptArrival(Message message) async {
+    final conversation = _conversations[message.conversationId];
+    if (conversation == null || !crypto.ready) return;
+    var body = await crypto.decryptMessage(
+      conversation: conversation,
+      message: message,
+      ownMessage: message.senderId == _me?.id,
+    );
+    if (!body.ok) {
+      // The sender key may be waiting for us; fetch it and try again.
+      final learned = await crypto.collectKeys(conversation);
+      if (learned > 0) {
+        body = await crypto.decryptMessage(
+          conversation: conversation,
+          message: message,
+          ownMessage: message.senderId == _me?.id,
+        );
+      }
+    }
+    if (body.ok) _cacheLocalBody(message.id, body);
     notifyListeners();
   }
 
@@ -1005,6 +1389,42 @@ class AppState extends ChangeNotifier {
 
   /// A URL the UI can hand to an image widget.
   String fileUrl(String path) => backend.fileUrl(path);
+
+  /// Whether the user has confirmed the safety number of a conversation.
+  ///
+  /// The verdict is local and per conversation: it records that a human
+  /// compared the numbers, not that the server said so.
+  final Set<String> _verified = {};
+
+  bool isVerified(String conversationId) => _verified.contains(conversationId);
+
+  void setVerified(String conversationId, bool verified) {
+    if (verified) {
+      _verified.add(conversationId);
+    } else {
+      _verified.remove(conversationId);
+    }
+    _saveVerification();
+    notifyListeners();
+  }
+
+  /// Persisted through the same store as the token, so a verification survives
+  /// a restart: re-verifying on every launch is how people stop verifying.
+  void _saveVerification() => _persistVerification?.call(_verified.toList());
+
+  void Function(List<String> verified)? _persistVerification;
+
+  /// Seeds the verified list from storage at startup.
+  void restoreVerification(List<String> verified) {
+    _verified
+      ..clear()
+      ..addAll(verified);
+  }
+
+  /// Installs the storage hook, called once during bootstrap.
+  void hookVerificationStorage(void Function(List<String> verified) save) {
+    _persistVerification = save;
+  }
 
   /// The other participant of a direct conversation, if there is one.
   User? peerOf(Conversation conversation) =>

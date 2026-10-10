@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
+import '../../crypto/manager.dart';
 import '../../gen/ratatosk/v1/chat.pb.dart';
 import '../../gen/ratatosk/v1/common.pb.dart';
 import '../../state/app_state.dart';
 import '../format.dart';
 import '../theme.dart';
 import 'avatar.dart';
+import 'encrypted_image.dart';
 
 /// One message, laid out the way a messenger does it: the reader's own messages
 /// on the right in the accent colour, everyone else's on the left in grey, with
@@ -43,7 +45,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onDelete;
   final ValueChanged<String>? onReact;
   final VoidCallback? onRetry;
-  final void Function(Attachment attachment)? onOpenImage;
+  final void Function(DecryptedAttachment attachment)? onOpenImage;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +54,9 @@ class MessageBubble extends StatelessWidget {
     final message = entry.message;
     final isMine = message.senderId == state.me?.id;
     final scheme = Theme.of(context).colorScheme;
+    // The plaintext, when this device can open it. A sealed message that cannot
+    // be read yet shows why instead of an empty bubble.
+    final body = state.bodyOf(entry);
 
     // A system note ("Ada added Grace") is a quiet centered line, not a bubble.
     if (message.kind == MessageKind.MESSAGE_KIND_SYSTEM) {
@@ -97,25 +102,48 @@ class MessageBubble extends StatelessWidget {
                 ),
               ),
             ),
-          if (message.hasReplyTo() && !message.deleted)
-            _ReplyQuote(preview: message.replyTo, onTap: onReply),
+          if (!message.deleted && (message.hasReplyTo() || body.replyToText != null))
+            _ReplyQuote(
+              senderName: message.hasReplyTo() ? message.replyTo.senderName : '',
+              text: body.replyToText ?? (message.hasReplyTo() ? message.replyTo.text : ''),
+              deleted: message.hasReplyTo() && message.replyTo.deleted,
+              onTap: onReply,
+            ),
           if (message.deleted)
             Text(
               'You deleted this message',
               style: TextStyle(color: textColor.withValues(alpha: 0.85), fontStyle: FontStyle.italic),
             )
-          else ...[
-            if (message.attachments.isNotEmpty)
+          else if (!body.ok) ...[
+            // Sealed and not openable: the key may still be on its way.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_clock, size: 14, color: textColor.withValues(alpha: 0.8)),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    body.unreadable ?? 'This message cannot be read',
+                    style: TextStyle(
+                      color: textColor.withValues(alpha: 0.9),
+                      fontStyle: FontStyle.italic,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            if (body.attachments.isNotEmpty)
               _Attachments(
-                attachments: message.attachments,
+                attachments: body.attachments,
                 resolveUrl: state.fileUrl,
                 onOpenImage: onOpenImage,
-                onEdge: isMine,
               ),
-            if (message.text.trim().isNotEmpty)
+            if (body.text.trim().isNotEmpty)
               Padding(
-                padding: EdgeInsets.only(top: message.attachments.isEmpty ? 0 : 6),
-                child: Text(message.text, style: TextStyle(color: textColor, fontSize: 15, height: 1.3)),
+                padding: EdgeInsets.only(top: body.attachments.isEmpty ? 0 : 6),
+                child: Text(body.text, style: TextStyle(color: textColor, fontSize: 15, height: 1.3)),
               ),
           ],
           const SizedBox(height: 2),
@@ -298,18 +326,27 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
-/// The quoted parent of a reply, tapping it is a jump-to in a real messenger;
-/// here it just closes back to the thread.
+/// The quoted parent of a reply.
+///
+/// An encrypted conversation carries this inside the sealed body rather than in
+/// the message record, so it is plain data by the time it gets here.
 class _ReplyQuote extends StatelessWidget {
-  const _ReplyQuote({required this.preview, this.onTap});
+  const _ReplyQuote({
+    required this.text,
+    required this.deleted,
+    this.senderName = '',
+    this.onTap,
+  });
 
-  final ReplyPreview preview;
+  final String senderName;
+  final String text;
+  final bool deleted;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = RatatoskTheme.of(context);
-    final text = preview.deleted ? 'Deleted message' : preview.text;
+    final display = deleted ? 'Deleted message' : text;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -327,11 +364,11 @@ class _ReplyQuote extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              preview.senderName.isEmpty ? 'Reply' : preview.senderName,
+              senderName.isEmpty ? 'Reply' : senderName,
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: colors.timestamp),
             ),
             Text(
-              preview.hasAttachment && text.isEmpty ? 'Attachment' : text,
+              display.isEmpty ? 'Attachment' : display,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 13, color: colors.timestamp),
@@ -344,18 +381,19 @@ class _ReplyQuote extends StatelessWidget {
 }
 
 /// Attachment thumbnails and file chips inside a bubble.
+///
+/// Images are fetched and decrypted into memory rather than streamed by the
+/// image widget: the bytes on the server are a client-side seal.
 class _Attachments extends StatelessWidget {
   const _Attachments({
     required this.attachments,
     required this.resolveUrl,
     this.onOpenImage,
-    required this.onEdge,
   });
 
-  final List<Attachment> attachments;
+  final List<DecryptedAttachment> attachments;
   final String Function(String path) resolveUrl;
-  final void Function(Attachment attachment)? onOpenImage;
-  final bool onEdge;
+  final void Function(DecryptedAttachment attachment)? onOpenImage;
 
   @override
   Widget build(BuildContext context) {
@@ -366,35 +404,20 @@ class _Attachments extends StatelessWidget {
         if (attachment.isImage) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: GestureDetector(
-              onTap: () => onOpenImage?.call(attachment),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 260, maxWidth: 260),
-                  child: Image.network(
-                    resolveUrl(attachment.url),
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) => progress == null
-                        ? child
-                        : const SizedBox(
-                            height: 120,
-                            width: 120,
-                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                          ),
-                    errorBuilder: (context, _, __) => Container(
-                      height: 120,
-                      width: 160,
-                      color: Colors.black.withValues(alpha: 0.15),
-                      child: const Center(child: Icon(Icons.broken_image_outlined)),
-                    ),
-                  ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 260, maxWidth: 260),
+                child: EncryptedImage(
+                  attachment: attachment,
+                  url: resolveUrl('/files/${attachment.blobId}'),
+                  onTap: onOpenImage == null ? null : () => onOpenImage!(attachment),
                 ),
               ),
             ),
           );
         }
-        return _FileChip(attachment: attachment, url: resolveUrl(attachment.url));
+        return _FileChip(attachment: attachment, url: resolveUrl('/files/${attachment.blobId}'));
       }).toList(),
     );
   }
@@ -403,7 +426,7 @@ class _Attachments extends StatelessWidget {
 class _FileChip extends StatelessWidget {
   const _FileChip({required this.attachment, required this.url});
 
-  final Attachment attachment;
+  final DecryptedAttachment attachment;
   final String url;
 
   @override
@@ -431,7 +454,7 @@ class _FileChip extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 ),
                 Text(
-                  ChatFormat.fileSize(attachment.size.toInt()),
+                  ChatFormat.fileSize(attachment.size),
                   style: const TextStyle(fontSize: 11),
                 ),
               ],

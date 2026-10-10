@@ -78,9 +78,11 @@ func (s *Server) build() http.Handler {
 	authPath, authHandler := ratatoskv1connect.NewAuthServiceHandler(s.services.Auth, interceptors)
 	chatPath, chatHandler := ratatoskv1connect.NewChatServiceHandler(s.services.Chat, interceptors)
 	socialPath, socialHandler := ratatoskv1connect.NewSocialServiceHandler(s.services.Social, interceptors)
+	keysPath, keysHandler := ratatoskv1connect.NewKeyServiceHandler(s.services.Keys, interceptors)
 	mux.Handle(authPath, authHandler)
 	mux.Handle(chatPath, chatHandler)
 	mux.Handle(socialPath, socialHandler)
+	mux.Handle(keysPath, keysHandler)
 
 	mux.HandleFunc("/files/{id}", s.serveAttachment)
 	// The path wildcards keep the code on one segment: a request such as
@@ -252,8 +254,23 @@ func (a *authInterceptor) authenticate(ctx context.Context, header http.Header, 
 	if a.presence != nil {
 		a.presence.Active(user.ID)
 	}
+
+	// A client names the device key it holds so key-envelope calls can be
+	// scoped to that device. A key id that is unknown, revoked, or belongs to
+	// somebody else is ignored rather than trusted: the request is still
+	// authenticated as the user, and the calls that need a device key say so.
+	if deviceID := header.Get(deviceKeyHeader); deviceID != "" {
+		if key, err := a.st.DeviceKeyByID(deviceID); err == nil && !key.Revoked && key.UserID == user.ID {
+			a.st.TouchDeviceKey(deviceID, time.Now())
+			ctx = auth.WithDeviceKey(ctx, deviceID)
+		}
+	}
 	return auth.WithIdentity(ctx, user, token), nil
 }
+
+// deviceKeyHeader is how a client names the device key it holds. It is a plain
+// header rather than part of the token so one login can serve several devices.
+const deviceKeyHeader = "X-Ratatosk-Device-Key"
 
 func bearerToken(header http.Header) string {
 	raw := header.Get("Authorization")
@@ -444,7 +461,12 @@ func (s *Server) serveRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	kinds := []string{}
-	for _, m := range []string{"ratatosk.v1.AuthService", "ratatosk.v1.ChatService", "ratatosk.v1.SocialService"} {
+	for _, m := range []string{
+		"ratatosk.v1.AuthService",
+		"ratatosk.v1.ChatService",
+		"ratatosk.v1.SocialService",
+		"ratatosk.v1.KeyService",
+	} {
 		kinds = append(kinds, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

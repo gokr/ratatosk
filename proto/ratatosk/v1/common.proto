@@ -35,6 +35,13 @@ message User {
 }
 
 // A stored file. Bytes live on disk on the server; clients only see the URL.
+//
+// With end-to-end encryption the stored bytes are ciphertext and the original
+// filename and content type travel inside the message's sealed content, so the
+// server sees neither. The fields here are then the server's own view:
+// `filename` is the opaque blob id, `content_type` is
+// "application/octet-stream", and `encrypted` is true. Clients read the real
+// values from the decrypted envelope (docs/E2EE.md).
 message Attachment {
   string id = 1;
   string filename = 2;
@@ -47,6 +54,8 @@ message Attachment {
   int32 height = 7;
   // True for content types under image/.
   bool is_image = 8;
+  // The bytes on the server are a client-side seal, not the file itself.
+  bool encrypted = 9;
 }
 
 // A compact quote of the message being replied to.

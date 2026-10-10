@@ -154,7 +154,18 @@ type Message struct {
 	ClientMessageID string              `json:"clientMessageId,omitempty"`
 	Reactions       map[string][]string `json:"reactions,omitempty"` // emoji -> user ids
 	Seq             int64               `json:"seq"`
+
+	// End-to-end encryption (docs/E2EE.md). The server stores these without
+	// ever holding a key that opens them.
+	Ciphertext        []byte `json:"ciphertext,omitempty"`
+	Nonce             []byte `json:"nonce,omitempty"`
+	SenderDeviceKeyID string `json:"senderDeviceKeyId,omitempty"`
+	KeyEpoch          int32  `json:"keyEpoch,omitempty"`
+	CryptoVersion     string `json:"cryptoVersion,omitempty"`
 }
+
+// Encrypted reports whether the message body is a client-side seal.
+func (m *Message) Encrypted() bool { return len(m.Ciphertext) > 0 }
 
 // Attachment is an uploaded file; the bytes live on disk under FilesDir.
 type Attachment struct {
@@ -166,19 +177,26 @@ type Attachment struct {
 	Width       int       `json:"width,omitempty"`
 	Height      int       `json:"height,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
+	// The stored bytes are a client-side seal, so the name and type above are
+	// intentionally empty and the server knows nothing about the content.
+	Encrypted bool `json:"encrypted,omitempty"`
 }
 
 // DB is the serialized form of the whole store.
 type DB struct {
-	Version       int                       `json:"version"`
-	Users         map[string]*User          `json:"users"`
-	Sessions      map[string]*Session       `json:"sessions"`
-	Invites       map[string]*Invite        `json:"invites"`
+	Version       int                             `json:"version"`
+	Users         map[string]*User                `json:"users"`
+	Sessions      map[string]*Session             `json:"sessions"`
+	Invites       map[string]*Invite              `json:"invites"`
 	Contacts      map[string]map[string]time.Time `json:"contacts"`
-	Conversations map[string]*Conversation  `json:"conversations"`
-	Messages      map[string]*Message       `json:"messages"`
-	ConvMessages  map[string][]string       `json:"convMessages"`
-	Attachments   map[string]*Attachment    `json:"attachments"`
+	Conversations map[string]*Conversation        `json:"conversations"`
+	Messages      map[string]*Message             `json:"messages"`
+	ConvMessages  map[string][]string             `json:"convMessages"`
+	Attachments   map[string]*Attachment          `json:"attachments"`
+	// Public encryption keys and the sealed sender keys addressed to devices.
+	// Both are safe to store: the server cannot read either.
+	DeviceKeys   map[string]*DeviceKey   `json:"deviceKeys"`
+	KeyEnvelopes map[string]*KeyEnvelope `json:"keyEnvelopes"`
 }
 
 // Store is the concurrency-safe façade over DB plus its persistence.
@@ -193,11 +211,16 @@ type Store struct {
 	// retried send returns the original message instead of duplicating it.
 	// Derived state: rebuilt from Messages on load, never persisted.
 	clientIndex map[string]string
-	dirty       bool
-	flushEvery  time.Duration
-	stop        chan struct{}
-	done        chan struct{}
-	closeOnce   sync.Once
+	dirty      bool
+	flushEvery time.Duration
+	stop       chan struct{}
+	done       chan struct{}
+	closeOnce  sync.Once
+
+	// The key that seals the snapshot, loaded once on first use.
+	keyOnce      sync.Once
+	dataKeyValue []byte
+	keyErr       error
 }
 
 const snapshotName = "ratatosk.json"
@@ -239,6 +262,8 @@ func newDB() *DB {
 		Messages:      map[string]*Message{},
 		ConvMessages:  map[string][]string{},
 		Attachments:   map[string]*Attachment{},
+		DeviceKeys:    map[string]*DeviceKey{},
+		KeyEnvelopes:  map[string]*KeyEnvelope{},
 	}
 }
 
@@ -251,8 +276,12 @@ func (s *Store) load() error {
 	if err != nil {
 		return fmt.Errorf("store: read snapshot: %w", err)
 	}
+	plain, err := s.unsealSnapshot(raw)
+	if err != nil {
+		return fmt.Errorf("store: read %s: %w", path, err)
+	}
 	var db DB
-	if err := json.Unmarshal(raw, &db); err != nil {
+	if err := json.Unmarshal(plain, &db); err != nil {
 		return fmt.Errorf("store: parse %s: %w", path, err)
 	}
 	if db.Version > dbVersion {
@@ -268,6 +297,8 @@ func (s *Store) load() error {
 	if db.Messages == nil { db.Messages = map[string]*Message{} }
 	if db.ConvMessages == nil { db.ConvMessages = map[string][]string{} }
 	if db.Attachments == nil { db.Attachments = map[string]*Attachment{} }
+	if db.DeviceKeys == nil { db.DeviceKeys = map[string]*DeviceKey{} }
+	if db.KeyEnvelopes == nil { db.KeyEnvelopes = map[string]*KeyEnvelope{} }
 	db.Version = dbVersion
 	for _, c := range db.Conversations {
 		if c.Members == nil {
@@ -321,10 +352,16 @@ func (s *Store) Flush() error {
 		return nil
 	}
 	s.dirty = false
-	raw, err := json.Marshal(s.db)
+	plain, err := json.Marshal(s.db)
 	s.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("store: encode snapshot: %w", err)
+	}
+	// Everything the server holds is sealed before it touches the disk; the
+	// key lives outside the database (see atrest.go).
+	raw, err := s.sealSnapshot(plain)
+	if err != nil {
+		return err
 	}
 	tmp := filepath.Join(s.dir, snapshotName+".tmp")
 	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
@@ -734,6 +771,8 @@ func cloneConversation(c *Conversation) *Conversation {
 func cloneMessage(m *Message) *Message {
 	out := *m
 	out.Attachments = append([]string(nil), m.Attachments...)
+	out.Ciphertext = append([]byte(nil), m.Ciphertext...)
+	out.Nonce = append([]byte(nil), m.Nonce...)
 	if m.Reactions != nil {
 		out.Reactions = make(map[string][]string, len(m.Reactions))
 		for emoji, users := range m.Reactions {

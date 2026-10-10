@@ -11,6 +11,11 @@ dependencies:
     sdk: flutter
   # Generated clients and the Connect protocol itself.
   connectrpc: ^2.0.0
+  # End-to-end encryption: X25519, Ed25519, HKDF-SHA256, XChaCha20-Poly1305.
+  # The maintained fork of package:cryptography, with web support.
+  cryptography_plus: ^3.0.0
+  # The private keys live in the platform keystore, never on the server.
+  flutter_secure_storage: ^11.0.0
   protobuf: ^6.0.0
   fixnum: ^1.1.0
   # State: get_it for dependency injection, watch_it for reactive widgets.

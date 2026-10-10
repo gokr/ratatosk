@@ -93,6 +93,11 @@ func (b *base) Typing() *realtime.Typing { return b.typing }
 // now is the single clock for the service layer, so tests can substitute one.
 var now = time.Now
 
+// maxCiphertextBytes caps a sealed message body. The plaintext limit is 8000
+// characters; sealing adds a 16-byte tag and protobuf overhead, so this is
+// generous while still bounding what a client can store per message.
+const maxCiphertextBytes = 64 << 10
+
 // --- conversions ---------------------------------------------------------
 
 func ts(t time.Time) *timestamppb.Timestamp {
@@ -151,6 +156,16 @@ func (b *base) attachmentProto(a *store.Attachment) *ratatoskv1.Attachment {
 	if a == nil {
 		return nil
 	}
+	// A sealed blob has no trustworthy name, type or dimensions: everything the
+	// UI needs is inside the message envelope, which only the client can open.
+	if a.Encrypted {
+		return &ratatoskv1.Attachment{
+			Id:        a.ID,
+			Size:      a.Size,
+			Url:       b.attachmentURL(a.ID),
+			Encrypted: true,
+		}
+	}
 	return &ratatoskv1.Attachment{
 		Id:          a.ID,
 		Filename:    a.Filename,
@@ -192,6 +207,25 @@ func (b *base) messageProto(m *store.Message) *ratatoskv1.Message {
 		ReplyToId:       m.ReplyToID,
 	}
 	if m.Deleted {
+		return out
+	}
+	// An encrypted message crosses the wire as its seal plus the coordinates of
+	// the key that opens it; the plaintext fields stay empty. The server could
+	// not fill them if it wanted to.
+	if m.Encrypted() {
+		out.Encrypted = true
+		out.Ciphertext = m.Ciphertext
+		out.Nonce = m.Nonce
+		out.SenderDeviceKeyId = m.SenderDeviceKeyID
+		out.KeyEpoch = m.KeyEpoch
+		out.CryptoVersion = m.CryptoVersion
+		// A reply target is part of the sealed body in an encrypted
+		// conversation, so nothing about it is rendered here.
+		if len(m.Attachments) > 0 {
+			for _, a := range b.st.AttachmentsByIDs(m.Attachments) {
+				out.Attachments = append(out.Attachments, b.attachmentProto(a))
+			}
+		}
 		return out
 	}
 	out.Text = m.Text

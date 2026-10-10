@@ -42,7 +42,10 @@ service ChatService {
   rpc MarkRead(MarkReadRequest) returns (MarkReadResponse) {}
   // Broadcast a typing indicator for a few seconds. Nothing is persisted.
   rpc SetTyping(SetTypingRequest) returns (SetTypingResponse) {}
-  // Full-text substring search over the caller's conversations.
+  // Substring search over the caller's conversations. It can only match
+  // plaintext: end-to-end encrypted message bodies are opaque to the server, so
+  // an encrypted conversation returns nothing here and the client searches
+  // locally instead (docs/E2EE.md).
   rpc SearchMessages(SearchMessagesRequest) returns (SearchMessagesResponse) {}
   // Upload one file (attachment or profile picture) and get its id back.
   rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse) {}
@@ -69,12 +72,15 @@ message Message {
   string id = 1;
   string conversation_id = 2;
   string sender_id = 3;
+  // Plain text, used only for server-authored system notes ("Ada added
+  // Grace") and for messages written before encryption was introduced. User
+  // messages carry their text inside `ciphertext` instead.
   string text = 4;
   repeated Attachment attachments = 5;
   google.protobuf.Timestamp created_at = 6;
   // Set when the text was rewritten after sending.
   google.protobuf.Timestamp edited_at = 7;
-  // Tombstone: text and attachments are cleared, the row keeps its place.
+  // Tombstone: content is cleared, the row keeps its place.
   bool deleted = 8;
   repeated Reaction reactions = 9;
   // Idempotency key supplied by the sender.
@@ -85,6 +91,25 @@ message Message {
   ReplyPreview reply_to = 13;
   // The message being replied to, for sends and for clients that need it.
   string reply_to_id = 14;
+
+  // --- end-to-end encryption (docs/E2EE.md) ------------------------------
+
+  // XChaCha20-Poly1305 seal of the message content: text, attachments and the
+  // reply preview all live in here. Empty for system notes and for
+  // unencrypted legacy messages. The server never holds the key.
+  bytes ciphertext = 15;
+  bytes nonce = 16;
+  // Which device's sender key sealed this. In a direct conversation the key is
+  // derived from both identity keys, so the field is informational there; in a
+  // group it names the sender key to unwrap. With `key_epoch` it identifies
+  // the key to try.
+  string sender_device_key_id = 17;
+  int32 key_epoch = 18;
+  // True when `ciphertext` holds the content, which means `text`, `attachments`
+  // and `reply_to` are empty on the wire.
+  bool encrypted = 19;
+  // Encryption scheme that produced the ciphertext, e.g. "ratatosk/v1".
+  string crypto_version = 20;
 }
 
 // A conversation participant, from the viewer's point of view.
@@ -215,12 +240,20 @@ message ListMessagesResponse {
 
 message SendMessageRequest {
   string conversation_id = 1;
+  // Plain text. Only accepted for unencrypted sends; an encrypted client sends
+  // `ciphertext` instead.
   string text = 2;
   repeated string attachment_ids = 3;
   string reply_to_id = 4;
   // Sender-generated id; a repeat of the same id returns the stored message
   // instead of appending a second one.
   string client_message_id = 5;
+  // The sealed content, plus what a reader needs to find the key.
+  bytes ciphertext = 6;
+  bytes nonce = 7;
+  string sender_device_key_id = 8;
+  int32 key_epoch = 9;
+  string crypto_version = 10;
 }
 
 message SendMessageResponse {
@@ -229,7 +262,13 @@ message SendMessageResponse {
 
 message EditMessageRequest {
   string message_id = 1;
+  // Plain text, for unencrypted conversations only.
   string text = 2;
+  // The re-sealed content. The server replaces the stored ciphertext, so it
+  // never sees the new text either.
+  bytes ciphertext = 3;
+  bytes nonce = 4;
+  string crypto_version = 5;
 }
 
 message EditMessageResponse {
@@ -303,9 +342,14 @@ message SearchMessagesResponse {
 }
 
 message UploadAttachmentRequest {
+  // Advisory labels. An encrypted client sends the sealed bytes and leaves the
+  // real filename and type inside the message envelope, so the server stores
+  // these as opaque placeholders.
   string filename = 1;
   string content_type = 2;
+  // The file itself, or its ciphertext when the client is encrypting.
   bytes data = 3;
+  bool encrypted = 4;
 }
 
 message UploadAttachmentResponse {

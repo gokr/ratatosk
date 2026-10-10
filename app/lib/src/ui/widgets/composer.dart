@@ -6,7 +6,6 @@ import 'package:watch_it/watch_it.dart';
 
 import '../../api/backend.dart';
 import '../../gen/ratatosk/v1/chat.pb.dart';
-import '../../gen/ratatosk/v1/common.pb.dart';
 import '../../state/app_state.dart';
 import '../theme.dart';
 
@@ -43,7 +42,10 @@ class Composer extends StatefulWidget {
 class _ComposerState extends State<Composer> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-  final List<Attachment> _attachments = [];
+
+  /// Picked files, held in memory until the message is sent: sealing and
+  /// uploading happens on send, so a cancelled attachment costs nothing.
+  final List<AttachmentUpload> _pending = [];
   bool _uploading = false;
 
   @override
@@ -61,7 +63,7 @@ class _ComposerState extends State<Composer> {
     // Switching to a different conversation must not carry a draft across.
     if (oldWidget.conversationId != widget.conversationId) {
       _controller.clear();
-      _attachments.clear();
+      _pending.clear();
     }
     if (widget.editing != null && oldWidget.editing?.id != widget.editing?.id) {
       _controller.text = widget.editing!.text;
@@ -77,30 +79,29 @@ class _ComposerState extends State<Composer> {
     super.dispose();
   }
 
-  bool get _canSend => _controller.text.trim().isNotEmpty || _attachments.isNotEmpty;
+  bool get _canSend => _controller.text.trim().isNotEmpty || _pending.isNotEmpty;
 
   Future<void> _pickAttachments() async {
-    final state = di<AppState>();
     final files = await openFiles();
     if (files.isEmpty) return;
     setState(() => _uploading = true);
+    final picked = <AttachmentUpload>[];
     for (final file in files) {
       try {
-        final bytes = await file.readAsBytes();
-        final attachment = await state.backend.uploadAttachment(
+        picked.add((
           filename: file.name,
           contentType: file.mimeType ?? _guessContentType(file.name),
-          data: bytes,
-        );
-        if (mounted) setState(() => _attachments.add(attachment));
+          bytes: await file.readAsBytes(),
+        ));
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not attach ${file.name}: ${describeError(error)}')),
+            SnackBar(content: Text('Could not read ${file.name}: ${describeError(error)}')),
           );
         }
       }
     }
+    if (mounted) setState(() => _pending.addAll(picked));
     if (mounted) setState(() => _uploading = false);
   }
 
@@ -121,7 +122,7 @@ class _ComposerState extends State<Composer> {
   Future<void> _send() async {
     final state = di<AppState>();
     final text = _controller.text.trim();
-    if (text.isEmpty && _attachments.isEmpty) return;
+    if (text.isEmpty && _pending.isEmpty) return;
 
     if (widget.editing != null) {
       await state.editMessage(widget.conversationId, widget.editing!.id, text);
@@ -130,16 +131,18 @@ class _ComposerState extends State<Composer> {
       return;
     }
 
-    final attachments = List<Attachment>.from(_attachments);
+    final files = List<AttachmentUpload>.from(_pending);
     final replyTo = widget.replyTo?.id;
     _controller.clear();
-    setState(() => _attachments.clear());
+    setState(() => _pending.clear());
     widget.onCancelReply();
     state.stopTyping(widget.conversationId);
-    await state.sendMessage(
+    // Sealing and uploading happen inside the manager, so the composer never
+    // handles key material.
+    await state.sendMessageWithFiles(
       widget.conversationId,
       text: text,
-      attachments: attachments,
+      files: files,
       replyToId: replyTo,
     );
     _focus.requestFocus();
@@ -178,18 +181,18 @@ class _ComposerState extends State<Composer> {
                 body: widget.replyTo!.deleted ? 'Deleted message' : widget.replyTo!.text,
                 onCancel: widget.onCancelReply,
               ),
-            if (_attachments.isNotEmpty)
+            if (_pending.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: SizedBox(
                   height: 72,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: _attachments.length,
+                    itemCount: _pending.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
-                      final attachment = _attachments[index];
-                      final state = di<AppState>();
+                      final file = _pending[index];
+                      final isImage = file.contentType.startsWith('image/');
                       return Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -201,13 +204,10 @@ class _ComposerState extends State<Composer> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             clipBehavior: Clip.antiAlias,
-                            child: attachment.isImage
-                                ? Image.network(
-                                    state.fileUrl(attachment.url),
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const Icon(Icons.broken_image_outlined),
-                                  )
+                            // The bytes are local, so the preview needs no
+                            // upload and no key: it renders from memory.
+                            child: isImage
+                                ? Image.memory(file.bytes, fit: BoxFit.cover)
                                 : const Icon(Icons.insert_drive_file_outlined),
                           ),
                           Positioned(
@@ -217,7 +217,7 @@ class _ComposerState extends State<Composer> {
                               iconSize: 18,
                               visualDensity: VisualDensity.compact,
                               tooltip: 'Remove',
-                              onPressed: () => setState(() => _attachments.removeAt(index)),
+                              onPressed: () => setState(() => _pending.removeAt(index)),
                               icon: CircleAvatar(
                                 radius: 11,
                                 backgroundColor: scheme.surfaceContainerHighest,
@@ -272,7 +272,7 @@ class _ComposerState extends State<Composer> {
                 ),
               ],
             ),
-            if (_attachments.isEmpty && _controller.text.isEmpty && widget.editing == null)
+            if (_pending.isEmpty && _controller.text.isEmpty && widget.editing == null)
               Padding(
                 padding: const EdgeInsets.only(top: 2, bottom: 2),
                 child: Text(

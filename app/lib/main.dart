@@ -5,6 +5,9 @@ import 'package:watch_it/watch_it.dart';
 
 import 'src/api/backend.dart';
 import 'src/api/connect_backend.dart';
+import 'src/crypto/manager.dart';
+import 'src/crypto/secure_storage.dart';
+import 'src/ui/widgets/encrypted_image.dart';
 import 'src/app.dart';
 import 'src/link_controller.dart';
 import 'src/session_store.dart';
@@ -24,11 +27,18 @@ Future<void> main() async {
   final baseUrl = storedBaseUrl ?? SessionStore.defaultBaseUrl();
 
   final backend = ConnectBackend(baseUrl: baseUrl);
-  final state = AppState(backend: backend);
+
+  // The private keys live in the platform keystore; on the web there is no
+  // keystore, so a sealed browser-storage implementation is used instead (see
+  // SecureKeyStorage, which falls back when the platform cannot provide one).
+  final crypto = CryptoManager(backend: backend, storage: SecureKeyStorage());
+  final state = AppState(backend: backend, crypto: crypto);
   final links = LinkController();
 
   di.registerSingleton<SessionStore>(session);
   di.registerSingleton<ChatBackend>(backend);
+  di.registerSingleton<CryptoManager>(crypto);
+  di.registerSingleton<AttachmentCache>(AttachmentCache());
   di.registerSingleton<AppState>(state);
   di.registerSingleton<LinkController>(links);
 

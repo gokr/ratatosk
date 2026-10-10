@@ -12,7 +12,11 @@ import (
 // PutAttachment writes the bytes to disk and records their metadata. The file
 // is written before the record, so a crash between the two leaves an orphan
 // file rather than a record pointing at nothing.
-func (s *Store) PutAttachment(ownerID, filename, contentType string, data []byte, width, height int, now time.Time) (*Attachment, error) {
+//
+// When `encrypted` is set the bytes are a client-side seal: the server stores
+// them as received and records no filename or content type, because it has
+// none it can trust. The real values travel inside the message envelope.
+func (s *Store) PutAttachment(ownerID, filename, contentType string, data []byte, encrypted bool, width, height int, now time.Time) (*Attachment, error) {
 	s.mu.RLock()
 	_, exists := s.db.Users[ownerID]
 	s.mu.RUnlock()
@@ -20,12 +24,17 @@ func (s *Store) PutAttachment(ownerID, filename, contentType string, data []byte
 		return nil, ErrUnknownUser
 	}
 
+	storedName := ""
+	if !encrypted {
+		storedName = filepath.Base(filename)
+	}
 	att := &Attachment{
 		ID:          ids.New("f"),
 		OwnerID:     ownerID,
-		Filename:    filepath.Base(filename),
+		Filename:    storedName,
 		ContentType: contentType,
 		Size:        int64(len(data)),
+		Encrypted:   encrypted,
 		Width:       width,
 		Height:      height,
 		CreatedAt:   now,

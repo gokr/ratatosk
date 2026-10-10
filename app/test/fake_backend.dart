@@ -6,6 +6,7 @@
 // also be injected, which is what makes the "send failed, worth retrying" path
 // testable.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:fixnum/fixnum.dart';
@@ -13,6 +14,7 @@ import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 import 'package:ratatosk/src/api/backend.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/chat.pb.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/common.pb.dart';
+import 'package:ratatosk/src/gen/ratatosk/v1/keys.pb.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/social.pb.dart';
 
 class FakeUser {
@@ -60,8 +62,21 @@ class FakeBackend implements ChatBackend {
   @override
   void setToken(String? value) => token = value;
 
+  /// The device key id this client claims, as the real client sends it.
+  String? deviceKeyId;
+
+  @override
+  void setDeviceKeyId(String? value) => deviceKeyId = value;
+
   @override
   String fileUrl(String path) => path.isEmpty ? '' : '$baseUrl$path';
+
+  /// Bytes "on the server", keyed by the path the URL names.
+  final Map<String, Uint8List> blobs = {};
+
+  @override
+  Future<Uint8List> fetchBytes(String path) async =>
+      blobs[path] ?? Uint8List.fromList(utf8.encode('stored bytes for $path'));
 
   // --- helpers used by tests ---------------------------------------------
 
@@ -345,15 +360,153 @@ class FakeBackend implements ChatBackend {
     required String filename,
     required String contentType,
     required Uint8List data,
+    bool encrypted = false,
   }) async =>
       Attachment(
-        id: 'f1',
-        filename: filename,
-        contentType: contentType,
+        id: 'f${++_attachmentCounter}',
+        // A sealed upload keeps neither the name nor the type, exactly as the
+        // server does.
+        filename: encrypted ? '' : filename,
+        contentType: encrypted ? 'application/octet-stream' : contentType,
         size: Int64(data.length),
-        url: '/files/f1',
-        isImage: contentType.startsWith('image/'),
+        url: '/files/f$_attachmentCounter',
+        isImage: !encrypted && contentType.startsWith('image/'),
+        encrypted: encrypted,
       );
+
+  int _attachmentCounter = 0;
+
+  // --- key registry ------------------------------------------------------
+
+  final Map<String, DeviceKey> deviceKeys = {};
+  final List<KeyEnvelope> keyEnvelopes = [];
+
+  @override
+  Future<DeviceKey> publishDeviceKey({
+    String id = '',
+    required Uint8List identityPublicKey,
+    required Uint8List signingPublicKey,
+    String label = '',
+    String platform = '',
+  }) async {
+    final keyId = id.isEmpty ? 'k${deviceKeys.length + 1}' : id;
+    final key = DeviceKey(
+      id: keyId,
+      userId: signedInAs.id,
+      identityPublicKey: identityPublicKey,
+      signingPublicKey: signingPublicKey,
+      label: label,
+      platform: platform,
+      createdAt: _now(),
+      lastSeen: _now(),
+      fingerprint: 'fp-$keyId',
+    );
+    deviceKeys[keyId] = key;
+    return key;
+  }
+
+  @override
+  Future<List<DeviceKey>> listDeviceKeys(List<String> userIds, {bool includeRevoked = false}) async =>
+      deviceKeys.values
+          .where((k) => userIds.isEmpty ? k.userId == signedInAs.id : userIds.contains(k.userId))
+          .where((k) => includeRevoked || !k.revoked)
+          .toList();
+
+  @override
+  Future<void> revokeDeviceKey(String id) async {
+    final existing = deviceKeys[id];
+    if (existing != null) {
+      deviceKeys[id] = DeviceKey(
+        id: existing.id,
+        userId: existing.userId,
+        identityPublicKey: existing.identityPublicKey,
+        signingPublicKey: existing.signingPublicKey,
+        fingerprint: existing.fingerprint,
+        revoked: true,
+      );
+    }
+  }
+
+  @override
+  Future<void> putKeyEnvelope({
+    required String conversationId,
+    required String senderDeviceKeyId,
+    required String recipientDeviceKeyId,
+    required int epoch,
+    required Uint8List wrappedKey,
+    required Uint8List nonce,
+  }) async {
+    final duplicate = keyEnvelopes.any((e) =>
+        e.conversationId == conversationId &&
+        e.senderDeviceKeyId == senderDeviceKeyId &&
+        e.recipientDeviceKeyId == recipientDeviceKeyId &&
+        e.epoch == epoch);
+    if (duplicate) return;
+    keyEnvelopes.add(KeyEnvelope(
+      id: 'e${keyEnvelopes.length + 1}',
+      conversationId: conversationId,
+      senderDeviceKeyId: senderDeviceKeyId,
+      recipientDeviceKeyId: recipientDeviceKeyId,
+      epoch: epoch,
+      wrappedKey: wrappedKey,
+      nonce: nonce,
+      createdAt: _now(),
+    ));
+  }
+
+  @override
+  Future<List<KeyEnvelope>> listKeyEnvelopes({String conversationId = ''}) async {
+    if (deviceKeyId == null || deviceKeyId!.isEmpty) {
+      throw StateError('no device key');
+    }
+    return keyEnvelopes
+        .where((e) => e.recipientDeviceKeyId == deviceKeyId)
+        .where((e) => conversationId.isEmpty || e.conversationId == conversationId)
+        .toList();
+  }
+
+  @override
+  Future<Message> sendEncryptedMessage(
+    String conversationId, {
+    required Uint8List ciphertext,
+    required Uint8List nonce,
+    required String senderDeviceKeyId,
+    required int keyEpoch,
+    required String cryptoVersion,
+    List<String> attachmentIds = const [],
+    String? clientMessageId,
+  }) async {
+    final stored = await sendMessage(
+      conversationId,
+      text: '',
+      attachmentIds: attachmentIds,
+      clientMessageId: clientMessageId,
+    );
+    return stored
+      ..ciphertext = ciphertext
+      ..nonce = nonce
+      ..senderDeviceKeyId = senderDeviceKeyId
+      ..keyEpoch = keyEpoch
+      ..cryptoVersion = cryptoVersion
+      ..encrypted = true;
+  }
+
+  @override
+  Future<Message> editEncryptedMessage(
+    String messageId, {
+    required Uint8List ciphertext,
+    required Uint8List nonce,
+    required String cryptoVersion,
+  }) async {
+    final message = _find(messageId);
+    message.text = '';
+    message.ciphertext = ciphertext;
+    message.nonce = nonce;
+    message.cryptoVersion = cryptoVersion;
+    message.encrypted = true;
+    message.editedAt = _now();
+    return message;
+  }
 
   @override
   Stream<Event> subscribe() {

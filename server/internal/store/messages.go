@@ -36,7 +36,13 @@ func (s *Store) AppendMessage(m *Message, now time.Time) (*Message, error) {
 	} else if _, ok := c.Members[m.SenderID]; !ok {
 		return nil, ErrNotMember
 	}
-	if m.Kind == MessageText && strings.TrimSpace(m.Text) == "" && len(m.Attachments) == 0 {
+	// A text message with no plaintext is only valid when it carries sealed
+	// content: the server cannot see the body, so it cannot check that the body
+	// is non-empty. It still refuses a message that has neither.
+	if m.Kind == MessageText && strings.TrimSpace(m.Text) == "" && len(m.Attachments) == 0 && len(m.Ciphertext) == 0 {
+		return nil, ErrInvalidMessage
+	}
+	if len(m.Ciphertext) > 0 && (len(m.Nonce) == 0 || m.CryptoVersion == "") {
 		return nil, ErrInvalidMessage
 	}
 	out := cloneMessage(m)

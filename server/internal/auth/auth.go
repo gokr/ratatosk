@@ -91,12 +91,27 @@ type ctxKey int
 const (
 	userKey ctxKey = iota
 	tokenKey
+	deviceKeyID
 )
 
 // WithIdentity attaches the authenticated user and the token that proved it.
 func WithIdentity(ctx context.Context, u *store.User, token string) context.Context {
 	ctx = context.WithValue(ctx, userKey, u)
 	return context.WithValue(ctx, tokenKey, token)
+}
+
+// WithDeviceKey attaches the device key the caller says it is using. The
+// interceptor has already checked that the key belongs to the user; services
+// use it to address this device's own key envelopes.
+func WithDeviceKey(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, deviceKeyID, id)
+}
+
+// DeviceKeyFrom returns the caller's device key id, or "" when the client did
+// not name one.
+func DeviceKeyFrom(ctx context.Context) string {
+	id, _ := ctx.Value(deviceKeyID).(string)
+	return id
 }
 
 // UserFrom returns the authenticated user, if any.

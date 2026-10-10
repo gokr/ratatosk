@@ -131,12 +131,15 @@ type Message struct {
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	SenderId       string                 `protobuf:"bytes,3,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
-	Text           string                 `protobuf:"bytes,4,opt,name=text,proto3" json:"text,omitempty"`
-	Attachments    []*Attachment          `protobuf:"bytes,5,rep,name=attachments,proto3" json:"attachments,omitempty"`
-	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Plain text, used only for server-authored system notes ("Ada added
+	// Grace") and for messages written before encryption was introduced. User
+	// messages carry their text inside `ciphertext` instead.
+	Text        string                 `protobuf:"bytes,4,opt,name=text,proto3" json:"text,omitempty"`
+	Attachments []*Attachment          `protobuf:"bytes,5,rep,name=attachments,proto3" json:"attachments,omitempty"`
+	CreatedAt   *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// Set when the text was rewritten after sending.
 	EditedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=edited_at,json=editedAt,proto3" json:"edited_at,omitempty"`
-	// Tombstone: text and attachments are cleared, the row keeps its place.
+	// Tombstone: content is cleared, the row keeps its place.
 	Deleted   bool        `protobuf:"varint,8,opt,name=deleted,proto3" json:"deleted,omitempty"`
 	Reactions []*Reaction `protobuf:"bytes,9,rep,name=reactions,proto3" json:"reactions,omitempty"`
 	// Idempotency key supplied by the sender.
@@ -146,7 +149,23 @@ type Message struct {
 	Seq     int64         `protobuf:"varint,12,opt,name=seq,proto3" json:"seq,omitempty"`
 	ReplyTo *ReplyPreview `protobuf:"bytes,13,opt,name=reply_to,json=replyTo,proto3" json:"reply_to,omitempty"`
 	// The message being replied to, for sends and for clients that need it.
-	ReplyToId     string `protobuf:"bytes,14,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
+	ReplyToId string `protobuf:"bytes,14,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
+	// XChaCha20-Poly1305 seal of the message content: text, attachments and the
+	// reply preview all live in here. Empty for system notes and for
+	// unencrypted legacy messages. The server never holds the key.
+	Ciphertext []byte `protobuf:"bytes,15,opt,name=ciphertext,proto3" json:"ciphertext,omitempty"`
+	Nonce      []byte `protobuf:"bytes,16,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	// Which device's sender key sealed this. In a direct conversation the key is
+	// derived from both identity keys, so the field is informational there; in a
+	// group it names the sender key to unwrap. With `key_epoch` it identifies
+	// the key to try.
+	SenderDeviceKeyId string `protobuf:"bytes,17,opt,name=sender_device_key_id,json=senderDeviceKeyId,proto3" json:"sender_device_key_id,omitempty"`
+	KeyEpoch          int32  `protobuf:"varint,18,opt,name=key_epoch,json=keyEpoch,proto3" json:"key_epoch,omitempty"`
+	// True when `ciphertext` holds the content, which means `text`, `attachments`
+	// and `reply_to` are empty on the wire.
+	Encrypted bool `protobuf:"varint,19,opt,name=encrypted,proto3" json:"encrypted,omitempty"`
+	// Encryption scheme that produced the ciphertext, e.g. "ratatosk/v1".
+	CryptoVersion string `protobuf:"bytes,20,opt,name=crypto_version,json=cryptoVersion,proto3" json:"crypto_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -275,6 +294,48 @@ func (x *Message) GetReplyTo() *ReplyPreview {
 func (x *Message) GetReplyToId() string {
 	if x != nil {
 		return x.ReplyToId
+	}
+	return ""
+}
+
+func (x *Message) GetCiphertext() []byte {
+	if x != nil {
+		return x.Ciphertext
+	}
+	return nil
+}
+
+func (x *Message) GetNonce() []byte {
+	if x != nil {
+		return x.Nonce
+	}
+	return nil
+}
+
+func (x *Message) GetSenderDeviceKeyId() string {
+	if x != nil {
+		return x.SenderDeviceKeyId
+	}
+	return ""
+}
+
+func (x *Message) GetKeyEpoch() int32 {
+	if x != nil {
+		return x.KeyEpoch
+	}
+	return 0
+}
+
+func (x *Message) GetEncrypted() bool {
+	if x != nil {
+		return x.Encrypted
+	}
+	return false
+}
+
+func (x *Message) GetCryptoVersion() string {
+	if x != nil {
+		return x.CryptoVersion
 	}
 	return ""
 }
@@ -1374,14 +1435,22 @@ func (x *ListMessagesResponse) GetHasMore() bool {
 type SendMessageRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	Text           string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	AttachmentIds  []string               `protobuf:"bytes,3,rep,name=attachment_ids,json=attachmentIds,proto3" json:"attachment_ids,omitempty"`
-	ReplyToId      string                 `protobuf:"bytes,4,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
+	// Plain text. Only accepted for unencrypted sends; an encrypted client sends
+	// `ciphertext` instead.
+	Text          string   `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	AttachmentIds []string `protobuf:"bytes,3,rep,name=attachment_ids,json=attachmentIds,proto3" json:"attachment_ids,omitempty"`
+	ReplyToId     string   `protobuf:"bytes,4,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
 	// Sender-generated id; a repeat of the same id returns the stored message
 	// instead of appending a second one.
 	ClientMessageId string `protobuf:"bytes,5,opt,name=client_message_id,json=clientMessageId,proto3" json:"client_message_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The sealed content, plus what a reader needs to find the key.
+	Ciphertext        []byte `protobuf:"bytes,6,opt,name=ciphertext,proto3" json:"ciphertext,omitempty"`
+	Nonce             []byte `protobuf:"bytes,7,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	SenderDeviceKeyId string `protobuf:"bytes,8,opt,name=sender_device_key_id,json=senderDeviceKeyId,proto3" json:"sender_device_key_id,omitempty"`
+	KeyEpoch          int32  `protobuf:"varint,9,opt,name=key_epoch,json=keyEpoch,proto3" json:"key_epoch,omitempty"`
+	CryptoVersion     string `protobuf:"bytes,10,opt,name=crypto_version,json=cryptoVersion,proto3" json:"crypto_version,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SendMessageRequest) Reset() {
@@ -1449,6 +1518,41 @@ func (x *SendMessageRequest) GetClientMessageId() string {
 	return ""
 }
 
+func (x *SendMessageRequest) GetCiphertext() []byte {
+	if x != nil {
+		return x.Ciphertext
+	}
+	return nil
+}
+
+func (x *SendMessageRequest) GetNonce() []byte {
+	if x != nil {
+		return x.Nonce
+	}
+	return nil
+}
+
+func (x *SendMessageRequest) GetSenderDeviceKeyId() string {
+	if x != nil {
+		return x.SenderDeviceKeyId
+	}
+	return ""
+}
+
+func (x *SendMessageRequest) GetKeyEpoch() int32 {
+	if x != nil {
+		return x.KeyEpoch
+	}
+	return 0
+}
+
+func (x *SendMessageRequest) GetCryptoVersion() string {
+	if x != nil {
+		return x.CryptoVersion
+	}
+	return ""
+}
+
 type SendMessageResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       *Message               `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -1494,9 +1598,15 @@ func (x *SendMessageResponse) GetMessage() *Message {
 }
 
 type EditMessageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
-	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	MessageId string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	// Plain text, for unencrypted conversations only.
+	Text string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	// The re-sealed content. The server replaces the stored ciphertext, so it
+	// never sees the new text either.
+	Ciphertext    []byte `protobuf:"bytes,3,opt,name=ciphertext,proto3" json:"ciphertext,omitempty"`
+	Nonce         []byte `protobuf:"bytes,4,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	CryptoVersion string `protobuf:"bytes,5,opt,name=crypto_version,json=cryptoVersion,proto3" json:"crypto_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1541,6 +1651,27 @@ func (x *EditMessageRequest) GetMessageId() string {
 func (x *EditMessageRequest) GetText() string {
 	if x != nil {
 		return x.Text
+	}
+	return ""
+}
+
+func (x *EditMessageRequest) GetCiphertext() []byte {
+	if x != nil {
+		return x.Ciphertext
+	}
+	return nil
+}
+
+func (x *EditMessageRequest) GetNonce() []byte {
+	if x != nil {
+		return x.Nonce
+	}
+	return nil
+}
+
+func (x *EditMessageRequest) GetCryptoVersion() string {
+	if x != nil {
+		return x.CryptoVersion
 	}
 	return ""
 }
@@ -2254,10 +2385,15 @@ func (x *SearchMessagesResponse) GetResults() []*SearchResult {
 }
 
 type UploadAttachmentRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Filename      string                 `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
-	ContentType   string                 `protobuf:"bytes,2,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
-	Data          []byte                 `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Advisory labels. An encrypted client sends the sealed bytes and leaves the
+	// real filename and type inside the message envelope, so the server stores
+	// these as opaque placeholders.
+	Filename    string `protobuf:"bytes,1,opt,name=filename,proto3" json:"filename,omitempty"`
+	ContentType string `protobuf:"bytes,2,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// The file itself, or its ciphertext when the client is encrypting.
+	Data          []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	Encrypted     bool   `protobuf:"varint,4,opt,name=encrypted,proto3" json:"encrypted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2311,6 +2447,13 @@ func (x *UploadAttachmentRequest) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *UploadAttachmentRequest) GetEncrypted() bool {
+	if x != nil {
+		return x.Encrypted
+	}
+	return false
 }
 
 type UploadAttachmentResponse struct {
@@ -3001,7 +3144,7 @@ const file_ratatosk_v1_chat_proto_rawDesc = "" +
 	"\x16ratatosk/v1/chat.proto\x12\vratatosk.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18ratatosk/v1/common.proto\";\n" +
 	"\bReaction\x12\x14\n" +
 	"\x05emoji\x18\x01 \x01(\tR\x05emoji\x12\x19\n" +
-	"\buser_ids\x18\x02 \x03(\tR\auserIds\"\xb3\x04\n" +
+	"\buser_ids\x18\x02 \x03(\tR\auserIds\"\xfc\x05\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x1b\n" +
@@ -3018,7 +3161,15 @@ const file_ratatosk_v1_chat_proto_rawDesc = "" +
 	"\x04kind\x18\v \x01(\x0e2\x18.ratatosk.v1.MessageKindR\x04kind\x12\x10\n" +
 	"\x03seq\x18\f \x01(\x03R\x03seq\x124\n" +
 	"\breply_to\x18\r \x01(\v2\x19.ratatosk.v1.ReplyPreviewR\areplyTo\x12\x1e\n" +
-	"\vreply_to_id\x18\x0e \x01(\tR\treplyToId\"\x8c\x02\n" +
+	"\vreply_to_id\x18\x0e \x01(\tR\treplyToId\x12\x1e\n" +
+	"\n" +
+	"ciphertext\x18\x0f \x01(\fR\n" +
+	"ciphertext\x12\x14\n" +
+	"\x05nonce\x18\x10 \x01(\fR\x05nonce\x12/\n" +
+	"\x14sender_device_key_id\x18\x11 \x01(\tR\x11senderDeviceKeyId\x12\x1b\n" +
+	"\tkey_epoch\x18\x12 \x01(\x05R\bkeyEpoch\x12\x1c\n" +
+	"\tencrypted\x18\x13 \x01(\bR\tencrypted\x12%\n" +
+	"\x0ecrypto_version\x18\x14 \x01(\tR\rcryptoVersion\"\x8c\x02\n" +
 	"\x06Member\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.ratatosk.v1.UserR\x04user\x12\x12\n" +
 	"\x04role\x18\x02 \x01(\tR\x04role\x127\n" +
@@ -3098,19 +3249,32 @@ const file_ratatosk_v1_chat_proto_rawDesc = "" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"c\n" +
 	"\x14ListMessagesResponse\x120\n" +
 	"\bmessages\x18\x01 \x03(\v2\x14.ratatosk.v1.MessageR\bmessages\x12\x19\n" +
-	"\bhas_more\x18\x02 \x01(\bR\ahasMore\"\xc4\x01\n" +
+	"\bhas_more\x18\x02 \x01(\bR\ahasMore\"\xef\x02\n" +
 	"\x12SendMessageRequest\x12'\n" +
 	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x12%\n" +
 	"\x0eattachment_ids\x18\x03 \x03(\tR\rattachmentIds\x12\x1e\n" +
 	"\vreply_to_id\x18\x04 \x01(\tR\treplyToId\x12*\n" +
-	"\x11client_message_id\x18\x05 \x01(\tR\x0fclientMessageId\"E\n" +
+	"\x11client_message_id\x18\x05 \x01(\tR\x0fclientMessageId\x12\x1e\n" +
+	"\n" +
+	"ciphertext\x18\x06 \x01(\fR\n" +
+	"ciphertext\x12\x14\n" +
+	"\x05nonce\x18\a \x01(\fR\x05nonce\x12/\n" +
+	"\x14sender_device_key_id\x18\b \x01(\tR\x11senderDeviceKeyId\x12\x1b\n" +
+	"\tkey_epoch\x18\t \x01(\x05R\bkeyEpoch\x12%\n" +
+	"\x0ecrypto_version\x18\n" +
+	" \x01(\tR\rcryptoVersion\"E\n" +
 	"\x13SendMessageResponse\x12.\n" +
-	"\amessage\x18\x01 \x01(\v2\x14.ratatosk.v1.MessageR\amessage\"G\n" +
+	"\amessage\x18\x01 \x01(\v2\x14.ratatosk.v1.MessageR\amessage\"\xa4\x01\n" +
 	"\x12EditMessageRequest\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x01 \x01(\tR\tmessageId\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\"E\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1e\n" +
+	"\n" +
+	"ciphertext\x18\x03 \x01(\fR\n" +
+	"ciphertext\x12\x14\n" +
+	"\x05nonce\x18\x04 \x01(\fR\x05nonce\x12%\n" +
+	"\x0ecrypto_version\x18\x05 \x01(\tR\rcryptoVersion\"E\n" +
 	"\x13EditMessageResponse\x12.\n" +
 	"\amessage\x18\x01 \x01(\v2\x14.ratatosk.v1.MessageR\amessage\"5\n" +
 	"\x14DeleteMessageRequest\x12\x1d\n" +
@@ -3154,11 +3318,12 @@ const file_ratatosk_v1_chat_proto_rawDesc = "" +
 	"\n" +
 	"avatar_url\x18\x05 \x01(\tR\tavatarUrl\"M\n" +
 	"\x16SearchMessagesResponse\x123\n" +
-	"\aresults\x18\x01 \x03(\v2\x19.ratatosk.v1.SearchResultR\aresults\"l\n" +
+	"\aresults\x18\x01 \x03(\v2\x19.ratatosk.v1.SearchResultR\aresults\"\x8a\x01\n" +
 	"\x17UploadAttachmentRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12!\n" +
 	"\fcontent_type\x18\x02 \x01(\tR\vcontentType\x12\x12\n" +
-	"\x04data\x18\x03 \x01(\fR\x04data\"S\n" +
+	"\x04data\x18\x03 \x01(\fR\x04data\x12\x1c\n" +
+	"\tencrypted\x18\x04 \x01(\bR\tencrypted\"S\n" +
 	"\x18UploadAttachmentResponse\x127\n" +
 	"\n" +
 	"attachment\x18\x01 \x01(\v2\x17.ratatosk.v1.AttachmentR\n" +

@@ -13,6 +13,7 @@ type Services struct {
 	Auth   *AuthService
 	Chat   *ChatService
 	Social *SocialService
+	Keys   *KeyService
 }
 
 // New wires every service onto the same object graph.
@@ -22,6 +23,7 @@ func New(st *store.Store, hub *realtime.Hub, presence *realtime.Tracker, cfg Con
 		Auth:   NewAuthService(b),
 		Chat:   NewChatService(b),
 		Social: NewSocialService(b),
+		Keys:   NewKeyService(b),
 	}
 }
 
