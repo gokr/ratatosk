@@ -1,0 +1,18 @@
+version: v2
+# Code generation for both sides of the wire from the same .proto files:
+#   * Go server   -> server/gen  (protoc-gen-go, protoc-gen-connect-go)
+#   * Dart client -> app/lib/src/gen  (protoc-gen-dart, protoc-gen-connect-dart)
+#
+# `make proto` installs the plugins and runs `buf generate`.
+clean: true
+plugins:
+  - local: protoc-gen-go
+    out: server/gen
+    opt: paths=source_relative
+  - local: protoc-gen-connect-go
+    out: server/gen
+    opt: paths=source_relative
+  - local: protoc-gen-dart
+    out: app/lib/src/gen
+  - local: protoc-gen-connect-dart
+    out: app/lib/src/gen

@@ -1,0 +1,14 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # The events carried by ChatService.Subscribe are the domain type, not a
+    # wrapper around a response; `stream Event` reads better than
+    # `stream SubscribeResponse` and is what clients see.
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    - FILE

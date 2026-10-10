@@ -1,0 +1,382 @@
+syntax = "proto3";
+
+package ratatosk.v1;
+
+import "google/protobuf/timestamp.proto";
+import "ratatosk/v1/common.proto";
+
+option go_package = "github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1";
+
+// Conversations, messages and the realtime stream.
+//
+// Ordering: every conversation owns a strictly increasing `seq`, assigned by
+// the server on append. Clients paginate and resume by seq, never by time, so
+// a reconnect cannot miss or duplicate a message.
+service ChatService {
+  // Conversations the caller is a member of, most recently active first.
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {}
+  // A single conversation, refreshed for the caller.
+  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse) {}
+  // Reuse or create the 1:1 conversation with another user.
+  rpc CreateDirectConversation(CreateDirectConversationRequest) returns (CreateDirectConversationResponse) {}
+  // Create a group conversation owned by the caller.
+  rpc CreateGroupConversation(CreateGroupConversationRequest) returns (CreateGroupConversationResponse) {}
+  // Rename, re-picture, mute or pin a conversation.
+  rpc UpdateConversation(UpdateConversationRequest) returns (UpdateConversationResponse) {}
+  // Add users to a group; they see the history from their join point.
+  rpc AddMembers(AddMembersRequest) returns (AddMembersResponse) {}
+  // Remove a member from a group (owner, or leaving yourself).
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse) {}
+  // Messages, oldest first, paged by seq in either direction.
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {}
+  // Append a message. `client_message_id` makes retries idempotent.
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse) {}
+  // Rewrite the text of your own message.
+  rpc EditMessage(EditMessageRequest) returns (EditMessageResponse) {}
+  // Tombstone your own message; attachments are dropped from the store view.
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse) {}
+  // Toggle one emoji reaction from the caller.
+  rpc AddReaction(AddReactionRequest) returns (AddReactionResponse) {}
+  rpc RemoveReaction(RemoveReactionRequest) returns (RemoveReactionResponse) {}
+  // Advance the caller's read cursor, clearing their unread badge.
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse) {}
+  // Broadcast a typing indicator for a few seconds. Nothing is persisted.
+  rpc SetTyping(SetTypingRequest) returns (SetTypingResponse) {}
+  // Full-text substring search over the caller's conversations.
+  rpc SearchMessages(SearchMessagesRequest) returns (SearchMessagesResponse) {}
+  // Upload one file (attachment or profile picture) and get its id back.
+  rpc UploadAttachment(UploadAttachmentRequest) returns (UploadAttachmentResponse) {}
+  // Server stream of everything that happens to the caller: new and edited
+  // messages, typing, read cursors, presence, conversation and contact changes.
+  rpc Subscribe(SubscribeRequest) returns (stream Event) {}
+}
+
+enum MessageKind {
+  MESSAGE_KIND_UNSPECIFIED = 0;
+  // A normal user message.
+  MESSAGE_KIND_TEXT = 1;
+  // A server-authored note, e.g. "Ada added Grace".
+  MESSAGE_KIND_SYSTEM = 2;
+}
+
+// Reaction to a message: one emoji, the users who picked it.
+message Reaction {
+  string emoji = 1;
+  repeated string user_ids = 2;
+}
+
+message Message {
+  string id = 1;
+  string conversation_id = 2;
+  string sender_id = 3;
+  string text = 4;
+  repeated Attachment attachments = 5;
+  google.protobuf.Timestamp created_at = 6;
+  // Set when the text was rewritten after sending.
+  google.protobuf.Timestamp edited_at = 7;
+  // Tombstone: text and attachments are cleared, the row keeps its place.
+  bool deleted = 8;
+  repeated Reaction reactions = 9;
+  // Idempotency key supplied by the sender.
+  string client_message_id = 10;
+  MessageKind kind = 11;
+  // Position in the conversation; strictly increasing, gapless per view.
+  int64 seq = 12;
+  ReplyPreview reply_to = 13;
+  // The message being replied to, for sends and for clients that need it.
+  string reply_to_id = 14;
+}
+
+// A conversation participant, from the viewer's point of view.
+message Member {
+  User user = 1;
+  // "owner" for the creator of a group, "member" otherwise.
+  string role = 2;
+  google.protobuf.Timestamp joined_at = 3;
+  // Highest seq this member has read.
+  int64 last_read_seq = 4;
+  google.protobuf.Timestamp last_read_at = 5;
+  bool muted = 6;
+  bool pinned = 7;
+}
+
+message Conversation {
+  string id = 1;
+  // "direct" or "group".
+  string kind = 2;
+  // Group title; for direct conversations the peer's display name.
+  string title = 3;
+  // Group picture, or the peer's picture for direct conversations.
+  string avatar_url = 4;
+  repeated Member members = 5;
+  // Most recent message, absent in a conversation with no messages yet.
+  Message last_message = 6;
+  int32 unread_count = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  string created_by = 10;
+  // Highest seq in the conversation, read or not.
+  int64 last_seq = 11;
+  // The viewer's own flags, mirrored from their Member row.
+  bool muted = 12;
+  bool pinned = 13;
+  string accent_color = 14;
+  // For direct conversations: the other participant, empty in groups.
+  User peer = 15;
+}
+
+message ListConversationsRequest {}
+
+message ListConversationsResponse {
+  repeated Conversation conversations = 1;
+}
+
+message GetConversationRequest {
+  string conversation_id = 1;
+}
+
+message GetConversationResponse {
+  Conversation conversation = 1;
+}
+
+message CreateDirectConversationRequest {
+  // Exactly one of user_id / username must be set.
+  string user_id = 1;
+  string username = 2;
+}
+
+message CreateDirectConversationResponse {
+  Conversation conversation = 1;
+  // True when a new conversation was created rather than reused.
+  bool created = 2;
+}
+
+message CreateGroupConversationRequest {
+  string title = 1;
+  // Handles of the initial members, the caller excluded.
+  repeated string usernames = 2;
+  repeated string user_ids = 3;
+}
+
+message CreateGroupConversationResponse {
+  Conversation conversation = 1;
+}
+
+message UpdateConversationRequest {
+  string conversation_id = 1;
+  // Empty fields keep their current value.
+  string title = 2;
+  string avatar_attachment_id = 3;
+  bool clear_avatar = 4;
+  // Viewer-scoped flags.
+  optional bool muted = 5;
+  optional bool pinned = 6;
+}
+
+message UpdateConversationResponse {
+  Conversation conversation = 1;
+}
+
+message AddMembersRequest {
+  string conversation_id = 1;
+  repeated string usernames = 2;
+  repeated string user_ids = 3;
+}
+
+message AddMembersResponse {
+  Conversation conversation = 1;
+}
+
+message RemoveMemberRequest {
+  string conversation_id = 1;
+  // Empty removes the caller (leave).
+  string user_id = 2;
+}
+
+message RemoveMemberResponse {
+  Conversation conversation = 1;
+}
+
+message ListMessagesRequest {
+  string conversation_id = 1;
+  // Return messages with seq < before_seq, newest last. Used for scrolling up.
+  int64 before_seq = 2;
+  // Return messages with seq > after_seq, oldest first. Used for catch-up.
+  int64 after_seq = 3;
+  // Defaults to 50, capped at 200.
+  int32 limit = 4;
+}
+
+message ListMessagesResponse {
+  repeated Message messages = 1;
+  // True when older messages exist before the first returned message.
+  bool has_more = 2;
+}
+
+message SendMessageRequest {
+  string conversation_id = 1;
+  string text = 2;
+  repeated string attachment_ids = 3;
+  string reply_to_id = 4;
+  // Sender-generated id; a repeat of the same id returns the stored message
+  // instead of appending a second one.
+  string client_message_id = 5;
+}
+
+message SendMessageResponse {
+  Message message = 1;
+}
+
+message EditMessageRequest {
+  string message_id = 1;
+  string text = 2;
+}
+
+message EditMessageResponse {
+  Message message = 1;
+}
+
+message DeleteMessageRequest {
+  string message_id = 1;
+}
+
+message DeleteMessageResponse {
+  Message message = 1;
+}
+
+message AddReactionRequest {
+  string message_id = 1;
+  string emoji = 2;
+}
+
+message AddReactionResponse {
+  Message message = 1;
+}
+
+message RemoveReactionRequest {
+  string message_id = 1;
+  string emoji = 2;
+}
+
+message RemoveReactionResponse {
+  Message message = 1;
+}
+
+message MarkReadRequest {
+  string conversation_id = 1;
+  // Read up to this seq; 0 means "everything in the conversation".
+  int64 up_to_seq = 2;
+}
+
+message MarkReadResponse {
+  string conversation_id = 1;
+  int64 last_read_seq = 2;
+  int32 unread_count = 3;
+}
+
+message SetTypingRequest {
+  string conversation_id = 1;
+  bool typing = 2;
+}
+
+message SetTypingResponse {}
+
+message SearchMessagesRequest {
+  // Empty returns the most recent messages of the visible scope.
+  string query = 1;
+  // Empty searches every conversation the caller is in.
+  string conversation_id = 2;
+  int32 limit = 3;
+}
+
+// A search hit: the message plus enough context to render a result row.
+message SearchResult {
+  Message message = 1;
+  string conversation_id = 2;
+  string conversation_title = 3;
+  string sender_name = 4;
+  string avatar_url = 5;
+}
+
+message SearchMessagesResponse {
+  repeated SearchResult results = 1;
+}
+
+message UploadAttachmentRequest {
+  string filename = 1;
+  string content_type = 2;
+  bytes data = 3;
+}
+
+message UploadAttachmentResponse {
+  Attachment attachment = 1;
+}
+
+message SubscribeRequest {
+  // Informational; the stream always starts at "now" and the client
+  // reconciles with ListConversations / ListMessages.
+  int64 since_seq = 1;
+}
+
+// One frame of the realtime stream. `seq` is a server-wide counter, useful
+// for ordering a client-side log; it is not a per-conversation position.
+message Event {
+  int64 seq = 1;
+  google.protobuf.Timestamp at = 2;
+  oneof payload {
+    Hello hello = 10;
+    MessageEvent message = 11;
+    TypingEvent typing = 12;
+    ReadEvent read = 13;
+    ConversationEvent conversation = 14;
+    PresenceEvent presence = 15;
+    ContactEvent contact = 16;
+  }
+}
+
+// First frame of a Subscribe stream.
+message Hello {
+  User user = 1;
+  google.protobuf.Timestamp server_time = 2;
+}
+
+// A message was appended or changed (edit, delete, reaction).
+message MessageEvent {
+  Message message = 1;
+}
+
+message TypingEvent {
+  string conversation_id = 1;
+  string user_id = 2;
+  string display_name = 3;
+  bool typing = 4;
+}
+
+message ReadEvent {
+  string conversation_id = 1;
+  string user_id = 2;
+  int64 last_read_seq = 3;
+}
+
+message ConversationEvent {
+  Conversation conversation = 1;
+  // A new conversation for the viewer, so clients can add it.
+  bool created = 2;
+  // The viewer was removed; drop it from the list.
+  bool removed = 3;
+}
+
+message PresenceEvent {
+  string user_id = 1;
+  Presence presence = 2;
+  google.protobuf.Timestamp last_seen = 3;
+}
+
+// Contacts changed, e.g. someone redeemed your invite.
+message ContactEvent {
+  // "added" or "removed".
+  string kind = 1;
+  User user = 2;
+  // Set when the change also created a direct conversation.
+  string conversation_id = 3;
+}

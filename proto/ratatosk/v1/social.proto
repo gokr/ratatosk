@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package ratatosk.v1;
+
+import "google/protobuf/timestamp.proto";
+import "ratatosk/v1/chat.proto";
+import "ratatosk/v1/common.proto";
+
+option go_package = "github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1";
+
+// Contacts, discovery and invitation links.
+service SocialService {
+  // The caller's contacts, newest first.
+  rpc ListContacts(ListContactsRequest) returns (ListContactsResponse) {}
+  // Become contacts with a user by handle, creating the direct conversation.
+  rpc AddContact(AddContactRequest) returns (AddContactResponse) {}
+  // Drop a contact (history and conversations are kept).
+  rpc RemoveContact(RemoveContactRequest) returns (RemoveContactResponse) {}
+  // Find people by handle or display name; empty query lists recent users.
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse) {}
+  // Mint an invite link that makes two users contacts when redeemed.
+  rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse) {}
+  // Invites the caller created, newest first.
+  rpc ListInvites(ListInvitesRequest) returns (ListInvitesResponse) {}
+  // Invalidate an invite link.
+  rpc RevokeInvite(RevokeInviteRequest) returns (RevokeInviteResponse) {}
+  // Look at an invite without redeeming it. No token required, so the invite
+  // landing page can show who invited you.
+  rpc PreviewInvite(PreviewInviteRequest) returns (PreviewInviteResponse) {}
+  // Redeem an invite: both sides become contacts.
+  rpc RedeemInvite(RedeemInviteRequest) returns (RedeemInviteResponse) {}
+}
+
+// A contact plus the direct conversation shared with them.
+message Contact {
+  User user = 1;
+  google.protobuf.Timestamp since = 2;
+  // Direct conversation id, empty when it was never created.
+  string conversation_id = 3;
+  bool blocked = 4;
+}
+
+// A shareable invitation. The link is `<public_url>/join/<code>`, which is
+// both a web landing page and a deep link the app understands.
+message Invite {
+  string code = 1;
+  string url = 2;
+  google.protobuf.Timestamp created_at = 3;
+  // Zero means the invite never expires.
+  google.protobuf.Timestamp expires_at = 4;
+  // Zero means unlimited.
+  int32 max_uses = 5;
+  int32 uses = 6;
+  bool revoked = 7;
+  // Display names of the people who already joined, newest first.
+  repeated string redeemed_by = 8;
+  bool valid = 9;
+}
+
+message ListContactsRequest {}
+
+message ListContactsResponse {
+  repeated Contact contacts = 1;
+}
+
+message AddContactRequest {
+  // Handle or display name; must match exactly one account.
+  string username = 1;
+}
+
+message AddContactResponse {
+  Contact contact = 1;
+  Conversation conversation = 2;
+}
+
+message RemoveContactRequest {
+  string user_id = 1;
+}
+
+message RemoveContactResponse {}
+
+message SearchUsersRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchUsersResponse {
+  repeated User users = 1;
+}
+
+message CreateInviteRequest {
+  // Hours until the link expires; 0 uses the server default, negative means
+  // never.
+  int32 expires_in_hours = 1;
+  // 0 uses the server default; negative means unlimited.
+  int32 max_uses = 2;
+}
+
+message CreateInviteResponse {
+  Invite invite = 1;
+}
+
+message ListInvitesRequest {}
+
+message ListInvitesResponse {
+  repeated Invite invites = 1;
+}
+
+message RevokeInviteRequest {
+  string code = 1;
+}
+
+message RevokeInviteResponse {}
+
+message PreviewInviteRequest {
+  // Code or a full invite link.
+  string code = 1;
+}
+
+message PreviewInviteResponse {
+  bool valid = 1;
+  User inviter = 2;
+  // Why it is invalid: "unknown", "revoked", "expired", "exhausted".
+  string reason = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  int32 remaining_uses = 5;
+  bool already_contacts = 6;
+}
+
+message RedeemInviteRequest {
+  // Code or a full invite link.
+  string code = 1;
+}
+
+message RedeemInviteResponse {
+  User inviter = 1;
+  Conversation conversation = 2;
+}

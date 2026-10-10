@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package ratatosk.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1";
+
+// Presence of a user, as last observed by the server.
+//
+// PRESENCE_ONLINE is reported while the user has at least one live Subscribe
+// stream and has been active recently; PRESENCE_AWAY once that stream is idle
+// beyond the away threshold; PRESENCE_OFFLINE with no live stream.
+enum Presence {
+  PRESENCE_UNSPECIFIED = 0;
+  PRESENCE_ONLINE = 1;
+  PRESENCE_AWAY = 2;
+  PRESENCE_OFFLINE = 3;
+}
+
+// A user account. Never carries credentials.
+message User {
+  string id = 1;
+  // Unique handle, lowercase, used to find people and to log in.
+  string username = 2;
+  string display_name = 3;
+  // URL path of the profile picture attachment, empty when unset.
+  string avatar_url = 4;
+  string bio = 5;
+  Presence presence = 6;
+  google.protobuf.Timestamp last_seen = 7;
+  // Stable hex color derived from the user id, used to render initials
+  // avatars and conversation accents when no picture is set.
+  string accent_color = 8;
+}
+
+// A stored file. Bytes live on disk on the server; clients only see the URL.
+message Attachment {
+  string id = 1;
+  string filename = 2;
+  string content_type = 3;
+  int64 size = 4;
+  // Server-relative path, e.g. "/files/8f1c...". Clients append their own
+  // origin and auth token.
+  string url = 5;
+  int32 width = 6;
+  int32 height = 7;
+  // True for content types under image/.
+  bool is_image = 8;
+}
+
+// A compact quote of the message being replied to.
+message ReplyPreview {
+  string message_id = 1;
+  string sender_id = 2;
+  string sender_name = 3;
+  string text = 4;
+  bool deleted = 5;
+  bool has_attachment = 6;
+}

@@ -1,0 +1,122 @@
+//
+//  Generated code. Do not modify.
+//  source: ratatosk/v1/auth.proto
+//
+
+import "package:connectrpc/connect.dart" as connect;
+import "auth.pb.dart" as ratatoskv1auth;
+import "auth.connect.spec.dart" as specs;
+
+/// Account creation, sign-in and profile management.
+/// Register and Login are the only procedures that work without a bearer
+/// token; everything else needs `Authorization: Bearer <token>`, which the
+/// server resolves into the calling user.
+extension type AuthServiceClient (connect.Transport _transport) {
+  /// Create an account and return a session token.
+  Future<ratatoskv1auth.RegisterResponse> register(
+    ratatoskv1auth.RegisterRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.register,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Exchange username and password for a session token.
+  Future<ratatoskv1auth.LoginResponse> login(
+    ratatoskv1auth.LoginRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.login,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Revoke the token used for this call.
+  Future<ratatoskv1auth.LogoutResponse> logout(
+    ratatoskv1auth.LogoutRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.logout,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// The calling user, refreshed (presence, profile edits).
+  Future<ratatoskv1auth.GetMeResponse> getMe(
+    ratatoskv1auth.GetMeRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.getMe,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Edit display name, bio, accent color or profile picture.
+  Future<ratatoskv1auth.UpdateProfileResponse> updateProfile(
+    ratatoskv1auth.UpdateProfileRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.updateProfile,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Rotate the password; other sessions stay valid.
+  Future<ratatoskv1auth.ChangePasswordResponse> changePassword(
+    ratatoskv1auth.ChangePasswordRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.changePassword,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+}
