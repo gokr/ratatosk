@@ -4,6 +4,7 @@ import 'package:watch_it/watch_it.dart';
 import '../api/backend.dart';
 import '../gen/ratatosk/v1/social.pb.dart';
 import '../state/app_state.dart';
+import '../notifications/manager.dart';
 import 'auth_screen.dart';
 import 'theme.dart';
 import 'widgets/avatar.dart';
@@ -18,6 +19,11 @@ class SettingsPage extends WatchingWidget {
     // value this screen shows lives on the same manager, so one watch covers
     // all of it.
     final state = watchIt<AppState>();
+    final push = createOnce(() => PushManager(
+      baseUrl: di<ChatBackend>().baseUrl, token: () => state.token,
+    ));
+    watch(push);
+    callOnce((_) => push.init());
     final me = state.me;
     final contacts = state.contacts;
 
@@ -78,6 +84,30 @@ class SettingsPage extends WatchingWidget {
             ),
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Message notifications'),
+            subtitle: Text('${push.message}\nRequires HTTPS. On iOS/iPadOS 16.4+, use Share → Add to Home Screen, then open the installed app.'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(spacing: 12, children: [
+              FilledButton(
+                onPressed: push.canEnable ? push.enable : null,
+                child: Text(push.busy ? 'Please wait…' : 'Enable notifications'),
+              ),
+              if (push.subscribed)
+                OutlinedButton(
+                  onPressed: push.busy ? null : push.disable,
+                  child: const Text('Disable notifications'),
+                ),
+              TextButton(
+                onPressed: push.busy ? null : push.init,
+                child: const Text('Refresh status'),
+              ),
+            ]),
+          ),
+          const Divider(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text('Contacts (${contacts.length})',
@@ -99,6 +129,10 @@ class SettingsPage extends WatchingWidget {
             ),
             onTap: () async {
               final navigator = Navigator.of(context);
+              // Best effort while the bearer still exists. Browser unsubscribe
+              // also prevents alerts if the server cannot delete the record.
+              await push.disable();
+              try { await push.bridge.unsubscribe(); } catch (_) {}
               await state.signOut();
               if (navigator.canPop()) navigator.pop();
             },

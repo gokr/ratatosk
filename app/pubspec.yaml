@@ -28,6 +28,8 @@ dependencies:
   app_links: ^7.0.0
   # Attachments on every platform, including desktop and web.
   file_selector: ^1.0.3
+  # Native camera capture; web uses the browser's capture-capable picker.
+  image_picker: ^1.2.0
   intl: ^0.20.2
   # Native share sheets; falls back to copying the link on desktop.
   share_plus: ^13.0.0
