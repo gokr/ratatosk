@@ -1,0 +1,35 @@
+-- +goose Up
+CREATE TABLE metadata (key TEXT PRIMARY KEY, value BLOB NOT NULL);
+CREATE TABLE users (id TEXT PRIMARY KEY, lookup TEXT NOT NULL UNIQUE, payload BLOB NOT NULL);
+CREATE TABLE sessions (id TEXT PRIMARY KEY, owner TEXT NOT NULL, payload BLOB NOT NULL);
+CREATE INDEX sessions_owner ON sessions(owner);
+CREATE TABLE invites (id TEXT PRIMARY KEY, owner TEXT NOT NULL, payload BLOB NOT NULL);
+CREATE INDEX invites_owner ON invites(owner);
+CREATE TABLE contacts (id TEXT PRIMARY KEY, owner TEXT NOT NULL, peer TEXT NOT NULL, payload BLOB NOT NULL, UNIQUE(owner,peer));
+CREATE INDEX contacts_owner ON contacts(owner);
+CREATE TABLE conversations (id TEXT PRIMARY KEY, payload BLOB NOT NULL);
+CREATE TABLE memberships (conversation TEXT NOT NULL, owner TEXT NOT NULL, PRIMARY KEY(conversation,owner));
+CREATE INDEX memberships_owner ON memberships(owner,conversation);
+CREATE TABLE messages (id TEXT PRIMARY KEY, conversation TEXT NOT NULL, sender TEXT NOT NULL, client TEXT, seq INTEGER NOT NULL CHECK(seq>0), payload BLOB NOT NULL, UNIQUE(conversation,seq));
+CREATE UNIQUE INDEX messages_client ON messages(conversation,sender,client) WHERE client IS NOT NULL;
+CREATE TABLE attachments (id TEXT PRIMARY KEY, payload BLOB NOT NULL);
+CREATE TABLE device_keys (id TEXT PRIMARY KEY, owner TEXT NOT NULL, payload BLOB NOT NULL);
+CREATE INDEX device_keys_owner ON device_keys(owner);
+CREATE TABLE key_envelopes (id TEXT PRIMARY KEY, conversation TEXT NOT NULL, sender TEXT NOT NULL, recipient TEXT NOT NULL, epoch INTEGER NOT NULL, payload BLOB NOT NULL, UNIQUE(conversation,sender,recipient,epoch));
+CREATE INDEX key_envelopes_recipient ON key_envelopes(recipient,conversation);
+CREATE TABLE push_subscriptions (id TEXT PRIMARY KEY, owner TEXT NOT NULL, session TEXT NOT NULL, payload BLOB NOT NULL);
+CREATE INDEX push_subscriptions_owner ON push_subscriptions(owner);
+CREATE INDEX push_subscriptions_session ON push_subscriptions(session);
+-- +goose Down
+DROP TABLE push_subscriptions;
+DROP TABLE key_envelopes;
+DROP TABLE device_keys;
+DROP TABLE attachments;
+DROP TABLE messages;
+DROP TABLE memberships;
+DROP TABLE conversations;
+DROP TABLE contacts;
+DROP TABLE invites;
+DROP TABLE sessions;
+DROP TABLE users;
+DROP TABLE metadata;

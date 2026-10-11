@@ -23,6 +23,7 @@ import (
 
 	"github.com/gokr/ratatosk/server/gen/ratatosk/v1/ratatoskv1connect"
 	"github.com/gokr/ratatosk/server/internal/auth"
+	"github.com/gokr/ratatosk/server/internal/push"
 	"github.com/gokr/ratatosk/server/internal/realtime"
 	"github.com/gokr/ratatosk/server/internal/service"
 	"github.com/gokr/ratatosk/server/internal/store"
@@ -30,6 +31,7 @@ import (
 
 // Config is everything the HTTP layer needs to know.
 type Config struct {
+	Push *push.Worker
 	Addr string
 	// PublicURL is the origin clients should use, for links in the landing page.
 	PublicURL string
@@ -92,6 +94,9 @@ func (s *Server) build() http.Handler {
 	mux.Handle(socialPath, socialHandler)
 	mux.Handle(keysPath, keysHandler)
 
+	mux.HandleFunc("GET /api/push/config", s.servePushConfig)
+	mux.HandleFunc("POST /api/push/subscriptions", s.servePushSubscription)
+	mux.HandleFunc("DELETE /api/push/subscriptions", s.servePushSubscription)
 	mux.HandleFunc("/files/{id}", s.serveAttachment)
 	// The path wildcards keep the code on one segment: a request such as
 	// /join/a/b can never be mistaken for an invite code containing a slash.
@@ -194,10 +199,10 @@ func (r *statusRecorder) WriteHeader(code int) {
 // when you have none, and a client whose session just expired must still be
 // able to clear it without handling an error.
 var publicProcedures = map[string]bool{
-	ratatoskv1connect.AuthServiceRegisterProcedure:         true,
-	ratatoskv1connect.AuthServiceLoginProcedure:            true,
-	ratatoskv1connect.AuthServiceLogoutProcedure:           true,
-	ratatoskv1connect.SocialServicePreviewInviteProcedure:  true,
+	ratatoskv1connect.AuthServiceRegisterProcedure:        true,
+	ratatoskv1connect.AuthServiceLoginProcedure:           true,
+	ratatoskv1connect.AuthServiceLogoutProcedure:          true,
+	ratatoskv1connect.SocialServicePreviewInviteProcedure: true,
 }
 
 type authInterceptor struct {
@@ -343,8 +348,8 @@ func (s *Server) serveAttachment(w http.ResponseWriter, r *http.Request) {
 // --- invite landing page -------------------------------------------------
 
 type invitePageData struct {
-	AppName     string
-	Valid       bool
+	AppName string
+	Valid   bool
 	// Reason is the machine-readable verdict: "", "unknown", "revoked",
 	// "expired", "exhausted". ReasonText is the same thing said to a person.
 	Reason      string
@@ -451,15 +456,15 @@ func (s *Server) serveInvitePage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveInviteJSON(w http.ResponseWriter, r *http.Request) {
 	data := s.inviteData(r.PathValue("code"))
 	writeJSON(w, http.StatusOK, map[string]any{
-		"code":        data.Code,
-		"valid":       data.Valid,
-		"reason":      data.Reason,
-		"detail":      data.ReasonText,
-		"inviter":     data.InviterName,
-		"username":    strings.TrimPrefix(data.InviterUser, "@"),
-		"expiresOn":   data.ExpiresText,
-		"usesNotice":  data.UsesText,
-		"deepLink":    data.DeepLink,
+		"code":       data.Code,
+		"valid":      data.Valid,
+		"reason":     data.Reason,
+		"detail":     data.ReasonText,
+		"inviter":    data.InviterName,
+		"username":   strings.TrimPrefix(data.InviterUser, "@"),
+		"expiresOn":  data.ExpiresText,
+		"usesNotice": data.UsesText,
+		"deepLink":   data.DeepLink,
 	})
 }
 

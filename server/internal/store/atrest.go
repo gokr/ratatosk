@@ -32,10 +32,10 @@ import (
 // snapshotHeader marks an encrypted snapshot and carries the format version.
 // A plaintext JSON snapshot starts with '{', so the two cannot be confused.
 const (
-	snapshotMagic   = "RATATOSK-ENC-1\n"
-	dataKeyFile     = "data-key"
-	dataKeyEnvVar   = "RATATOSK_DATA_KEY"
-	keyBytes        = 32 // AES-256
+	snapshotMagic    = "RATATOSK-ENC-1\n"
+	dataKeyFile      = "data-key"
+	dataKeyEnvVar    = "RATATOSK_DATA_KEY"
+	keyBytes         = 32 // AES-256
 	nonceBytesAtRest = 12
 )
 

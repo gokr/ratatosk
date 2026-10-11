@@ -25,6 +25,10 @@ import (
 // Config holds the knobs the service layer needs. They come from flags and the
 // environment so nothing in this package reaches for global state.
 type Config struct {
+	// MessageNotifier enqueues generic push notifications without network I/O.
+	MessageNotifier interface {
+		Notify(id, conversation, sender string) bool
+	}
 	// PublicURL is the origin used to build attachment and invite links.
 	PublicURL string
 	// SessionTTL is how long a login lasts.

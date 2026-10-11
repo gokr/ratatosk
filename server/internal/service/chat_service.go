@@ -405,6 +405,9 @@ func (s *ChatService) SendMessage(ctx context.Context, req *connect.Request[rata
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
+	// Only newly appended messages notify: retries, edits and reactions do not.
+	s.notifyMessage(saved)
+
 	// Sending implies having read everything up to here.
 	s.touchRead(c.ID, user.ID, saved.Seq)
 	s.broadcastMessage(saved)
@@ -586,9 +589,9 @@ func (s *ChatService) SearchMessages(ctx context.Context, req *connect.Request[r
 	out := make([]*ratatoskv1.SearchResult, 0, len(hits))
 	for _, m := range hits {
 		result := &ratatoskv1.SearchResult{
-			Message:         s.messageProto(m),
-			ConversationId:  m.ConversationID,
-			SenderName:      "",
+			Message:           s.messageProto(m),
+			ConversationId:    m.ConversationID,
+			SenderName:        "",
 			ConversationTitle: "",
 		}
 		if c, err := s.st.ConversationByID(m.ConversationID); err == nil {

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gokr/ratatosk/server/internal/httpserver"
+	"github.com/gokr/ratatosk/server/internal/push"
 	"github.com/gokr/ratatosk/server/internal/realtime"
 	"github.com/gokr/ratatosk/server/internal/service"
 	"github.com/gokr/ratatosk/server/internal/store"
@@ -71,11 +72,18 @@ func run() error {
 	flag.StringVar(&o.logLevel, "log-level", env("RATATOSK_LOG_LEVEL", "info"), "debug, info, warn or error")
 	flag.StringVar(&o.logFormat, "log-format", env("RATATOSK_LOG_FORMAT", "text"), "text or json")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	// A container has no curl and no shell tools by default; the binary probes
+	// itself so a HEALTHCHECK needs nothing extra in the image.
+	healthcheck := flag.Bool("healthcheck", false, "probe the running server's /healthz and exit (for container health checks)")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Println("ratatoskd", version)
 		return nil
+	}
+
+	if *healthcheck {
+		return probeHealth(o.addr)
 	}
 
 	log := newLogger(o.logLevel, o.logFormat)
@@ -96,10 +104,22 @@ func run() error {
 		}
 	}()
 
+	// Stable, operator-provided VAPID keys: absent disables push; partial
+	// configuration fails startup rather than silently rotating subscriptions.
+	pushWorker, err := push.New(push.Config{
+		PublicKey:  os.Getenv("RATATOSK_VAPID_PUBLIC_KEY"),
+		PrivateKey: os.Getenv("RATATOSK_VAPID_PRIVATE_KEY"),
+		Contact:    os.Getenv("RATATOSK_VAPID_CONTACT"),
+	}, st, nil)
+	if err != nil {
+		return fmt.Errorf("web push: %w", err)
+	}
+
 	hub := realtime.NewHub()
 	presence := realtime.NewTracker(st, hub, nil, o.presenceTimeout, log)
 
 	cfg := service.DefaultConfig()
+	cfg.MessageNotifier = pushWorker
 	cfg.PublicURL = publicURL
 	cfg.SessionTTL = o.sessionTTL
 	cfg.InviteTTL = o.inviteTTL
@@ -108,6 +128,7 @@ func run() error {
 	services := service.New(st, hub, presence, cfg, log)
 
 	handler := httpserver.New(httpserver.Config{
+		Push:           pushWorker,
 		Addr:           o.addr,
 		PublicURL:      publicURL,
 		CORSOrigins:    splitOrigins(o.corsOrigins),
@@ -119,6 +140,9 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go presence.Run(ctx)
+	pushDone := make(chan struct{})
+	go func() { defer close(pushDone); pushWorker.Run(ctx) }()
+	defer func() { stop(); <-pushDone }()
 
 	srv := &http.Server{
 		Addr:              o.addr,
@@ -197,6 +221,31 @@ func resolveWebDir(dir string) string {
 // resolvePublicURL is the origin handed to clients in invite and attachment
 // links. When it is not configured we guess from the listen address, which is
 // right for local development and wrong behind a proxy — hence the flag.
+// probeHealth asks the already-running server how it is doing and turns the
+// answer into an exit code. It is the entry point a container health check uses:
+// nothing else in the image can make an HTTP request.
+func probeHealth(addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("invalid --addr %q: %w", addr, err)
+	}
+	// The server listens on every interface; 127.0.0.1 is the right probe target
+	// for a wildcard bind (localhost can resolve to ::1, where nothing listens).
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + net.JoinHostPort(host, port) + "/healthz")
+	if err != nil {
+		return fmt.Errorf("health probe: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health probe: status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func resolvePublicURL(configured, addr string) (string, error) {
 	if configured != "" {
 		return strings.TrimRight(configured, "/"), nil

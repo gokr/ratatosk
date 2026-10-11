@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,11 +18,11 @@ import (
 // them as received and records no filename or content type, because it has
 // none it can trust. The real values travel inside the message envelope.
 func (s *Store) PutAttachment(ownerID, filename, contentType string, data []byte, encrypted bool, width, height int, now time.Time) (*Attachment, error) {
-	s.mu.RLock()
-	_, exists := s.db.Users[ownerID]
-	s.mu.RUnlock()
-	if !exists {
-		return nil, ErrUnknownUser
+	if _, err := s.UserByID(ownerID); err != nil {
+		if err == ErrNotFound {
+			return nil, ErrUnknownUser
+		}
+		return nil, err
 	}
 
 	storedName := ""
@@ -44,34 +45,28 @@ func (s *Store) PutAttachment(ownerID, filename, contentType string, data []byte
 		return nil, fmt.Errorf("store: write attachment: %w", err)
 	}
 
-	s.mu.Lock()
-	s.db.Attachments[att.ID] = att
-	s.markDirty()
-	s.mu.Unlock()
+	if err := s.write(func(tx *sql.Tx) error { return s.put(tx, "attachments", att.ID, att, nil) }); err != nil {
+		return nil, err
+	}
 	return cloneAttachment(att), nil
 }
 
 // AttachmentByID returns a copy of an attachment's metadata.
 func (s *Store) AttachmentByID(id string) (*Attachment, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	a, ok := s.db.Attachments[id]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	return cloneAttachment(a), nil
+	return getRow[Attachment](s, s.sql, "attachments", id)
 }
 
 // AttachmentsByIDs returns metadata for the named attachments, skipping
 // unknown ids, in the order given.
 func (s *Store) AttachmentsByIDs(ids []string) []*Attachment {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	out := make([]*Attachment, 0, len(ids))
 	for _, id := range ids {
-		if a, ok := s.db.Attachments[id]; ok {
-			out = append(out, cloneAttachment(a))
+		a, err := s.AttachmentByID(id)
+		if err == ErrNotFound {
+			continue
 		}
+		must(err)
+		out = append(out, a)
 	}
 	return out
 }

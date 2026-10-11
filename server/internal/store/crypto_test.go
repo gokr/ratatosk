@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -60,23 +61,21 @@ func TestSnapshotIsEncryptedAtRest(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	raw, err := os.ReadFile(filepath.Join(dir, "ratatosk.json"))
-	if err != nil {
-		t.Fatalf("read snapshot: %v", err)
+	if !bytes.HasPrefix(cat(t, filepath.Join(dir, databaseName)), []byte("SQLite format 3")) {
+		t.Fatal("the database is not a SQLite file")
 	}
-	if !bytes.HasPrefix(raw, []byte(snapshotMagic)) {
-		t.Fatal("the snapshot is not sealed")
-	}
-	// The strings a thief would look for must not appear anywhere in the file.
+	// Every file the store wrote, checked for content a thief would look for.
+	// Only distinctive values are searched for: a bare "ada" would match the
+	// word "metadata" in the schema, which is not a leak.
 	for _, secret := range []string{
 		"the plaintext that must not touch the disk",
 		"Secret Club",
 		"Ada Lovelace",
-		"ada",
-		"u1",
 	} {
-		if bytes.Contains(raw, []byte(secret)) {
-			t.Errorf("the sealed snapshot still contains %q", secret)
+		for _, name := range storeFiles(t, dir) {
+			if bytes.Contains(cat(t, name), []byte(secret)) {
+				t.Errorf("%s contains %q", filepath.Base(name), secret)
+			}
 		}
 	}
 
@@ -121,16 +120,77 @@ func TestSnapshotWithTheWrongKeyRefusesToOpen(t *testing.T) {
 
 	t.Setenv(dataKeyEnvVar, strings.Repeat("ab", keyBytes))
 	if _, err := Open(dir, testLogger()); err == nil {
-		t.Fatal("opening a snapshot with the wrong key succeeded")
-	} else if !strings.Contains(err.Error(), "decrypt") {
-		t.Fatalf("error = %v, want a decryption failure", err)
+		t.Fatal("opening the database with the wrong key succeeded")
+	} else if !strings.Contains(err.Error(), "data key") {
+		t.Fatalf("error = %v, want a data key failure", err)
 	}
 }
 
-// A database written before encryption existed still loads, and is sealed on
-// the next write.
-func TestLegacyPlaintextSnapshotIsAdopted(t *testing.T) {
+// A sealed JSON snapshot from the pre-SQLite server is imported on first boot,
+// and the snapshot is left in place as the fallback rather than deleted.
+func TestLegacyEncryptedSnapshotIsImported(t *testing.T) {
 	dir := t.TempDir()
+	key := strings.Repeat("ab", keyBytes)
+	t.Setenv(dataKeyEnvVar, key)
+
+	if _, err := os.Stat(filepath.Join(dir, "data-key")); err == nil {
+		t.Fatal("test writes its own key file")
+	}
+	st, err := Open(dir, testLogger())
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	user, err := st.CreateUser("ada", "Ada Lovelace", "h", "s", "#fff", time.Now())
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	conv, err := st.CreateConversation(KindGroup, "Secret Club", user.ID, nil, time.Now())
+	if err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+	if _, err := st.AppendMessage(&Message{ConversationID: conv.ID, SenderID: user.ID, Text: "before the migration"}, time.Now()); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	// Turn back the clock: write the same state as the old sealed snapshot and
+	// remove the SQLite database, as an upgrade from an older server would look.
+	if err := writeLegacySnapshot(t, st, filepath.Join(dir, snapshotName)); err != nil {
+		t.Fatalf("write legacy snapshot: %v", err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	for _, name := range []string{databaseName, databaseName + "-wal", databaseName + "-shm"} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+
+	imported, err := Open(dir, testLogger())
+	if err != nil {
+		t.Fatalf("import legacy snapshot: %v", err)
+	}
+	defer imported.Close()
+
+	if got := imported.Stats(); got.Users != 1 || got.Conversations != 1 || got.Messages != 1 {
+		t.Fatalf("stats after import = %+v, want 1 user, 1 conversation, 1 message", got)
+	}
+	back, _, err := imported.MessagesOf(conv.ID, 0, 0, 10)
+	if err != nil || len(back) != 1 || back[0].Text != "before the migration" {
+		t.Fatalf("messages after import = %v (%v)", back, err)
+	}
+	if _, err := imported.UserByUsername("ada"); err != nil {
+		t.Fatalf("user after import: %v", err)
+	}
+	// The snapshot is kept: it is the fallback if the import is ever wrong.
+	if _, err := os.Stat(filepath.Join(dir, snapshotName)); err != nil {
+		t.Fatalf("legacy snapshot was removed: %v", err)
+	}
+}
+
+// A snapshot that does not decrypt with the current key must refuse to boot,
+// rather than importing nothing over real history.
+func TestUnreadableLegacySnapshotRefusesToStart(t *testing.T) {
+	dir := t.TempDir()
+	key := strings.Repeat("ab", keyBytes)
+	t.Setenv(dataKeyEnvVar, key)
 	st, err := Open(dir, testLogger())
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -138,46 +198,66 @@ func TestLegacyPlaintextSnapshotIsAdopted(t *testing.T) {
 	if _, err := st.CreateUser("ada", "Ada", "h", "s", "#fff", time.Now()); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	if err := writeLegacySnapshot(t, st, filepath.Join(dir, snapshotName)); err != nil {
+		t.Fatalf("write legacy snapshot: %v", err)
+	}
 	if err := st.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-
-	// Rewrite the snapshot as the old plaintext JSON.
-	path := filepath.Join(dir, "ratatosk.json")
-	sealed, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	plain, err := st.unsealSnapshot(sealed)
-	if err != nil {
-		t.Fatalf("unseal: %v", err)
-	}
-	if err := os.WriteFile(path, plain, 0o600); err != nil {
-		t.Fatalf("write plaintext: %v", err)
+	for _, name := range []string{databaseName, databaseName + "-wal", databaseName + "-shm"} {
+		_ = os.Remove(filepath.Join(dir, name))
 	}
 
-	adopted, err := Open(dir, testLogger())
-	if err != nil {
-		t.Fatalf("open plaintext snapshot: %v", err)
+	// A different key cannot read the snapshot.
+	t.Setenv(dataKeyEnvVar, strings.Repeat("cd", keyBytes))
+	if _, err := Open(dir, testLogger()); err == nil {
+		t.Fatal("an unreadable legacy snapshot was ignored and the store started empty")
 	}
-	if got := adopted.Stats().Users; got != 1 {
-		t.Fatalf("users = %d, want 1", got)
-	}
-	if _, err := adopted.CreateUser("grace", "Grace", "h", "s", "#fff", time.Now()); err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-	if err := adopted.Flush(); err != nil {
-		t.Fatalf("flush: %v", err)
-	}
-	_ = adopted.Close()
+}
 
+// writeLegacySnapshot seals the store's current state as the old JSON snapshot.
+func writeLegacySnapshot(t *testing.T, st *Store, path string) error {
+	t.Helper()
+	var db *DB
+	if err := st.View(func(view *DB) error { db = view; return nil }); err != nil {
+		return err
+	}
+	plain, err := json.Marshal(db)
+	if err != nil {
+		return err
+	}
+	sealed, err := st.sealSnapshot(plain)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, sealed, 0o600)
+}
+
+// storeFiles lists every file the store wrote except the key file, which is hex
+// key material rather than content.
+func storeFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	var out []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || filepath.Base(path) == dataKeyFile {
+			return err
+		}
+		out = append(out, path)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	return out
+}
+
+func cat(t *testing.T, path string) []byte {
+	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read again: %v", err)
+		t.Fatalf("read %s: %v", path, err)
 	}
-	if !bytes.HasPrefix(raw, []byte(snapshotMagic)) {
-		t.Fatal("the adopted snapshot was not re-sealed")
-	}
+	return raw
 }
 
 func TestDeviceKeysAreImmutableAndPrivate(t *testing.T) {

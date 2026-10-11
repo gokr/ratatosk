@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"connectrpc.com/connect"
 
 	ratatoskv1 "github.com/gokr/ratatosk/server/gen/ratatosk/v1"
 	"github.com/gokr/ratatosk/server/gen/ratatosk/v1/ratatoskv1connect"
+	"github.com/gokr/ratatosk/server/internal/store"
 )
 
 // randomBytes is the test's stand-in for a client-side seal: from the server's
@@ -295,19 +296,19 @@ func TestDeviceKeysCannotBeSubstituted(t *testing.T) {
 
 	// The same keys again: accepted, so a client can publish on every start.
 	if _, err := keys.PublishDeviceKey(ctx, connect.NewRequest(&ratatoskv1.PublishDeviceKeyRequest{
-		Id:                 key.GetId(),
-		IdentityPublicKey:  key.GetIdentityPublicKey(),
-		SigningPublicKey:   key.GetSigningPublicKey(),
-		Label:              "Laptop (renamed)",
-		Platform:           "linux",
+		Id:                key.GetId(),
+		IdentityPublicKey: key.GetIdentityPublicKey(),
+		SigningPublicKey:  key.GetSigningPublicKey(),
+		Label:             "Laptop (renamed)",
+		Platform:          "linux",
 	})); err != nil {
 		t.Fatalf("re-publish: %v", err)
 	}
 	// Different keys under the same id: refused.
 	if _, err := keys.PublishDeviceKey(ctx, connect.NewRequest(&ratatoskv1.PublishDeviceKeyRequest{
-		Id:                 key.GetId(),
-		IdentityPublicKey:  randomBytes(t, 32),
-		SigningPublicKey:   key.GetSigningPublicKey(),
+		Id:                key.GetId(),
+		IdentityPublicKey: randomBytes(t, 32),
+		SigningPublicKey:  key.GetSigningPublicKey(),
 	})); codeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("key substitution: code = %v, want FailedPrecondition", codeOf(err))
 	}
@@ -357,10 +358,10 @@ func TestDataDirectoryRevealsNoPlaintext(t *testing.T) {
 	}
 	// And a sealed message.
 	if _, err := chat.SendMessage(ctx, connect.NewRequest(&ratatoskv1.SendMessageRequest{
-		ConversationId: direct.Msg.GetConversation().GetId(),
-		Ciphertext:     randomBytes(t, 64),
-		Nonce:          randomBytes(t, 24),
-		CryptoVersion:  "ratatosk/v1",
+		ConversationId:    direct.Msg.GetConversation().GetId(),
+		Ciphertext:        randomBytes(t, 64),
+		Nonce:             randomBytes(t, 24),
+		CryptoVersion:     "ratatosk/v1",
 		SenderDeviceKeyId: "k-test",
 	})); err != nil {
 		t.Fatalf("send sealed: %v", err)
@@ -390,24 +391,25 @@ func TestDataDirectoryRevealsNoPlaintext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk: %v", err)
 	}
-	for _, secret := range []string{"Ada Lovelace", "Union Local 47", "ada", "grace"} {
+	// "ada" and "grace" are deliberately not checked: both are substrings of
+	// schema words ("metadata", "grace" in nothing) that legitimately appear in
+	// the SQLite file, so the check would be a false positive rather than a leak.
+	for _, secret := range []string{"Ada Lovelace", "Union Local 47"} {
 		if bytes.Contains(all, []byte(secret)) {
 			t.Errorf("the data directory still contains %q", secret)
 		}
 	}
 
-	// The health endpoint still reports counts (metadata the server holds
-	// legitimately), which also proves the reopened store is intact.
-	var payload map[string]any
-	res, err := srv.Client().Get(srv.URL + "/healthz")
+	// Reopening the directory proves the encrypted rows are readable again: the
+	// data is unreadable in the file but intact for the server that has the key.
+	reopened, err := store.Open(dir, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
-		t.Fatalf("healthz: %v", err)
+		t.Fatalf("reopen store: %v", err)
 	}
-	defer res.Body.Close()
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode healthz: %v", err)
+	defer reopened.Close()
+	if got := reopened.Stats(); got.Users != 2 || got.Conversations != 2 || got.Messages != 2 {
+		t.Fatalf("stats after reopen = %+v, want 2 users, 2 conversations, 2 messages", got)
 	}
-	_ = time.Now
 }
 
 // registerDeviceKey publishes a fresh device key for a signed-in test client.

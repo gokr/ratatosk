@@ -194,16 +194,16 @@ func deviceKeyProto(k *store.DeviceKey) *ratatoskv1.DeviceKey {
 		return nil
 	}
 	return &ratatoskv1.DeviceKey{
-		Id:                 k.ID,
-		UserId:             k.UserID,
-		IdentityPublicKey:  k.Identity,
-		SigningPublicKey:   k.Signing,
-		Label:              k.Label,
-		Platform:           k.Platform,
-		CreatedAt:          ts(k.CreatedAt),
-		LastSeen:           ts(k.LastSeen),
-		Fingerprint:        k.Fingerprint(),
-		Revoked:            k.Revoked,
+		Id:                k.ID,
+		UserId:            k.UserID,
+		IdentityPublicKey: k.Identity,
+		SigningPublicKey:  k.Signing,
+		Label:             k.Label,
+		Platform:          k.Platform,
+		CreatedAt:         ts(k.CreatedAt),
+		LastSeen:          ts(k.LastSeen),
+		Fingerprint:       k.Fingerprint(),
+		Revoked:           k.Revoked,
 	}
 }
 

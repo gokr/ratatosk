@@ -2,6 +2,7 @@ package store
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"sort"
@@ -76,227 +77,164 @@ const (
 // ErrInvalidKey is returned for key material that cannot be valid.
 var ErrInvalidKey = errors.New("store: invalid key material")
 
-// PublishDeviceKey registers or updates a device key.
-//
-// On update only the label may change: the key material is immutable, because a
-// device key that silently changed its public key would defeat every safety
-// number and pin a client had recorded. A client that wants new key material
-// publishes a new device key.
-func (s *Store) PublishDeviceKey(id, userID string, identity, signing []byte, label, platform string, now time.Time) (*DeviceKey, error) {
+func (s *Store) PublishDeviceKey(id, userID string, identity, signing []byte, label, platform string, now time.Time) (out *DeviceKey, err error) {
 	if len(identity) != 32 || len(signing) != 32 {
 		return nil, ErrInvalidKey
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.db.Users[userID]; !ok {
-		return nil, ErrUnknownUser
-	}
-
-	if id == "" {
-		id = ids.New("k")
-		key := &DeviceKey{
-			ID:        id,
-			UserID:    userID,
-			Identity:  append([]byte(nil), identity...),
-			Signing:   append([]byte(nil), signing...),
-			Label:     label,
-			Platform:  platform,
-			CreatedAt: now,
-			LastSeen:  now,
+	err = s.write(func(tx *sql.Tx) error {
+		if _, e := getRow[User](s, tx, "users", userID); e != nil {
+			if e == ErrNotFound {
+				return ErrUnknownUser
+			}
+			return e
 		}
-		s.db.DeviceKeys[id] = key
-		s.markDirty()
-		return cloneDeviceKey(key), nil
+		if id == "" {
+			out = &DeviceKey{ID: ids.New("k"), UserID: userID, Identity: append([]byte(nil), identity...), Signing: append([]byte(nil), signing...), Label: label, Platform: platform, CreatedAt: now, LastSeen: now}
+		} else {
+			v, e := getRow[DeviceKey](s, tx, "device_keys", id)
+			if e != nil {
+				return e
+			}
+			if v.UserID != userID {
+				return ErrNotFound
+			}
+			if !bytesEqual(v.Identity, identity) || !bytesEqual(v.Signing, signing) {
+				return ErrInvalidKey
+			}
+			v.Label = label
+			v.Platform = platform
+			v.LastSeen = now
+			v.Revoked = false
+			out = v
+		}
+		return s.put(tx, "device_keys", out.ID, out, []string{"owner"}, s.rowID("users", userID))
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	existing, ok := s.db.DeviceKeys[id]
-	if !ok || existing.UserID != userID {
-		// Unknown id, or somebody else's key: refuse rather than create or
-		// hijack, so one account can never overwrite another's key material.
-		return nil, ErrNotFound
-	}
-	if !bytesEqual(existing.Identity, identity) || !bytesEqual(existing.Signing, signing) {
-		return nil, ErrInvalidKey
-	}
-	existing.Label = label
-	existing.Platform = platform
-	existing.LastSeen = now
-	existing.Revoked = false
-	s.markDirty()
-	return cloneDeviceKey(existing), nil
+	return out, nil
 }
-
-// DeviceKeysOf lists a user's keys, newest first.
 func (s *Store) DeviceKeysOf(userID string, includeRevoked bool) []*DeviceKey {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []*DeviceKey
-	for _, k := range s.db.DeviceKeys {
-		if k.UserID != userID {
-			continue
+	all, e := listRows[DeviceKey](s, s.sql, "device_keys", "WHERE owner=?", s.rowID("users", userID))
+	must(e)
+	out := make([]*DeviceKey, 0)
+	for _, v := range all {
+		if includeRevoked || !v.Revoked {
+			out = append(out, v)
 		}
-		if k.Revoked && !includeRevoked {
-			continue
-		}
-		out = append(out, cloneDeviceKey(k))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out
 }
-
-// DeviceKeysOfUsers lists the keys of several users at once, for the member
-// list of a conversation.
 func (s *Store) DeviceKeysOfUsers(userIDs []string, includeRevoked bool) []*DeviceKey {
-	want := make(map[string]struct{}, len(userIDs))
+	out := make([]*DeviceKey, 0)
+	seen := map[string]bool{}
 	for _, id := range userIDs {
-		want[id] = struct{}{}
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []*DeviceKey
-	for _, k := range s.db.DeviceKeys {
-		if _, ok := want[k.UserID]; !ok {
-			continue
+		if !seen[id] {
+			out = append(out, s.DeviceKeysOf(id, includeRevoked)...)
+			seen[id] = true
 		}
-		if k.Revoked && !includeRevoked {
-			continue
-		}
-		out = append(out, cloneDeviceKey(k))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out
 }
-
-// DeviceKeyByID returns one key, revoked or not.
 func (s *Store) DeviceKeyByID(id string) (*DeviceKey, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	k, ok := s.db.DeviceKeys[id]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	return cloneDeviceKey(k), nil
+	return getRow[DeviceKey](s, s.sql, "device_keys", id)
 }
-
-// RevokeDeviceKey marks a key unusable and drops the envelopes addressed to it.
-//
-// Deleting the envelopes matters: they are the only copies of the sender keys
-// that device could read, and a revoked device should not be able to fetch them
-// again if its session is somehow still valid.
 func (s *Store) RevokeDeviceKey(id, userID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	k, ok := s.db.DeviceKeys[id]
-	if !ok || k.UserID != userID {
-		return ErrNotFound
-	}
-	k.Revoked = true
-	for envID, env := range s.db.KeyEnvelopes {
-		if env.RecipientID == id {
-			delete(s.db.KeyEnvelopes, envID)
+	return s.write(func(tx *sql.Tx) error {
+		v, e := getRow[DeviceKey](s, tx, "device_keys", id)
+		if e != nil {
+			return e
 		}
-	}
-	s.markDirty()
-	return nil
+		if v.UserID != userID {
+			return ErrNotFound
+		}
+		v.Revoked = true
+		if e = s.put(tx, "device_keys", id, v, []string{"owner"}, s.rowID("users", userID)); e != nil {
+			return e
+		}
+		_, e = tx.Exec("DELETE FROM key_envelopes WHERE recipient=?", s.rowID("device_keys", id))
+		return e
+	})
 }
-
-// TouchDeviceKey records that a device is still in use.
 func (s *Store) TouchDeviceKey(id string, now time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if k, ok := s.db.DeviceKeys[id]; ok {
-		k.LastSeen = now
-		s.markDirty()
-	}
-}
-
-// PutKeyEnvelope stores one sealed sender key.
-//
-// Envelopes are idempotent on (conversation, sender key, epoch, recipient): a
-// sender that retries a distribution must not create a second copy, and a
-// receiver that has already stored the key does not care which copy arrived.
-func (s *Store) PutKeyEnvelope(env *KeyEnvelope, now time.Time) (*KeyEnvelope, error) {
-	if len(env.Wrapped) == 0 || len(env.Wrapped) > maxWrappedKeyBytes {
-		return nil, ErrInvalidKey
-	}
-	if len(env.Nonce) == 0 || len(env.Nonce) > maxNonceBytes {
-		return nil, ErrInvalidKey
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	c, ok := s.db.Conversations[env.Conversation]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	sender, ok := s.db.DeviceKeys[env.SenderKeyID]
-	if !ok || sender.Revoked {
-		return nil, ErrNotFound
-	}
-	recipient, ok := s.db.DeviceKeys[env.RecipientID]
-	if !ok || recipient.Revoked {
-		return nil, ErrNotFound
-	}
-	// Both devices must belong to members of the conversation. Without this, a
-	// member could deposit envelopes to arbitrary devices and the server would
-	// happily relay them.
-	if _, member := c.Members[sender.UserID]; !member {
-		return nil, ErrNotMember
-	}
-	if _, member := c.Members[recipient.UserID]; !member {
-		return nil, ErrNotMember
-	}
-
-	for _, existing := range s.db.KeyEnvelopes {
-		if existing.Conversation == env.Conversation &&
-			existing.SenderKeyID == env.SenderKeyID &&
-			existing.RecipientID == env.RecipientID &&
-			existing.Epoch == env.Epoch {
-			return cloneKeyEnvelope(existing), nil
+	e := s.write(func(tx *sql.Tx) error {
+		v, e := getRow[DeviceKey](s, tx, "device_keys", id)
+		if e != nil {
+			return e
 		}
+		v.LastSeen = now
+		return s.put(tx, "device_keys", id, v, []string{"owner"}, s.rowID("users", v.UserID))
+	})
+	if e != ErrNotFound {
+		must(e)
 	}
-
-	out := &KeyEnvelope{
-		ID:           ids.New("e"),
-		Conversation: env.Conversation,
-		SenderKeyID:  env.SenderKeyID,
-		RecipientID:  env.RecipientID,
-		Epoch:        env.Epoch,
-		Wrapped:      append([]byte(nil), env.Wrapped...),
-		Nonce:        append([]byte(nil), env.Nonce...),
-		CreatedAt:    now,
-	}
-	s.db.KeyEnvelopes[out.ID] = out
-	s.markDirty()
-	return cloneKeyEnvelope(out), nil
 }
-
-// ListKeyEnvelopes returns the envelopes addressed to one device.
+func (s *Store) saveEnvelope(q querier, v *KeyEnvelope) error {
+	return s.put(q, "key_envelopes", v.ID, v, []string{"conversation", "sender", "recipient", "epoch"}, s.rowID("conversations", v.Conversation), s.rowID("device_keys", v.SenderKeyID), s.rowID("device_keys", v.RecipientID), v.Epoch)
+}
+func (s *Store) PutKeyEnvelope(env *KeyEnvelope, now time.Time) (out *KeyEnvelope, err error) {
+	if len(env.Wrapped) == 0 || len(env.Wrapped) > maxWrappedKeyBytes || len(env.Nonce) == 0 || len(env.Nonce) > maxNonceBytes {
+		return nil, ErrInvalidKey
+	}
+	err = s.write(func(tx *sql.Tx) error {
+		c, e := getRow[Conversation](s, tx, "conversations", env.Conversation)
+		if e != nil {
+			return e
+		}
+		for _, id := range []string{env.SenderKeyID, env.RecipientID} {
+			k, e := getRow[DeviceKey](s, tx, "device_keys", id)
+			if e != nil {
+				return e
+			}
+			if k.Revoked {
+				return ErrNotFound
+			}
+			if _, ok := c.Members[k.UserID]; !ok {
+				return ErrNotMember
+			}
+		}
+		all, e := listRows[KeyEnvelope](s, tx, "key_envelopes", "WHERE conversation=? AND sender=? AND recipient=? AND epoch=?", s.rowID("conversations", env.Conversation), s.rowID("device_keys", env.SenderKeyID), s.rowID("device_keys", env.RecipientID), env.Epoch)
+		if e != nil {
+			return e
+		}
+		if len(all) > 0 {
+			out = all[0]
+			return nil
+		}
+		out = cloneKeyEnvelope(env)
+		out.ID = ids.New("e")
+		out.CreatedAt = now
+		return s.saveEnvelope(tx, out)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 func (s *Store) ListKeyEnvelopes(recipientID, conversationID string, since time.Time) []*KeyEnvelope {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []*KeyEnvelope
-	for _, env := range s.db.KeyEnvelopes {
-		if env.RecipientID != recipientID {
-			continue
+	where := "WHERE recipient=?"
+	args := []any{s.rowID("device_keys", recipientID)}
+	if conversationID != "" {
+		where += " AND conversation=?"
+		args = append(args, s.rowID("conversations", conversationID))
+	}
+	all, e := listRows[KeyEnvelope](s, s.sql, "key_envelopes", where, args...)
+	must(e)
+	out := make([]*KeyEnvelope, 0)
+	for _, v := range all {
+		if since.IsZero() || v.CreatedAt.After(since) {
+			out = append(out, v)
 		}
-		if conversationID != "" && env.Conversation != conversationID {
-			continue
-		}
-		if !since.IsZero() && !env.CreatedAt.After(since) {
-			continue
-		}
-		out = append(out, cloneKeyEnvelope(env))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out
 }
-
-// CountKeyEnvelopes is used by tests and diagnostics.
 func (s *Store) CountKeyEnvelopes() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.db.KeyEnvelopes)
+	var n int
+	must(s.sql.QueryRow("SELECT count(*) FROM key_envelopes").Scan(&n))
+	return n
 }
 
 func cloneDeviceKey(k *DeviceKey) *DeviceKey {

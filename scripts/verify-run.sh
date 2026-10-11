@@ -1,78 +1,74 @@
 #!/usr/bin/env bash
-#
-# Verify the documented startup from a clean data directory: build artefacts in
-# place, then check that the server serves the app, that two accounts can
-# register, that an invitation link connects them, that a message arrives with
-# the right unread count — and that the store the server leaves behind is sealed
-# and contains none of the plaintext.
-#
-# Run it with `make smoke`. It uses its own port and data directory, so it does
-# not disturb a server you already have running, and it cleans up after itself.
-set -u
-cd "$(dirname "$0")/.." || exit 1
-PORT=${PORT:-8099}
+# Real server smoke: app serving, contacts, durable messages, restart and
+# per-record encryption at rest. Uses an isolated data directory and free port.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+mkdir -p var
+DATA=$(mktemp -d "$PWD/var/smoke.XXXXXX")
+SRV=
+cleanup() {
+  if [ -n "$SRV" ]; then kill "$SRV" 2>/dev/null || true; wait "$SRV" 2>/dev/null || true; fi
+  rm -rf "$DATA"
+}
+trap cleanup EXIT
+PORT=${PORT:-$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')}
 API="http://127.0.0.1:$PORT"
-
-# Stop whatever holds the port, by pid: matching on a command line here would
-# also match this script's own invocation.
-pid=$(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -oP 'pid=\K[0-9]+' | head -1)
-[ -n "$pid" ] && kill "$pid" && sleep 1
-
-DATA=var/smoke-data
-rm -rf "$DATA" var/smoke.log
-./var/bin/ratatoskd --addr "127.0.0.1:$PORT" --data "$DATA" \
-  --public-url "$API" --web app/build/web > var/smoke.log 2>&1 &
-SRV=$!
-sleep 3
-
-echo "--- what the server says on startup ---"
-head -2 var/smoke.log
-
-echo "--- the app is served at / ---"
-curl -s -o /dev/null -w "GET / -> %{http_code}, %{size_download} bytes, %{content_type}\n" "$API/"
-
-reg() {
-  curl -s -X POST -H "Content-Type: application/json" \
-    -d "{\"username\":\"$1\",\"password\":\"$2\",\"displayName\":\"$3\"}" \
-    "$API/ratatosk.v1.AuthService/Register" |
-    python3 -c "import sys,json;print(json.load(sys.stdin).get('token',''))"
+start() {
+  ./var/bin/ratatoskd --addr "127.0.0.1:$PORT" --data "$DATA" \
+    --public-url "$API" --web app/build/web > "$DATA/server.log" 2>&1 &
+  SRV=$!
+  for _ in {1..100}; do
+    kill -0 "$SRV" 2>/dev/null || { head -80 "$DATA/server.log"; exit 1; }
+    if curl -fsS "$API/healthz" > /dev/null 2>&1; then return; fi
+    sleep .1
+  done
+  echo 'server did not become ready' >&2
+  exit 1
 }
 call() {
-  curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $1" -d "$3" "$API/ratatosk.v1.$2"
+  curl -fsS -X POST -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $1" -d "$3" "$API/ratatosk.v1.$2"
 }
-
-ADA=$(reg ada "correct horse battery" "Ada Lovelace")
-BRU=$(reg brunel "correct horse battery" "Isambard Brunel")
-echo "--- two accounts registered ---"
-echo "ada token: ${ADA:0:10}…  brunel token: ${BRU:0:10}…"
-
-INV=$(call "$ADA" SocialService/CreateInvite '{}' | python3 -c "import sys,json;print(json.load(sys.stdin)['invite']['url'])")
-echo "--- ada's invitation link: $INV ---"
-
-CONV=$(call "$BRU" SocialService/RedeemInvite "{\"code\":\"$INV\"}" | python3 -c "import sys,json;print(json.load(sys.stdin)['conversation']['id'])")
-echo "--- brunel redeemed it; conversation $CONV ---"
-
-call "$BRU" ChatService/SendMessage "{\"conversationId\":\"$CONV\",\"text\":\"the first message\"}" >/dev/null
-echo "--- ada's unread count and last message ---"
-curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $ADA" -d '{}' \
-  "$API/ratatosk.v1.ChatService/ListConversations" |
-  python3 -c "
+reg() {
+  curl -fsS -X POST -H 'Content-Type: application/json' \
+    -d "{\"username\":\"$1\",\"password\":\"correct horse battery\",\"displayName\":\"$2\"}" \
+    "$API/ratatosk.v1.AuthService/Register" |
+    python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])'
+}
+start
+curl -fsS "$API/" > "$DATA/index.html"
+grep -q flutter "$DATA/index.html"
+ADA=$(reg ada 'Ada Lovelace')
+BRU=$(reg brunel 'Isambard Brunel')
+INV=$(call "$ADA" SocialService/CreateInvite '{}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["invite"]["url"])')
+CONV=$(call "$BRU" SocialService/RedeemInvite "{\"code\":\"$INV\"}" | python3 -c 'import sys,json; print(json.load(sys.stdin)["conversation"]["id"])')
+# Deliberately use a plaintext API message to test the independent at-rest seal.
+call "$BRU" ChatService/SendMessage "{\"conversationId\":\"$CONV\",\"text\":\"the first message\"}" > /dev/null
+kill "$SRV"
+wait "$SRV"
+SRV=
+start
+call "$ADA" ChatService/ListConversations '{}' | python3 -c '
 import sys,json
-c=json.load(sys.stdin)['conversations'][0]
-print(f\"  {c['title']}: unread={c['unreadCount']} last={c['lastMessage']['text']!r}\")"
-
-# The store debounces writes (500ms) and always flushes on shutdown, so the
-# snapshot is inspected after the server has stopped.
-kill $SRV 2>/dev/null
-wait $SRV 2>/dev/null
-echo "--- server stopped (it flushes the store on the way out) ---"
-
-echo "--- the data directory the server keeps ---"
-ls -1 "$DATA"
-echo -n "  snapshot starts with: "; head -c 16 "$DATA/ratatosk.json"; echo
-for word in "the first message" "Ada Lovelace" brunel; do
-  if grep -rqa "$word" "$DATA/ratatosk.json"; then echo "  PLAINTEXT LEAK: $word"; else echo "  absent from the snapshot: $word"; fi
-done
-
-echo "--- done; cleaning up ---"
-rm -rf "$DATA" var/smoke.log
+c=json.load(sys.stdin)["conversations"][0]
+assert c["unreadCount"] == 1, c
+assert c["lastMessage"]["text"] == "the first message", c
+print("OK: session, conversation and message survived restart")'
+python3 - "$DATA" <<'PY'
+import pathlib, sqlite3, sys
+root=pathlib.Path(sys.argv[1])
+dbs=list(root.glob('*.db')) + list(root.glob('*.sqlite*'))
+dbs=[p for p in dbs if not p.name.endswith(('-wal','-shm'))]
+assert len(dbs)==1, f'expected SQLite database, got {dbs}'
+con=sqlite3.connect(dbs[0])
+assert con.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+assert con.execute("SELECT count(*) FROM sqlite_master WHERE name='goose_db_version'").fetchone()[0]==1
+con.close()
+for path in [dbs[0], pathlib.Path(str(dbs[0])+'-wal')]:
+    if path.exists():
+        raw=path.read_bytes()
+        for word in [b'the first message',b'Ada Lovelace',b'brunel']:
+            assert word not in raw, f'plaintext leak in {path.name}: {word}'
+print('OK: SQLite integrity, goose migrations, encrypted record payloads')
+PY
+echo 'SMOKE TEST PASSED'

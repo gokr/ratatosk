@@ -1,105 +1,137 @@
 package store
 
 import (
+	"database/sql"
+	"github.com/gokr/ratatosk/server/internal/ids"
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/gokr/ratatosk/server/internal/ids"
 )
 
-// maxPageSize caps every message page, whatever the client asks for.
 const maxPageSize = 200
 
-// AppendMessage stores a message and advances the conversation's seq.
-//
-// The caller fills in everything except ID and Seq, which are assigned here so
-// that seq stays gapless and strictly increasing per conversation: the message
-// list is append-only and never compacts, so index i is always seq i+1.
-func (s *Store) AppendMessage(m *Message, now time.Time) (*Message, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.db.Conversations[m.ConversationID]
-	if !ok {
+func clientKey(convID, senderID, clientID string) string {
+	return convID + "\x00" + senderID + "\x00" + clientID
+}
+func (s *Store) saveMessage(q querier, m *Message) error {
+	var client any
+	if m.ClientMessageID != "" {
+		client = s.digest("client-message", m.ClientMessageID)
+	}
+	return s.put(q, "messages", m.ID, m, []string{"conversation", "sender", "client", "seq"}, s.rowID("conversations", m.ConversationID), s.rowID("users", m.SenderID), client, m.Seq)
+}
+func (s *Store) findClient(q querier, convID, senderID, clientID string) (*Message, error) {
+	if clientID == "" {
 		return nil, ErrNotFound
 	}
-	if m.Kind == "" {
-		m.Kind = MessageText
+	all, e := listRows[Message](s, q, "messages", "WHERE conversation=? AND sender=? AND client=?", s.rowID("conversations", convID), s.rowID("users", senderID), s.digest("client-message", clientID))
+	if e != nil {
+		return nil, e
 	}
-	if m.Kind == MessageSystem {
-		// System notes are authored by the server, so they have no sender to
-		// check for membership — but they must not be forged either: only the
-		// empty sender is accepted here.
-		if m.SenderID != "" {
-			return nil, ErrInvalidMessage
+	if len(all) == 0 {
+		return nil, ErrNotFound
+	}
+	return all[0], nil
+}
+func (s *Store) FindMessageByClientID(convID, senderID, clientID string) (*Message, error) {
+	return s.findClient(s.sql, convID, senderID, clientID)
+}
+
+// AppendMessage atomically checks membership and idempotency, assigns a gapless
+// sequence, inserts the encrypted row and advances the conversation counter.
+func (s *Store) AppendMessage(m *Message, now time.Time) (out *Message, err error) {
+	err = s.write(func(tx *sql.Tx) error {
+		c, e := getRow[Conversation](s, tx, "conversations", m.ConversationID)
+		if e != nil {
+			return e
 		}
-	} else if _, ok := c.Members[m.SenderID]; !ok {
-		return nil, ErrNotMember
+		v := cloneMessage(m)
+		if v.Kind == "" {
+			v.Kind = MessageText
+		}
+		if v.Kind == MessageSystem {
+			if v.SenderID != "" {
+				return ErrInvalidMessage
+			}
+		} else {
+			if _, ok := c.Members[v.SenderID]; !ok {
+				return ErrNotMember
+			}
+		}
+		if v.ClientMessageID != "" {
+			existing, e := s.findClient(tx, v.ConversationID, v.SenderID, v.ClientMessageID)
+			if e == nil {
+				out = existing
+				return nil
+			}
+			if e != ErrNotFound {
+				return e
+			}
+		}
+		if v.Kind == MessageText && strings.TrimSpace(v.Text) == "" && len(v.Attachments) == 0 && len(v.Ciphertext) == 0 {
+			return ErrInvalidMessage
+		}
+		if len(v.Ciphertext) > 0 && (len(v.Nonce) == 0 || v.CryptoVersion == "") {
+			return ErrInvalidMessage
+		}
+		v.ID = ids.New("m")
+		v.Seq = c.LastSeq + 1
+		if v.CreatedAt.IsZero() {
+			v.CreatedAt = now
+		}
+		if e = s.saveMessage(tx, v); e != nil {
+			return e
+		}
+		c.LastSeq = v.Seq
+		c.LastMessageID = v.ID
+		c.UpdatedAt = v.CreatedAt
+		// Membership is unchanged, so only the conversation row needs updating.
+		if e = s.put(tx, "conversations", c.ID, c, nil); e != nil {
+			return e
+		}
+		out = v
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	// A text message with no plaintext is only valid when it carries sealed
-	// content: the server cannot see the body, so it cannot check that the body
-	// is non-empty. It still refuses a message that has neither.
-	if m.Kind == MessageText && strings.TrimSpace(m.Text) == "" && len(m.Attachments) == 0 && len(m.Ciphertext) == 0 {
-		return nil, ErrInvalidMessage
-	}
-	if len(m.Ciphertext) > 0 && (len(m.Nonce) == 0 || m.CryptoVersion == "") {
-		return nil, ErrInvalidMessage
-	}
-	out := cloneMessage(m)
-	out.ID = ids.New("m")
-	out.Seq = c.LastSeq + 1
-	if out.CreatedAt.IsZero() {
-		out.CreatedAt = now
-	}
-	s.db.Messages[out.ID] = out
-	s.db.ConvMessages[c.ID] = append(s.db.ConvMessages[c.ID], out.ID)
-	if out.ClientMessageID != "" {
-		s.clientIndex[clientKey(c.ID, out.SenderID, out.ClientMessageID)] = out.ID
-	}
-	c.LastSeq = out.Seq
-	c.LastMessageID = out.ID
-	c.UpdatedAt = out.CreatedAt
-	s.markDirty()
-	return cloneMessage(out), nil
+	return out, nil
 }
-
-// clientKey identifies an idempotency key. Retries of the same send arrive
-// with an identical triple, so a repeat returns the stored message.
-func clientKey(convID, senderID, clientMessageID string) string {
-	return convID + "\x00" + senderID + "\x00" + clientMessageID
+func (s *Store) MessageByID(id string) (*Message, error) {
+	return getRow[Message](s, s.sql, "messages", id)
 }
-
-// FindMessageByClientID resolves a sender's idempotency key to a message.
-func (s *Store) FindMessageByClientID(convID, senderID, clientMessageID string) (*Message, error) {
-	if clientMessageID == "" {
-		return nil, ErrNotFound
+func (s *Store) UpdateMessage(id string, fn func(*Message)) (out *Message, err error) {
+	err = s.write(func(tx *sql.Tx) error {
+		v, e := getRow[Message](s, tx, "messages", id)
+		if e != nil {
+			return e
+		}
+		conv, sender, client, seq := v.ConversationID, v.SenderID, v.ClientMessageID, v.Seq
+		fn(v)
+		v.ID = id
+		v.ConversationID = conv
+		v.SenderID = sender
+		v.ClientMessageID = client
+		v.Seq = seq
+		out = v
+		return s.saveMessage(tx, v)
+	})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	id, ok := s.clientIndex[clientKey(convID, senderID, clientMessageID)]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	m, ok := s.db.Messages[id]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	return cloneMessage(m), nil
+	return out, nil
 }
-
-// MessagesOf returns a page of a conversation's messages in ascending seq
-// order.
-//
-//	beforeSeq > 0: the limit messages immediately before that seq (scroll up)
-//	afterSeq  > 0: the limit messages immediately after that seq (catch up)
-//	both zero:     the newest limit messages
-//
-// hasMore reports whether older messages exist before the first returned one.
 func (s *Store) MessagesOf(convID string, beforeSeq, afterSeq int64, limit int) ([]*Message, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if _, ok := s.db.Conversations[convID]; !ok {
-		return nil, false, ErrNotFound
+	tx, e := s.sql.Begin()
+	if e != nil {
+		return nil, false, e
+	}
+	defer tx.Rollback()
+	c, e := getRow[Conversation](s, tx, "conversations", convID)
+	if e != nil {
+		return nil, false, e
 	}
 	if limit <= 0 {
 		limit = 50
@@ -107,114 +139,88 @@ func (s *Store) MessagesOf(convID string, beforeSeq, afterSeq int64, limit int) 
 	if limit > maxPageSize {
 		limit = maxPageSize
 	}
-	idsInOrder := s.db.ConvMessages[convID]
-	n := int64(len(idsInOrder))
-	var start, end int64
-	switch {
-	case afterSeq > 0:
-		start = afterSeq // seq afterSeq sits at index afterSeq-1
-		if start > n {
-			start = n
-		}
-		end = min(n, start+int64(limit))
-	case beforeSeq > 0:
-		end = beforeSeq - 1
-		if end > n {
-			end = n
-		}
-		if end < 0 {
-			end = 0
-		}
-		start = max(0, end-int64(limit))
-	default:
-		end = n
-		start = max(0, end-int64(limit))
+	where := "WHERE conversation=?"
+	args := []any{s.rowID("conversations", convID)}
+	desc := true
+	if afterSeq > 0 {
+		where += " AND seq>?"
+		args = append(args, afterSeq)
+		desc = false
+	} else if beforeSeq > 0 {
+		where += " AND seq<?"
+		args = append(args, beforeSeq)
 	}
-	out := make([]*Message, 0, end-start)
-	for i := start; i < end; i++ {
-		if m, ok := s.db.Messages[idsInOrder[i]]; ok {
-			out = append(out, cloneMessage(m))
+	if desc {
+		where += " ORDER BY seq DESC"
+	} else {
+		where += " ORDER BY seq ASC"
+	}
+	where += " LIMIT ?"
+	args = append(args, limit)
+	out, e := listRows[Message](s, tx, "messages", where, args...)
+	if e != nil {
+		return nil, false, e
+	}
+	if desc {
+		for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+			out[i], out[j] = out[j], out[i]
 		}
 	}
-	return out, start > 0, nil
+	more := false
+	if len(out) > 0 {
+		more = out[0].Seq > 1
+	} else if afterSeq > 0 {
+		more = c.LastSeq > 0 && min(afterSeq, c.LastSeq) > 0
+	} else if beforeSeq > 0 {
+		more = false
+	}
+	return out, more, nil
 }
-
-// MessageByID returns a copy of one message.
-func (s *Store) MessageByID(id string) (*Message, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	m, ok := s.db.Messages[id]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	return cloneMessage(m), nil
-}
-
-// UpdateMessage applies fn to the stored message under the write lock and
-// returns a copy of the result. fn must not call other store methods.
-func (s *Store) UpdateMessage(id string, fn func(*Message)) (*Message, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m, ok := s.db.Messages[id]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	fn(m)
-	s.markDirty()
-	return cloneMessage(m), nil
-}
-
-// UnreadCount counts messages in a conversation that userID has not read,
-// ignoring their own messages and system notes. recentWindow bounds the scan
-// so a very long conversation cannot stall the caller.
 func (s *Store) UnreadCount(convID, userID string, recentWindow int) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	c, ok := s.db.Conversations[convID]
-	if !ok {
+	tx, e := s.sql.Begin()
+	must(e)
+	defer tx.Rollback()
+	c, e := getRow[Conversation](s, tx, "conversations", convID)
+	if e == ErrNotFound {
 		return 0
 	}
+	must(e)
 	member, ok := c.Members[userID]
 	if !ok {
 		return 0
 	}
-	idsInOrder := s.db.ConvMessages[convID]
-	start := int64(member.LastReadSeq)
-	if recentWindow > 0 && int64(len(idsInOrder))-start > int64(recentWindow) {
-		start = int64(len(idsInOrder)) - int64(recentWindow)
+	start := member.LastReadSeq
+	if recentWindow > 0 {
+		start = max(start, c.LastSeq-int64(recentWindow))
 	}
+	all, e := listRows[Message](s, tx, "messages", "WHERE conversation=? AND seq>? AND sender<>?", s.rowID("conversations", convID), start, s.rowID("users", userID))
+	must(e)
 	count := 0
-	for i := start; i < int64(len(idsInOrder)); i++ {
-		m, ok := s.db.Messages[idsInOrder[i]]
-		if !ok || m.SenderID == userID || m.Kind == MessageSystem {
-			continue
+	for _, m := range all {
+		if m.Kind != MessageSystem {
+			count++
 		}
-		count++
 	}
 	return count
 }
 
-// SearchMessages scans the given conversations for messages whose text
-// contains query (case-insensitive), newest first. An empty query returns the
-// newest messages. Deleted messages are skipped.
+// Text search decrypts only authorized conversation rows: no plaintext search
+// index is persisted. Equality and sequence pagination use SQL indexes.
 func (s *Store) SearchMessages(convIDs []string, query string, limit int) []*Message {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	if limit <= 0 {
 		limit = 30
 	}
 	q := strings.ToLower(strings.TrimSpace(query))
-	var out []*Message
-	for _, convID := range convIDs {
-		for _, id := range s.db.ConvMessages[convID] {
-			m, ok := s.db.Messages[id]
-			if !ok || m.Deleted || m.Kind == MessageSystem {
-				continue
+	out := make([]*Message, 0)
+	for _, conv := range convIDs {
+		all, e := listRows[Message](s, s.sql, "messages", "WHERE conversation=?", s.rowID("conversations", conv))
+		must(e)
+		for _, m := range all {
+			if !m.Deleted && m.Kind != MessageSystem && (q == "" || strings.Contains(strings.ToLower(m.Text), q)) {
+				out = append(out, m)
 			}
-			if q != "" && !strings.Contains(strings.ToLower(m.Text), q) {
-				continue
-			}
-			out = append(out, cloneMessage(m))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
