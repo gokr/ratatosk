@@ -71,19 +71,23 @@ class SenderKey {
 /// messages unreadable: nobody can re-send you a key you have forgotten, because
 /// the envelope it arrived in was addressed to your old session.
 abstract interface class SenderKeyStore {
-  Future<Map<String, SenderKey>> load();
-  Future<void> save(Map<String, SenderKey> keys);
+  /// Every key this device has created, per conversation, oldest or newest first
+  /// (order is not part of the contract).
+  Future<Map<String, List<SenderKey>>> load();
+  Future<void> save(Map<String, List<SenderKey>> keys);
 }
 
 /// Keeps sender keys in memory only: tests, and any platform with no keystore.
 class MemorySenderKeyStore implements SenderKeyStore {
-  Map<String, SenderKey> _keys = {};
+  Map<String, List<SenderKey>> _keys = {};
 
   @override
-  Future<Map<String, SenderKey>> load() async => Map.of(_keys);
+  Future<Map<String, List<SenderKey>>> load() async =>
+      {for (final e in _keys.entries) e.key: [...e.value]};
 
   @override
-  Future<void> save(Map<String, SenderKey> keys) async => _keys = Map.of(keys);
+  Future<void> save(Map<String, List<SenderKey>> keys) async =>
+      _keys = {for (final e in keys.entries) e.key: [...e.value]};
 }
 
 /// The per-account encryption session.
@@ -108,7 +112,10 @@ class CryptoSession {
   Future<void> restoreSenderKeys() async {
     try {
       final saved = await _senderKeyStore.load();
-      _ownSenderKeys.addAll(saved);
+      for (final entry in saved.entries) {
+        _ownSenderKeys[entry.key] = [...entry.value]
+          ..sort((a, b) => b.epoch.compareTo(a.epoch));
+      }
     } catch (_) {
       // A corrupt store loses the ability to read one's own old group messages,
       // which is bad but not a reason to refuse to start.
@@ -117,7 +124,9 @@ class CryptoSession {
 
   Future<void> _saveSenderKeys() async {
     try {
-      await _senderKeyStore.save(Map.of(_ownSenderKeys));
+      await _senderKeyStore.save({
+        for (final entry in _ownSenderKeys.entries) entry.key: [...entry.value],
+      });
     } catch (_) {
       // Nothing to do: the key still works for this session.
     }
@@ -136,8 +145,14 @@ class CryptoSession {
   /// ordered by descending epoch.
   final Map<String, List<SenderKey>> _receivedSenderKeys = {};
 
-  /// Sender keys this device created, keyed by conversation id.
-  final Map<String, SenderKey> _ownSenderKeys = {};
+  /// Sender keys this device created, keyed by conversation id and ordered by
+  /// descending epoch.
+  ///
+  /// A *history*, not just the current key: rotating replaces the key used for
+  /// new messages, but the device's own earlier messages were sealed under the
+  /// earlier epoch and nothing else can open them. Keeping only the newest made
+  /// a device unable to read its own history after a rotation.
+  final Map<String, List<SenderKey>> _ownSenderKeys = {};
 
   /// Device keys by id, and by user, refreshed on demand.
   final Map<String, DeviceKey> _deviceKeys = {};
@@ -212,14 +227,18 @@ class CryptoSession {
   /// This device's sender key for a conversation, created on first use.
   SenderKey ownSenderKey(String conversationId) {
     final existing = _ownSenderKeys[conversationId];
-    if (existing != null) return existing;
+    if (existing != null && existing.isNotEmpty) return existing.first;
     final created = SenderKey(key: _randomKey(), epoch: 0);
-    _ownSenderKeys[conversationId] = created;
+    _ownSenderKeys[conversationId] = [created];
     // Persisted so a restart does not orphan this device's own messages. Not
     // awaited: the caller is on the send path, and the write is small.
     unawaited(_saveSenderKeys());
     return created;
   }
+
+  /// This device's sender keys for a conversation, newest epoch first.
+  List<SenderKey> ownSenderKeys(String conversationId) =>
+      _ownSenderKeys[conversationId] ?? const <SenderKey>[];
 
   static Uint8List _randomKey() {
     // The sender key is random, not derived, so a fresh one cannot be predicted
@@ -241,7 +260,13 @@ class CryptoSession {
   Future<SenderKey> rotateSenderKey(String conversationId) async {
     final current = ownSenderKey(conversationId);
     final next = SenderKey(key: _randomKey(), epoch: current.epoch + 1);
-    _ownSenderKeys[conversationId] = next;
+    // The previous key is kept, newest first: messages this device already sent
+    // are sealed under it, and dropping it would make them unreadable here and
+    // nowhere else recoverable.
+    _ownSenderKeys[conversationId] = [
+      next,
+      ...ownSenderKeys(conversationId),
+    ];
     // Every recipient needs the new key, and every old epoch's envelopes are
     // now irrelevant for this conversation.
     _distributedTo.removeWhere((marker, _) => marker.startsWith('$conversationId/'));
@@ -398,6 +423,29 @@ class CryptoSession {
     return keys.first; // sorted newest epoch first
   }
 
+  /// Every key that might open a message from [senderDeviceKeyId], best
+  /// candidate first.
+  ///
+  /// A message names the epoch it was sealed with, so the matching key is tried
+  /// first. The rest are offered as fallbacks: a rotation means several epochs
+  /// legitimately exist, and a client that did not record an epoch (or recorded
+  /// 0) would otherwise look for a key that never existed under that number.
+  List<SenderKey> candidatesFor(
+    String conversationId,
+    String senderDeviceKeyId, {
+    required bool ownMessage,
+    int epoch = 0,
+  }) {
+    final keys = ownMessage && senderDeviceKeyId == identity.deviceKeyId
+        ? ownSenderKeys(conversationId)
+        : (_receivedSenderKeys['$conversationId/$senderDeviceKeyId'] ?? const <SenderKey>[]);
+    if (keys.isEmpty) return const [];
+    final ordered = [...keys]..sort((a, b) => b.epoch.compareTo(a.epoch));
+    final exact = ordered.where((k) => k.epoch == epoch);
+    final rest = ordered.where((k) => k.epoch != epoch);
+    return [...exact, ...rest];
+  }
+
   /// Whether any sender key is known for the conversation; used to decide
   /// whether a message is worth retrying after collecting keys.
   bool hasKeysFor(String conversationId, String senderDeviceKeyId) =>
@@ -451,39 +499,53 @@ class CryptoSession {
     required bool isGroup,
     required DeviceKey? peer,
     required bool ownMessage,
+    int epoch = 0,
   }) async {
-    final Uint8List key;
     try {
-      if (isGroup) {
-        // Our own device key means our own sender key; otherwise the peer's.
-        if (senderDeviceKeyId == identity.deviceKeyId) {
-          key = ownSenderKey(conversationId).key;
-        } else {
-          final senderKey = senderKeyFor(conversationId, senderDeviceKeyId);
-          if (senderKey == null) {
-            return Opened.failed(
-              missingSenderKeyReason(senderDeviceKeyId, ownMessage: ownMessage),
-            );
-          }
-          key = senderKey.key;
-        }
-      } else {
+      final aad = messageAad(
+        conversationId: conversationId,
+        senderDeviceKeyId: senderDeviceKeyId,
+      );
+      final sealed = Sealed.fromCombined(ciphertext, nonce);
+
+      if (!isGroup) {
         final other = peer;
         if (other == null) {
           return const Opened.failed('This conversation has no key to open it with');
         }
-        key = await directKey(other);
+        final clear = await crypto.unseal(key: await directKey(other), sealed: sealed, aad: aad);
+        return Opened(MessageContent.decode(clear));
       }
 
-      final clear = await crypto.unseal(
-        key: key,
-        sealed: Sealed.fromCombined(ciphertext, nonce),
-        aad: messageAad(
-          conversationId: conversationId,
-          senderDeviceKeyId: senderDeviceKeyId,
-        ),
+      // A group message can be sealed under any epoch this device has seen: the
+      // sender rotates when the membership changes, so several epochs legitimately
+      // exist at once. Try the epoch the message names, then the others, rather
+      // than assuming the newest — which is what made every message sent before a
+      // rotation unreadable.
+      final candidates = candidatesFor(
+        conversationId,
+        senderDeviceKeyId,
+        ownMessage: ownMessage,
+        epoch: epoch,
       );
-      return Opened(MessageContent.decode(clear));
+      if (candidates.isEmpty) {
+        return Opened.failed(
+          missingSenderKeyReason(senderDeviceKeyId, ownMessage: ownMessage),
+        );
+      }
+      CryptoFailure? lastFailure;
+      for (final candidate in candidates) {
+        try {
+          final clear = await crypto.unseal(key: candidate.key, sealed: sealed, aad: aad);
+          return Opened(MessageContent.decode(clear));
+        } on CryptoFailure catch (error) {
+          // Wrong epoch for this message: keep looking.
+          lastFailure = error;
+        }
+      }
+      return Opened.failed(
+        lastFailure?.message ?? 'could not open this message with the key we have',
+      );
     } on CryptoFailure catch (error) {
       return Opened.failed(error.message);
     } catch (error) {

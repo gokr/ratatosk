@@ -68,17 +68,31 @@ class _StorageSenderKeys implements SenderKeyStore {
   static const _slot = 'ratatosk.senderkeys';
 
   @override
-  Future<Map<String, SenderKey>> load() async {
+  Future<Map<String, List<SenderKey>>> load() async {
     final raw = await _storage.read(_slot);
     if (raw == null || raw.isEmpty) return {};
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return {};
-      final out = <String, SenderKey>{};
+      final out = <String, List<SenderKey>>{};
       decoded.forEach((key, value) {
+        // Two shapes exist. An older install stored one key per conversation;
+        // accepting that shape keeps its (still valid) key instead of dropping
+        // it, which would orphan the history sealed under it.
         if (value is Map<String, dynamic>) {
-          final parsed = SenderKey.fromJson(value);
-          if (parsed != null) out['$key'] = parsed;
+          final single = SenderKey.fromJson(value);
+          if (single != null) out['$key'] = [single];
+          return;
+        }
+        if (value is List) {
+          final keys = <SenderKey>[];
+          for (final entry in value) {
+            if (entry is Map<String, dynamic>) {
+              final parsed = SenderKey.fromJson(entry);
+              if (parsed != null) keys.add(parsed);
+            }
+          }
+          if (keys.isNotEmpty) out['$key'] = keys;
         }
       });
       return out;
@@ -88,9 +102,10 @@ class _StorageSenderKeys implements SenderKeyStore {
   }
 
   @override
-  Future<void> save(Map<String, SenderKey> keys) async {
+  Future<void> save(Map<String, List<SenderKey>> keys) async {
     final encoded = <String, dynamic>{
-      for (final entry in keys.entries) entry.key: entry.value.toJson(),
+      for (final entry in keys.entries)
+        entry.key: [for (final key in entry.value) key.toJson()],
     };
     await _storage.write(_slot, jsonEncode(encoded));
   }
@@ -344,6 +359,9 @@ class CryptoManager {
       isGroup: isGroup,
       peer: isGroup ? null : peerKeyFor(conversation),
       ownMessage: ownMessage,
+      // The epoch the sender sealed it with; a rotation means this is not
+      // necessarily the newest key we hold.
+      epoch: message.keyEpoch,
     );
 
     final DecryptedMessage result;

@@ -645,6 +645,262 @@ void main() {
     });
   });
 
+  group('rotation keeps older epochs readable', () {
+    // The reported bug: a receiver that legitimately holds the key for the epoch
+    // a message was sealed with could not open it, because decryption always used
+    // the *newest* key it held. A rotation is normal (it happens on every
+    // membership change), so this made history unreadable for everyone.
+    Future<(CryptoSession, CryptoSession, StubBackend)> twoDevices() async {
+      final ada = await device('k-ada');
+      final grace = await device('k-grace');
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(ada.identity, 'u-ada'))
+        ..addDeviceKey(userId: 'u-grace', key: publicRecord(grace.identity, 'u-grace'));
+      final adaSession = CryptoSession(backend: server, identity: ada.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final graceSession = CryptoSession(backend: server, identity: grace.identity, crypto: crypto)
+        ..ownUserId = 'u-grace';
+      return (adaSession, graceSession, server);
+    }
+
+    Future<void> share(CryptoSession sender, CryptoSession receiver, List<String> members) async {
+      await receiver.refreshDeviceKeys(members);
+      await sender.refreshDeviceKeys(members);
+      await sender.distributeSenderKey(conversationId: 'g1', memberUserIds: members);
+      await receiver.collectSenderKeys(conversationId: 'g1');
+    }
+
+    test('a message sealed before a rotation still opens after it', () async {
+      final (ada, grace, _) = await twoDevices();
+      const members = ['u-ada', 'u-grace'];
+
+      // Epoch 0: ada sends, grace receives the key.
+      final before = await ada.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'sent before the rotation'),
+        isGroup: true,
+      );
+      expect(before.epoch, 0);
+      await share(ada, grace, members);
+
+      // Membership changes, so ada rotates and distributes the new epoch.
+      final rotated = await ada.rotateSenderKey('g1');
+      expect(rotated.epoch, 1);
+      await share(ada, grace, members);
+
+      // The old message must still open, under the epoch it was sealed with.
+      final opened = await grace.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: before.sealed.combined,
+        nonce: before.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: false,
+        epoch: before.epoch,
+      );
+      expect(opened.ok, isTrue, reason: opened.failure ?? '');
+      expect(opened.content!.text, 'sent before the rotation');
+    });
+
+    test('messages from every epoch open, interleaved', () async {
+      final (ada, grace, _) = await twoDevices();
+      const members = ['u-ada', 'u-grace'];
+
+      final epoch0 = await ada.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'zero'),
+        isGroup: true,
+      );
+      await share(ada, grace, members);
+      await ada.rotateSenderKey('g1');
+      await share(ada, grace, members);
+      final epoch1 = await ada.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'one'),
+        isGroup: true,
+      );
+      await ada.rotateSenderKey('g1');
+      await share(ada, grace, members);
+      final epoch2 = await ada.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'two'),
+        isGroup: true,
+      );
+      await share(ada, grace, members);
+
+      // Read them out of order, as a catch-up page would.
+      for (final sealed in [epoch2, epoch0, epoch1]) {
+        final opened = await grace.decrypt(
+          conversationId: 'g1',
+          senderDeviceKeyId: 'k-ada',
+          ciphertext: sealed.sealed.combined,
+          nonce: sealed.sealed.nonce,
+          isGroup: true,
+          peer: null,
+          ownMessage: false,
+          epoch: sealed.epoch,
+        );
+        expect(opened.ok, isTrue, reason: 'epoch ${sealed.epoch}: ${opened.failure}');
+      }
+    });
+
+    test('a device can still read its own messages from before a rotation', () async {
+      final (ada, _, _) = await twoDevices();
+      final before = await ada.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'mine, before'),
+        isGroup: true,
+      );
+      await ada.rotateSenderKey('g1');
+      final after = await ada.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'mine, after'),
+        isGroup: true,
+      );
+
+      for (final sealed in [before, after]) {
+        final opened = await ada.decrypt(
+          conversationId: 'g1',
+          senderDeviceKeyId: 'k-ada',
+          ciphertext: sealed.sealed.combined,
+          nonce: sealed.sealed.nonce,
+          isGroup: true,
+          peer: null,
+          ownMessage: true,
+          epoch: sealed.epoch,
+        );
+        expect(opened.ok, isTrue, reason: 'own epoch ${sealed.epoch}: ${opened.failure}');
+      }
+    });
+
+    test('a removed member still cannot read the new epoch', () async {
+      // The security property rotation exists for: keeping older keys readable
+      // must not hand the new epoch to someone who was removed.
+      final ada = await device('k-ada');
+      final gone = await device('k-gone');
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(ada.identity, 'u-ada'))
+        ..addDeviceKey(userId: 'u-gone', key: publicRecord(gone.identity, 'u-gone'));
+      final adaSession = CryptoSession(backend: server, identity: ada.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final goneSession = CryptoSession(backend: server, identity: gone.identity, crypto: crypto)
+        ..ownUserId = 'u-gone';
+
+      // Epoch 0 while both are members.
+      final shared = await adaSession.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'while you were here'),
+        isGroup: true,
+      );
+      await share(adaSession, goneSession, ['u-ada', 'u-gone']);
+
+      // The member leaves: ada rotates and distributes to the *remaining* members
+      // only, so the departed device never receives epoch 1.
+      await adaSession.rotateSenderKey('g1');
+      await adaSession.refreshDeviceKeys(['u-ada']);
+      await adaSession.distributeSenderKey(conversationId: 'g1', memberUserIds: ['u-ada']);
+      final secret = await adaSession.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'after you left'),
+        isGroup: true,
+      );
+      expect(secret.epoch, 1);
+
+      // They can still read what they were given...
+      final old = await goneSession.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: shared.sealed.combined,
+        nonce: shared.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: false,
+        epoch: shared.epoch,
+      );
+      expect(old.ok, isTrue, reason: old.failure ?? '');
+
+      // ...but not the new epoch, and retrying must not invent one.
+      await goneSession.refreshDeviceKeys(['u-ada']);
+      await goneSession.collectSenderKeys(conversationId: 'g1');
+      final denied = await goneSession.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: secret.sealed.combined,
+        nonce: secret.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: false,
+        epoch: secret.epoch,
+      );
+      expect(denied.ok, isFalse);
+      expect(denied.content, isNull);
+    });
+
+    test('a multi-epoch history survives a restart, and the old format still loads', () async {
+      final ada = await device('k-ada');
+      final store = MemorySenderKeyStore();
+      final session = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: store,
+      )..ownUserId = 'u-ada';
+
+      final sealed = [
+        await session.encrypt(
+          conversationId: 'g1',
+          content: MessageContent(text: 'first'),
+          isGroup: true,
+        ),
+      ];
+      await session.rotateSenderKey('g1');
+      sealed.add(await session.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'second'),
+        isGroup: true,
+      ));
+
+      final reopened = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: store,
+      )..ownUserId = 'u-ada';
+      await reopened.restoreSenderKeys();
+      expect(reopened.ownSenderKeys('g1'), hasLength(2),
+          reason: 'both epochs must be restored, not just the current one');
+      for (final s in sealed) {
+        final opened = await reopened.decrypt(
+          conversationId: 'g1',
+          senderDeviceKeyId: 'k-ada',
+          ciphertext: s.sealed.combined,
+          nonce: s.sealed.nonce,
+          isGroup: true,
+          peer: null,
+          ownMessage: true,
+          epoch: s.epoch,
+        );
+        expect(opened.ok, isTrue, reason: 'after restart, epoch ${s.epoch}: ${opened.failure}');
+      }
+
+      // An install that stored the single-key shape keeps working: its key is
+      // read as a one-entry history rather than discarded.
+      final legacy = SenderKey(key: Uint8List.fromList(List<int>.filled(32, 7)), epoch: 0);
+      final legacyStore = MemorySenderKeyStore();
+      await legacyStore.save({'g1': [legacy]});
+      final fromLegacy = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: legacyStore,
+      )..ownUserId = 'u-ada';
+      await fromLegacy.restoreSenderKeys();
+      expect(fromLegacy.ownSenderKeys('g1'), hasLength(1));
+      expect(fromLegacy.ownSenderKey('g1').epoch, 0);
+    });
+  });
+
   group('sender keys survive a restart', () {
     test('a restored sender key opens this device\'s own group message', () async {
       // Your own group messages are sealed with your own sender key, and nobody
