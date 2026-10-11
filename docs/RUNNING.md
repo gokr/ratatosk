@@ -125,6 +125,28 @@ var/data/
 Losing `data-key` means losing the database: keep a copy with any backup of
 `ratatosk.json`.
 
+## What survives a restart
+
+Two different restarts, with different answers.
+
+**Restarting the server.** Nothing is lost. Accounts, sessions, conversations,
+key envelopes and messages are all in `var/data/ratatosk.json`, and the client's
+session token is a server-side record, so a client stays signed in and simply
+reconnects its stream. Connected clients notice, reconnect, and ask for
+everything appended since the newest message they hold (`ListMessages` with
+`afterSeq`) — they do not re-download the thread.
+
+**Restarting a client** (closing the app, reloading the page, a new phone).
+There is no message cache on disk: history is *fetched from the server* per
+conversation, so a client that has never seen a conversation sees all of it.
+What is per device is the *key material*: the identity keys live in the platform
+keystore, and so do this device's own sender keys (each device registers its own
+device key and is addressable on its own). A restarted client therefore reads
+history again — including its own group messages, which are opened with the
+sender key it saved — but a *different* device of the same account is a
+different device to the crypto: see [E2EE.md](E2EE.md) §1 for what that means
+for direct conversations versus groups today.
+
 ## Troubleshooting
 
 | Symptom | Cause |

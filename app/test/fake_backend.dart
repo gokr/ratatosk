@@ -62,6 +62,13 @@ class FakeBackend implements ChatBackend {
   /// must produce instead.
   final List<Uint8List> sealedSends = [];
 
+  /// Whether a send is echoed back on the stream, as a real server does.
+  bool echoSends = true;
+
+  /// Whether the echo is delivered *before* the send call returns, which is
+  /// what the wire does when the broadcast reaches the client first.
+  bool echoBeforeReturn = false;
+
   /// Set to make subscribe() emit an error, exercising the reconnect path.
   bool failSubscribe = false;
 
@@ -138,6 +145,36 @@ class FakeBackend implements ChatBackend {
 
   /// Pushes an event to anyone listening, as the server would.
   void emit(Event event) => _events.add(event);
+
+  /// Appends a message *without* emitting an event, so it can only be found by
+  /// asking the server — which is what the catch-up path does.
+  Message deliverSilently(String conversationId, Message message) {
+    messages[conversationId]!.add(message);
+    return message;
+  }
+
+  /// Appends a genuinely sealed message: bytes no key in this test can open,
+  /// as a message from an unknown device would be.
+  Message seedSealedMessage({
+    required String conversationId,
+    required String senderDeviceKeyId,
+    required String text,
+  }) {
+    final message = _message(
+      id: '$conversationId-sealed-${messages[conversationId]!.length + 1}',
+      conversationId: conversationId,
+      senderId: 'u2',
+      text: '',
+      seq: messages[conversationId]!.length + 1,
+    )
+      ..encrypted = true
+      ..ciphertext = Uint8List.fromList(List<int>.filled(48, 3))
+      ..nonce = Uint8List.fromList(List<int>.filled(24, 4))
+      ..senderDeviceKeyId = senderDeviceKeyId
+      ..cryptoVersion = 'ratatosk/v1';
+    messages[conversationId]!.add(message);
+    return message;
+  }
 
   /// Delivers a message from the peer, the way a real server push would.
   Message deliverFromPeer(String conversationId, String text) {
@@ -297,6 +334,18 @@ class FakeBackend implements ChatBackend {
       replyToId: replyToId ?? '',
     );
     list.add(message);
+    // A real server pushes the stored message to every member, the sender
+    // included, so the sender's own copy arrives twice: once as the send
+    // response, once on the stream. Emitting here keeps the fake honest about
+    // that race.
+    if (echoSends) {
+      final event = Event(message: MessageEvent(message: message), seq: Int64(++_seq));
+      if (echoBeforeReturn) {
+        emit(event);
+      } else {
+        scheduleMicrotask(() => emit(event));
+      }
+    }
     final conversation = conversations[conversationId];
     if (conversation != null) {
       conversation.lastMessage = message;

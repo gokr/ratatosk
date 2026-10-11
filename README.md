@@ -20,9 +20,12 @@ docs/PROTOCOL.md       accounts, conversations, messages, invites, realtime
   optimistic sends, edit, delete, emoji reactions, replies, read receipts,
   typing indicators, presence, mute/pin, unread counts, search.
 - **Attachments**: images and files, sealed client-side like everything else.
-- **Invitations**: generate a link, share it, revoke it; the link is a web page
-  (`/join/<code>`) *and* a deep link (`ratatosk://join/<code>`) that the app
-  handles. Redeeming connects two accounts.
+- **Invitations**: generate a link and show it as a QR code, send it, or revoke
+  it; the link is a web page (`/join/<code>`) *and* a deep link
+  (`ratatosk://join/<code>`) that the app handles. Redeeming connects two
+  accounts.
+
+  ![The invite sheet, with a QR code of the invitation link](docs/screenshots/invite-qr.png)
 - **Realtime**: one server-streaming `Subscribe` call per client carries
   messages, typing, receipts, presence and conversation changes. A client that
   falls behind reconnects and catches up from the store.

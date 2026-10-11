@@ -447,7 +447,7 @@ void main() {
       )..ownUserId = 'u-ada';
 
       final first = session.ownSenderKey('g1');
-      final rotated = session.rotateSenderKey('g1');
+      final rotated = await session.rotateSenderKey('g1');
       expect(rotated.epoch, first.epoch + 1);
       expect(rotated.key, isNot(equals(first.key)));
       // The epoch guard keeps a message sealed under the old key from opening
@@ -497,6 +497,124 @@ void main() {
         ),
         throwsA(isA<CryptoFailure>()),
       );
+    });
+  });
+
+  group('sender keys survive a restart', () {
+    test('a restored sender key opens this device\'s own group message', () async {
+      // Your own group messages are sealed with your own sender key, and nobody
+      // can re-send you that key: the envelope it arrived in was addressed to
+      // the session that has gone. Without persistence a restart makes your own
+      // history unreadable — which is exactly what a client would show as
+      // "Waiting for the key to this message".
+      final ada = await device('k-ada');
+      final store = MemorySenderKeyStore();
+
+      final before = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: store,
+      );
+      final originalKey = before.ownSenderKey('g1');
+      final sealed = await before.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'written before the restart'),
+        isGroup: true,
+      );
+
+      // A new session over the same store: a fresh process.
+      final after = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: store,
+      );
+      await after.restoreSenderKeys();
+      expect(after.ownSenderKey('g1').key, originalKey.key);
+      expect(after.ownSenderKey('g1').epoch, originalKey.epoch);
+
+      final opened = await after.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: sealed.sealed.combined,
+        nonce: sealed.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: true,
+      );
+      expect(opened.ok, isTrue, reason: opened.failure ?? '');
+      expect(opened.content!.text, 'written before the restart');
+    });
+
+    test('without persistence the same message is unreadable, as it used to be', () async {
+      final ada = await device('k-ada');
+      final before = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: MemorySenderKeyStore(),
+      );
+      final sealed = await before.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'lost'),
+        isGroup: true,
+      );
+
+      final after = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: MemorySenderKeyStore(), // a store that was never written
+      );
+      await after.restoreSenderKeys();
+      final opened = await after.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: sealed.sealed.combined,
+        nonce: sealed.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: true,
+      );
+      // A *different* key comes out of a load with nothing in it, so the message
+      // does not open. This is the behaviour the persistence above removes.
+      expect(opened.ok, isFalse);
+    });
+  });
+
+  group('membership changes rotate the sender key', () {
+    test('rotating changes the epoch, persists it, and re-distributes', () async {
+      final ada = await device('k-ada');
+      final store = MemorySenderKeyStore();
+      final session = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: store,
+      );
+      final first = session.ownSenderKey('g1');
+
+      final rotated = await session.rotateSenderKey('g1');
+      expect(rotated.epoch, first.epoch + 1);
+      expect(rotated.key, isNot(equals(first.key)));
+
+      // The new key is what a restarted client loads, so the removed member
+      // cannot be handed it by a stale local cache either.
+      final reopened = CryptoSession(
+        backend: StubBackend(),
+        identity: ada.identity,
+        crypto: crypto,
+        senderKeyStore: store,
+      );
+      await reopened.restoreSenderKeys();
+      expect(reopened.ownSenderKey('g1').epoch, rotated.epoch);
+      expect(reopened.ownSenderKey('g1').key, rotated.key);
+    });
+
+    test('membershipOf is order-independent, so nobody rotates by accident', () {
+      expect(CryptoSession.membershipOf(['u-b', 'u-a']), CryptoSession.membershipOf(['u-a', 'u-b']));
+      expect(CryptoSession.membershipOf(['u-a']), isNot(CryptoSession.membershipOf(['u-a', 'u-b'])));
     });
   });
 

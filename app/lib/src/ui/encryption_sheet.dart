@@ -73,6 +73,10 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
     }
   }
 
+  /// Whether this conversation is a group. Groups distribute a sender key to
+  /// every device of every member, so the multi-device notice does not apply.
+  bool get _isGroup => di<AppState>().conversation(widget.conversationId)?.kind == 'group';
+
   @override
   Widget build(BuildContext context) {
     final state = di<AppState>();
@@ -137,6 +141,13 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
           else if (_keys.isEmpty)
             const _Notice(icon: Icons.person_search, text: 'No keys found for the other participants yet.')
           else ...[
+            if (_keys.length > 1 && !_isGroup)
+              _Notice(
+                icon: Icons.devices_other,
+                text: 'This contact has ${_keys.length} devices. A direct conversation is '
+                    'encrypted to their first device only, so the others will not be able to '
+                    'read it yet (docs/E2EE.md §1).',
+              ),
             Text('Keys in this conversation',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),

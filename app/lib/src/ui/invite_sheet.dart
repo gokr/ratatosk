@@ -8,6 +8,7 @@ import '../link_controller.dart';
 import '../state/app_state.dart';
 import 'format.dart';
 import 'theme.dart';
+import 'widgets/qr_code.dart';
 
 /// Invitations: create a link, copy or share it, see what has been used, and
 /// paste one that somebody sent you.
@@ -33,6 +34,7 @@ class InviteSheet extends WatchingStatefulWidget {
 
 class _InviteSheetState extends State<InviteSheet> {
   final _codeField = TextEditingController();
+  final _scrollController = ScrollController();
   Invite? _fresh;
   bool _creating = false;
   int _expiresInHours = 24 * 7;
@@ -42,6 +44,7 @@ class _InviteSheetState extends State<InviteSheet> {
   @override
   void dispose() {
     _codeField.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -56,6 +59,16 @@ class _InviteSheetState extends State<InviteSheet> {
       _fresh = invite;
       _creating = false;
       _showOptions = false;
+    });
+    // The QR is the reason this button was pressed; make sure it is on screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
@@ -94,7 +107,9 @@ class _InviteSheetState extends State<InviteSheet> {
       initialChildSize: 0.7,
       maxChildSize: 0.95,
       builder: (context, scrollController) => ListView(
-        controller: scrollController,
+        // The sheet supplies the controller, which breaks animateTo(); use our
+        // own so the QR can be scrolled to after it is created.
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
           Text(
@@ -103,7 +118,7 @@ class _InviteSheetState extends State<InviteSheet> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Anyone with the link becomes a contact when they accept it.',
+            'Show the QR, or send the link — either makes you contacts when they accept.',
             style: TextStyle(color: RatatoskTheme.of(context).timestamp),
           ),
           const SizedBox(height: 16),
@@ -184,7 +199,11 @@ class _InviteSheetState extends State<InviteSheet> {
   }
 }
 
-/// The freshly created link, big enough to read out loud.
+/// The freshly created link: a QR to hold up, and the link itself to send.
+///
+/// The QR is the point of the card — "show me your phone" is how people
+/// actually exchange a contact these days — so it is shown first and large,
+/// with the readable link and the buttons under it for every other case.
 class _InviteLinkCard extends StatelessWidget {
   const _InviteLinkCard({required this.invite, required this.onCopy, required this.onShare});
 
@@ -195,6 +214,10 @@ class _InviteLinkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final size = MediaQuery.sizeOf(context);
+    // Big enough to scan from arm's length, but never taller than the sheet it
+    // lives in on a phone.
+    final qrSize = (size.shortestSide * 0.5).clamp(140.0, 240.0);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -202,24 +225,51 @@ class _InviteLinkCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrCodeView(
+                data: invite.url,
+                size: qrSize,
+                foreground: Colors.black,
+                semanticLabel: 'Invitation QR code for ${invite.url}',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              'Have them scan this',
+              style: TextStyle(
+                color: scheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.link, color: scheme.onPrimaryContainer),
+              Icon(Icons.link, color: scheme.onPrimaryContainer, size: 18),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: SelectableText(
                   invite.url,
                   style: TextStyle(
                     color: scheme.onPrimaryContainer,
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             _describeUses(invite),
             style: TextStyle(color: scheme.onPrimaryContainer.withValues(alpha: 0.85), fontSize: 12),
@@ -230,7 +280,7 @@ class _InviteLinkCard extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onCopy,
                 icon: const Icon(Icons.copy, size: 18),
-                label: const Text('Copy'),
+                label: const Text('Copy link'),
               ),
               const SizedBox(width: 8),
               FilledButton.tonalIcon(

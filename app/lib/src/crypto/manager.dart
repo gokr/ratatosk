@@ -60,6 +60,42 @@ class DecryptedMessage {
   bool get ok => unreadable == null;
 }
 
+/// A [SenderKeyStore] over the same sealed storage as the identity keys.
+class _StorageSenderKeys implements SenderKeyStore {
+  _StorageSenderKeys(this._storage);
+
+  final PrivateKeyStorage _storage;
+  static const _slot = 'ratatosk.senderkeys';
+
+  @override
+  Future<Map<String, SenderKey>> load() async {
+    final raw = await _storage.read(_slot);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return {};
+      final out = <String, SenderKey>{};
+      decoded.forEach((key, value) {
+        if (value is Map<String, dynamic>) {
+          final parsed = SenderKey.fromJson(value);
+          if (parsed != null) out['$key'] = parsed;
+        }
+      });
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  @override
+  Future<void> save(Map<String, SenderKey> keys) async {
+    final encoded = <String, dynamic>{
+      for (final entry in keys.entries) entry.key: entry.value.toJson(),
+    };
+    await _storage.write(_slot, jsonEncode(encoded));
+  }
+}
+
 /// The app's encryption façade.
 class CryptoManager {
   CryptoManager({
@@ -77,6 +113,14 @@ class CryptoManager {
   IdentityManager? _identity;
   CryptoSession? _session;
   String? _userId;
+
+  /// This device's own sender keys, kept in the same sealed storage as the
+  /// identity keys (they open every group message this device sent).
+  late final SenderKeyStore _senderKeys = _StorageSenderKeys(_storage);
+
+  /// The membership each conversation had the last time it was prepared, so a
+  /// change can be noticed and the sender key rotated.
+  final Map<String, String> _membership = {};
 
   /// Decrypted bodies, keyed by message id. Public: the UI reads it.
   final Map<String, DecryptedMessage> _decrypted = {};
@@ -107,7 +151,15 @@ class CryptoManager {
     _identity = IdentityManager(backend: backend, storage: _storage, crypto: crypto);
     final device = await _identity!.ensureIdentity(label: label, platform: platform);
     backend.setDeviceKeyId(device.deviceKeyId);
-    _session = CryptoSession(backend: backend, identity: device, crypto: crypto)..ownUserId = userId;
+    _session = CryptoSession(
+      backend: backend,
+      identity: device,
+      crypto: crypto,
+      senderKeyStore: _senderKeys,
+    )..ownUserId = userId;
+    // Before anything is decrypted: a device's own sender keys open its own
+    // group messages, and they are not recoverable from the server.
+    await _session!.restoreSenderKeys();
     await _session!.refreshDeviceKeys([userId]);
   }
 
@@ -154,6 +206,20 @@ class CryptoManager {
     await session.refreshDeviceKeys(memberIds);
 
     final isGroup = conversation.kind == 'group';
+    final membership = CryptoSession.membershipOf(memberIds);
+
+    // Somebody joined or left since we last looked: rotate, so a member who was
+    // removed cannot read anything from the new epoch (docs/E2EE.md §5). Only
+    // for groups: a direct conversation has no membership to change.
+    if (isGroup) {
+      final previous = _membership[conversation.id];
+      if (previous != null && previous != membership) {
+        final rotated = await session.rotateSenderKey(conversation.id);
+        _rotatedEpochs[conversation.id] = rotated.epoch;
+      }
+      _membership[conversation.id] = membership;
+    }
+
     if (isGroup && !_collected.contains(conversation.id)) {
       await session.collectSenderKeys(conversationId: conversation.id);
       _collected.add(conversation.id);
@@ -166,6 +232,12 @@ class CryptoManager {
       );
     }
   }
+
+  /// The epoch this device rotated to most recently, per conversation. The UI
+  /// can mention it; nothing needs the value to work.
+  final Map<String, int> _rotatedEpochs = {};
+
+  bool rotatedSince(String conversationId) => _rotatedEpochs.containsKey(conversationId);
 
   /// Re-reads the key envelopes, in case a message arrived before its key did.
   Future<int> collectKeys(proto.Conversation conversation) async {

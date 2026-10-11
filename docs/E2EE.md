@@ -60,9 +60,20 @@ The public halves are published to the server as a **device key**: an opaque id,
 the two public keys, a device label and timestamps. The server also keeps a
 **fingerprint** (see §6) so clients can display it without recomputing.
 
-One account may have several devices; each is a separate device key, and a
-sender encrypts to every device key of every recipient (the envelope in §4 is a
-list, so this costs one extra entry per device).
+One account may have several devices, and each is a separate device key. What
+happens with more than one device depends on the conversation kind — an
+asymmetry worth stating plainly rather than implying:
+
+* **Groups**: a sender key is distributed to *every* device of every member, so
+  all of a participant's devices can read the conversation.
+* **Direct conversations**: the key is derived from the two *identity keys*, and
+  a client derives it against one peer device (the oldest registered one). So a
+  second device of the peer cannot read the conversation yet.
+
+The fix for the direct case is to stop deriving and use a sender key there too,
+with one envelope per peer device — the same shape groups already use, which
+would make the two cases one code path instead of two. Until then the
+encryption panel says so, in the conversation, next to the key list.
 
 ## 2. Conversation keys
 
@@ -247,6 +258,8 @@ Everything above except the roadmap items below:
 | The UI-facing façade (device keys, safety numbers) | `app/lib/src/crypto/manager.dart` |
 | Key registry and envelope relay | `server/internal/service/key_service.go`, `store/keys.go` |
 | Re-registration when the server has forgotten a device | `app/lib/src/crypto/identity.dart` (`_register`) |
+| Own sender keys persisted, so a restart keeps your own group history | `app/lib/src/crypto/session.dart`, `manager.dart` |
+| Rotation when a group's membership changes | `app/lib/src/crypto/manager.dart` (`prepareConversation`) |
 | Public key directory, immutable device keys | `server/internal/store/keys.go` |
 | Encryption at rest of the snapshot | `server/internal/store/atrest.go` |
 | Safety numbers and the verify screen | `app/lib/src/ui/encryption_sheet.dart` |
@@ -290,11 +303,17 @@ end state:
    only if users compare. An append-only, auditable log of key material (with
    the Ed25519 signing keys doing the signing) turns "trust this response" into
    "verify this proof".
-3. **Per-device verification.** Safety numbers currently cover the account, not
+3. **Direct conversations on more than one device.** Today a direct conversation
+   is encrypted to the peer's oldest device only (§1). Deriving is what makes the
+   first device special; distributing a sender key per device removes the
+   asymmetry and deletes the second code path. Until this lands, a second device
+   shows real messages as unopenable — the panel explains why, but the honest
+   fix is to make it work.
+4. **Per-device verification.** Safety numbers currently cover the account, not
    each device; a per-device view would make a rogue device visible.
-4. **Metadata resistance.** Sealed sender, padding to fixed sizes, and
+5. **Metadata resistance.** Sealed sender, padding to fixed sizes, and
    traffic-shaping would hide the social graph from the server.
-5. **Backup and multi-device onboarding.** Today a lost device means lost
+6. **Backup and multi-device onboarding.** Today a lost device means lost
    history, because the private key has no backup and the messages are not
    readable without it. An encrypted, passphrase-protected key backup (and
    history transfer between a user's own devices) is the practical fix.

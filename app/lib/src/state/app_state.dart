@@ -560,6 +560,10 @@ class AppState extends ChangeNotifier {
       final page = await backend.listMessages(conversationId, afterSeq: lastSeq, limit: 200);
       if (page.messages.isEmpty) return;
       _messages[conversationId] = _dedupe([...existing, ...page.messages.map(ChatMessage.new)]);
+      // Everything merged here is sealed too, and this is the one merge path
+      // that used to skip decryption: a message pulled in by a catch-up sat at
+      // "Opening…" for good, because nothing else ever looked at it.
+      await _decryptHistory(conversationId);
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
     }
@@ -587,32 +591,51 @@ class AppState extends ChangeNotifier {
   /// Unreadable ones stay uncached, so the next attempt (after a sender key
   /// arrives) can succeed. A message whose key is still missing is reported once
   /// per pass, not per rebuild.
-  Future<void> _decryptHistory(String conversationId) async {
+  Future<void> _decryptHistory(String conversationId, {bool retried = false}) async {
     final conversation = _conversations[conversationId];
     final list = _messages[conversationId];
     if (conversation == null || list == null || !crypto.ready) return;
-    var missing = 0;
+
+    final pending = <ChatMessage>[];
     for (final entry in list) {
       if (!entry.message.encrypted || entry.message.deleted) continue;
       if (crypto.cached(entry.message) != null || _localBodies.containsKey(entry.id)) continue;
+      pending.add(entry);
+    }
+    if (pending.isEmpty) return;
+
+    _decrypting.addAll(pending.map((e) => e.id));
+    notifyListeners();
+
+    var missing = 0;
+    for (final entry in pending) {
       final body = await crypto.decryptMessage(
         conversation: conversation,
         message: entry.message,
         ownMessage: entry.message.senderId == _me?.id,
       );
+      _decrypting.remove(entry.id);
       if (body.ok) {
         _cacheLocalBody(entry.id, body);
+        _undecryptable.remove(entry.id);
       } else {
+        // Remembered so the bubble can explain itself rather than spinning.
+        _undecryptable[entry.id] = body.unreadable ?? 'This message cannot be read';
         missing++;
       }
     }
-    if (missing > 0) {
-      // A key may have been deposited since we last looked.
+
+    if (missing > 0 && !retried) {
+      // A key may have been deposited since we last looked: ask once, then try
+      // the whole thread again. Only once, so a permanently unreadable message
+      // cannot loop.
       final learned = await crypto.collectKeys(conversation);
       if (learned > 0) {
-        await _decryptHistory(conversationId);
+        await _decryptHistory(conversationId, retried: true);
+        return;
       }
     }
+    notifyListeners();
   }
 
   /// The body the UI renders for a message: decrypted text, or a reason it
@@ -626,9 +649,24 @@ class AppState extends ChangeNotifier {
     final cached = crypto.cached(entry.message);
     if (cached != null) return cached;
     if (entry.message.encrypted) {
-      // Sealed and not openable yet: say so rather than rendering an empty
-      // bubble, which would read as "they sent nothing".
-      return const DecryptedMessage(text: '', unreadable: 'Opening…');
+      // Three states worth telling apart: still being opened, tried and failed
+      // (with the reason), and not reached yet (a decryption is queued).
+      if (!crypto.ready) {
+        // Nothing can be opened at all, which is worth saying plainly rather
+        // than leaving every bubble on a placeholder for ever.
+        return const DecryptedMessage(
+          text: '',
+          unreadable: 'Encryption is not set up on this device',
+        );
+      }
+      final failure = _undecryptable[entry.id];
+      if (failure != null) {
+        return DecryptedMessage(text: '', unreadable: failure);
+      }
+      return DecryptedMessage(
+        text: '',
+        unreadable: _decrypting.contains(entry.id) ? 'Opening…' : 'Encrypted',
+      );
     }
     return DecryptedMessage(
       text: entry.message.text,
@@ -923,17 +961,37 @@ class AppState extends ChangeNotifier {
   /// Plaintext bodies for messages this device sealed or opened.
   final Map<String, DecryptedMessage> _localBodies = {};
 
+  /// Messages whose decryption is in flight right now, and messages that were
+  /// tried and could not be opened (with the reason).
+  ///
+  /// Without these, a bubble whose decryption has not been *attempted* and one
+  /// whose decryption *failed* look identical — both render as a placeholder —
+  /// and a message that simply never got an attempt (the catch-up path used to
+  /// skip them) sits there saying "Opening…" forever.
+  final Set<String> _decrypting = {};
+  final Map<String, String> _undecryptable = {};
+
   void _replacePending(String conversationId, Message draft, Message stored) {
     final list = _messages[conversationId];
     if (list == null) return;
-    final index = list.indexWhere((m) =>
+
+    // Drop every optimistic copy of this send, then the authoritative one, then
+    // add it back.
+    //
+    // Matching on `clientMessageId` alone is not enough to find *the pending*
+    // one: the server echoes a stored message back to its sender, so by the time
+    // the send response arrives the list can already hold the stored copy — with
+    // the same clientMessageId — and a single indexWhere would match that first
+    // and "replace" it with itself, leaving the optimistic entry behind as a
+    // bubble nothing can ever decrypt. Removing by identity avoids the ordering
+    // question entirely.
+    list.removeWhere((m) =>
         m.id == draft.id ||
-        (m.message.clientMessageId.isNotEmpty && m.message.clientMessageId == stored.clientMessageId));
-    if (index >= 0) {
-      list[index] = ChatMessage(stored);
-    } else {
-      list.add(ChatMessage(stored));
-    }
+        (m.isPending &&
+            draft.clientMessageId.isNotEmpty &&
+            m.message.clientMessageId == draft.clientMessageId));
+    list.removeWhere((m) => m.id == stored.id);
+    list.add(ChatMessage(stored));
     _messages[conversationId] = _dedupe(list);
     final conversation = _conversations[conversationId];
     if (conversation != null) {

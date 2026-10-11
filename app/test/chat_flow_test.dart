@@ -7,33 +7,90 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:watch_it/watch_it.dart';
 
-import 'dart:typed_data';
-
 import 'package:ratatosk/src/api/backend.dart';
 import 'package:ratatosk/src/app.dart';
 import 'package:ratatosk/src/crypto/identity.dart';
+import 'package:ratatosk/src/crypto/crypto.dart';
 import 'package:ratatosk/src/crypto/manager.dart';
+import 'package:ratatosk/src/crypto/message_content.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/chat.pb.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/keys.pb.dart';
+import 'package:fixnum/fixnum.dart';
+import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
+import 'package:ratatosk/src/crypto/session.dart';
 import 'package:ratatosk/src/link_controller.dart';
 import 'package:ratatosk/src/session_store.dart';
 import 'package:ratatosk/src/state/app_state.dart';
 import 'package:ratatosk/src/ui/chat_list_page.dart';
 import 'package:ratatosk/src/ui/chat_page.dart';
+import 'package:ratatosk/src/ui/invite_sheet.dart';
 import 'package:ratatosk/src/ui/theme.dart';
+import 'package:ratatosk/src/ui/widgets/qr_code.dart';
+import 'package:qr/qr.dart';
 import 'package:ratatosk/src/ui/widgets/encrypted_image.dart';
 
 import 'fake_backend.dart';
 
+/// The other participant, with real keys, so a test can produce messages that
+/// are genuinely sealed and must be decrypted.
+class Peer {
+  Peer(this.identity, this.crypto);
+
+  final DeviceIdentity identity;
+  final RatatoskCrypto crypto;
+
+  DeviceKey get record => DeviceKey(
+        id: identity.deviceKeyId,
+        userId: 'u2',
+        identityPublicKey: identity.identityPublicKey,
+        signingPublicKey: identity.signingPublicKey,
+      );
+
+  /// Seals a message body the way this device would in a direct conversation
+  /// with [app].
+  Future<Message> sealFor({
+    required DeviceIdentity app,
+    required String conversationId,
+    required String text,
+    required int seq,
+  }) async {
+    final key = await crypto.directConversationKey(
+      own: identity.identityKeyPair,
+      theirIdentity: crypto.identityPublic(app.identityPublicKey),
+      ownFingerprint: identity.keyFingerprint,
+      theirFingerprint: app.keyFingerprint,
+    );
+    final sealed = await crypto.seal(
+      key: key,
+      plaintext: MessageContent(text: text).encode(),
+      aad: messageAad(conversationId: conversationId, senderDeviceKeyId: identity.deviceKeyId),
+    );
+    return Message(
+      id: '$conversationId-peer-$seq',
+      conversationId: conversationId,
+      senderId: 'u2',
+      seq: Int64(seq),
+      createdAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
+      kind: MessageKind.MESSAGE_KIND_TEXT,
+      ciphertext: sealed.combined,
+      nonce: sealed.nonce,
+      senderDeviceKeyId: identity.deviceKeyId,
+      cryptoVersion: cryptoVersion,
+      encrypted: true,
+    );
+  }
+}
+
 void main() {
   late FakeBackend backend;
   late AppState state;
+  late Peer peer;
 
   /// A clock the test advances by hand: typing indicators and other expiries
   /// are compared against it, so a test never has to wait for real time.
   late DateTime now;
 
-  setUp(() {
+  setUp(() async {
     backend = FakeBackend();
     now = DateTime.now();
     // Encryption runs against the in-memory key store: the widget tests cover
@@ -43,6 +100,10 @@ void main() {
       storage: MemoryKeyStorage(),
     );
     state = AppState(backend: backend, crypto: crypto, clock: () => now);
+
+    // The peer's own keys, generated once per test.
+    final peerCrypto = RatatoskCrypto();
+    peer = Peer(await _peerIdentity(peerCrypto), peerCrypto);
     // The widget tree reaches for these through get_it; registering the fake as
     // the backend is all it takes to run the UI without a network.
     di.registerSingleton<ChatBackend>(backend);
@@ -67,15 +128,7 @@ void main() {
   /// the conversation can be encrypted to. Sending without it is *refused*, so
   /// every test that sends has to do this — that is the point of the refusal.
   Future<void> seedPeerKey({String userId = 'u2'}) async {
-    backend.addDeviceKey(
-      userId: userId,
-      key: DeviceKey(
-        id: 'k-$userId',
-        userId: userId,
-        identityPublicKey: Uint8List.fromList(List<int>.filled(32, 7)),
-        signingPublicKey: Uint8List.fromList(List<int>.filled(32, 9)),
-      ),
-    );
+    backend.addDeviceKey(userId: userId, key: peer.record);
     await state.refreshConversationKeys('c1');
   }
 
@@ -251,9 +304,134 @@ void main() {
 
     expect(backend.sentPlaintext, isEmpty, reason: 'a sealed send must not put text on the wire');
     expect(backend.sealedSends, hasLength(1));
+    // Exactly one entry: the send response and the stream echo are the same
+    // message, and showing both would leave a stray unreadable bubble.
+    expect(state.messages('c1'), hasLength(1));
     expect(state.messages('c1').single.state, SendState.sent);
     // The plaintext is still readable on this device.
     expect(find.text('this one is sealed'), findsOneWidget);
+    expect(find.text('Encrypted'), findsNothing, reason: 'no stray unreadable bubble');
+  });
+
+  testWidgets('a message pulled in by catch-up is decrypted, not left as a placeholder', (tester) async {
+    // The catch-up path (reconnect, or re-opening a loaded thread) merges
+    // messages from the server. It used to skip decryption, so those bubbles sat
+    // at "Opening…" forever while the ones beside them were readable.
+    backend.seedConversation(history: ['already here']);
+    await signIn();
+    await seedPeerKey();
+    await state.openConversation('c1');
+    expect(state.bodyOf(state.messages('c1').single).text, 'already here');
+
+    // The peer sends a *sealed* message while the app is not listening, then a
+    // reconnect pulls it in. It can only become readable by being decrypted.
+    final sealed = await peer.sealFor(
+      app: state.crypto.identity!,
+      conversationId: 'c1',
+      text: 'sent while you were away',
+      seq: 2,
+    );
+    backend.deliverSilently('c1', sealed);
+    await state.refresh();
+    await settle(tester, frames: 5);
+
+    final bodies = state.messages('c1').map(state.bodyOf).toList();
+    expect(bodies.map((b) => b.text), contains('sent while you were away'));
+    expect(bodies.every((b) => b.ok), isTrue, reason: 'no bubble may stay unreadable');
+    expect(bodies.map((b) => b.unreadable), everyElement(isNull));
+  });
+
+  testWidgets('an unopenable message says why instead of spinning', (tester) async {
+    // A sealed message this device has no key for must explain itself. Showing
+    // "Opening…" for it is worse than useless: it looks like a stuck app.
+    backend.seedConversation();
+    await signIn();
+    await seedPeerKey();
+    // Sealed by a third device whose key this app was never given, so the
+    // attempt must fail and the bubble has to say so.
+    final strangerCrypto = RatatoskCrypto();
+    final stranger = Peer(await _peerIdentity(strangerCrypto), strangerCrypto);
+    final sealed = await stranger.sealFor(
+      app: state.crypto.identity!,
+      conversationId: 'c1',
+      text: 'not for this device',
+      seq: 1,
+    );
+    backend.deliverSilently('c1', sealed);
+    await state.openConversation('c1');
+    await settle(tester, frames: 5);
+
+    final body = state.bodyOf(state.messages('c1').last);
+    expect(body.ok, isFalse);
+    expect(body.unreadable, isNotNull);
+    expect(body.unreadable, isNot('Opening…'), reason: 'a failed attempt must not look in-progress');
+  });
+
+  group('the sender\'s own message arrives twice', () {
+    // A server pushes the stored message to every member, sender included, so a
+    // send comes back both as the response and on the stream. Whichever lands
+    // first, the thread must end up with one bubble holding the plaintext.
+    for (final echoFirst in [true, false]) {
+      final ordering = echoFirst ? 'stream first' : 'response first';
+      testWidgets('one bubble when the $ordering', (tester) async {
+        backend.seedConversation(id: 'g1', kind: 'group', title: 'Bridge Crew');
+        await signIn();
+        await state.refreshConversationKeys('g1');
+        backend.echoBeforeReturn = echoFirst;
+
+        await state.sendMessage('g1', text: 'the span is in');
+        await settle(tester, frames: 5);
+
+        final entries = state
+            .messages('g1')
+            .where((m) => m.message.kind != MessageKind.MESSAGE_KIND_SYSTEM)
+            .toList();
+        expect(entries, hasLength(1), reason: 'one send, one bubble');
+        expect(entries, hasLength(backend.messages['g1']!.length),
+            reason: 'the thread matches what the server holds');
+        expect(state.bodyOf(entries.single).text, 'the span is in');
+        expect(state.bodyOf(entries.single).unreadable, isNull);
+        expect(entries.single.isPending, isFalse);
+        // Nothing left behind in the composer's list that cannot be read.
+        for (final entry in state.messages('g1')) {
+          expect(state.bodyOf(entry).unreadable, isNot('Encrypted'));
+        }
+      });
+    }
+  });
+
+  testWidgets('the invite sheet shows a scannable QR of the link', (tester) async {
+    await signIn();
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const Scaffold(body: InviteSheet())),
+    );
+    await settle(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Create a link'));
+    await settle(tester, frames: 10);
+
+    final qr = find.byType(QrCodeView);
+    expect(qr, findsOneWidget);
+
+    // It must encode the *link*, not the bare code: a phone's camera app has to
+    // be able to open it without knowing anything about Ratatosk.
+    final widget = tester.widget<QrCodeView>(qr);
+    expect(widget.data, startsWith('http://fake.test/join/'));
+    expect(widget.data, isNot(contains(' ')));
+
+    // A real QR image comes out of the encoder, and it is big enough to scan.
+    final image = QrImage(QrCode(
+      payload: QrPayload.fromString(widget.data),
+      errorCorrectLevel: QrErrorCorrectLevel.medium,
+    ));
+    expect(image.moduleCount, greaterThan(20));
+    expect(tester.getSize(qr).width, greaterThanOrEqualTo(140));
+
+    // The link is still shown as text, and the buttons still work: the QR is an
+    // addition, not a replacement.
+    expect(find.textContaining('/join/'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Copy link'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Share'), findsOneWidget);
   });
 
   testWidgets('the connection badge clears as soon as the stream is open', (tester) async {
@@ -302,3 +480,27 @@ void main() {
   });
 }
 
+/// A device identity for a peer, with a fixed device key id.
+Future<DeviceIdentity> _peerIdentity(RatatoskCrypto crypto) async {
+  final identityPair = await crypto.newIdentityKeyPair();
+  final signingPair = await crypto.newSigningKeyPair();
+  final identityPublic = await crypto.publicKeyBytes(identityPair);
+  final signingPublic = await crypto.publicKeyBytes(signingPair);
+  return DeviceIdentity(
+    crypto: crypto,
+    identityKeyPair: identityPair,
+    signingKeyPair: signingPair,
+    identityPublicKey: identityPublic,
+    signingPublicKey: signingPublic,
+    deviceKeyId: 'k-peer',
+    fingerprint: await crypto.fingerprint(
+      deviceKeyId: 'k-peer',
+      identityPublicKey: identityPublic,
+      signingPublicKey: signingPublic,
+    ),
+    keyFingerprint: await crypto.keyFingerprint(
+      identityPublicKey: identityPublic,
+      signingPublicKey: signingPublic,
+    ),
+  );
+}

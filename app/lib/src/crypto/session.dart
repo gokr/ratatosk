@@ -10,6 +10,8 @@
 //
 // The session owns the cache of both, plus the device-key directory, so callers
 // only ever ask "encrypt this" and "decrypt that".
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cryptography_plus/cryptography_plus.dart' as c;
@@ -47,6 +49,41 @@ class SenderKey {
 
   final Uint8List key;
   final int epoch;
+
+  Map<String, dynamic> toJson() => {'epoch': epoch, 'key': base64Encode(key)};
+
+  static SenderKey? fromJson(Map<String, dynamic> json) {
+    final raw = json['key'];
+    if (raw is! String) return null;
+    try {
+      return SenderKey(epoch: (json['epoch'] as num?)?.toInt() ?? 0, key: base64Decode(raw));
+    } on FormatException {
+      return null;
+    }
+  }
+}
+
+/// Where a device's own sender keys live between runs.
+///
+/// They are key material — they open every message this device sent in a group —
+/// so they belong in the platform keystore beside the identity keys, not in a
+/// settings file. Without them, restarting the app makes your own group
+/// messages unreadable: nobody can re-send you a key you have forgotten, because
+/// the envelope it arrived in was addressed to your old session.
+abstract interface class SenderKeyStore {
+  Future<Map<String, SenderKey>> load();
+  Future<void> save(Map<String, SenderKey> keys);
+}
+
+/// Keeps sender keys in memory only: tests, and any platform with no keystore.
+class MemorySenderKeyStore implements SenderKeyStore {
+  Map<String, SenderKey> _keys = {};
+
+  @override
+  Future<Map<String, SenderKey>> load() async => Map.of(_keys);
+
+  @override
+  Future<void> save(Map<String, SenderKey> keys) async => _keys = Map.of(keys);
 }
 
 /// The per-account encryption session.
@@ -55,11 +92,42 @@ class CryptoSession {
     required this.backend,
     required this.identity,
     RatatoskCrypto? crypto,
-  }) : crypto = crypto ?? RatatoskCrypto();
+    SenderKeyStore? senderKeyStore,
+  })  : crypto = crypto ?? RatatoskCrypto(),
+        _senderKeyStore = senderKeyStore ?? MemorySenderKeyStore();
 
   final ChatBackend backend;
   final DeviceIdentity identity;
   final RatatoskCrypto crypto;
+  final SenderKeyStore _senderKeyStore;
+
+  /// Loads this device's sender keys from the previous run.
+  ///
+  /// Called once at startup, before anything is decrypted, so history that was
+  /// written by this device stays readable.
+  Future<void> restoreSenderKeys() async {
+    try {
+      final saved = await _senderKeyStore.load();
+      _ownSenderKeys.addAll(saved);
+    } catch (_) {
+      // A corrupt store loses the ability to read one's own old group messages,
+      // which is bad but not a reason to refuse to start.
+    }
+  }
+
+  Future<void> _saveSenderKeys() async {
+    try {
+      await _senderKeyStore.save(Map.of(_ownSenderKeys));
+    } catch (_) {
+      // Nothing to do: the key still works for this session.
+    }
+  }
+
+  /// The membership of a conversation, as a comparable value.
+  static String membershipOf(Iterable<String> memberUserIds) {
+    final sorted = memberUserIds.toList()..sort();
+    return sorted.join(',');
+  }
 
   /// Conversation keys for direct chats, keyed by `peerFingerprint`.
   final Map<String, Uint8List> _directKeys = {};
@@ -137,8 +205,16 @@ class CryptoSession {
   // --- group sender keys -------------------------------------------------
 
   /// This device's sender key for a conversation, created on first use.
-  SenderKey ownSenderKey(String conversationId) =>
-      _ownSenderKeys[conversationId] ??= SenderKey(key: _randomKey(), epoch: 0);
+  SenderKey ownSenderKey(String conversationId) {
+    final existing = _ownSenderKeys[conversationId];
+    if (existing != null) return existing;
+    final created = SenderKey(key: _randomKey(), epoch: 0);
+    _ownSenderKeys[conversationId] = created;
+    // Persisted so a restart does not orphan this device's own messages. Not
+    // awaited: the caller is on the send path, and the write is small.
+    unawaited(_saveSenderKeys());
+    return created;
+  }
 
   static Uint8List _randomKey() {
     // The sender key is random, not derived, so a fresh one cannot be predicted
@@ -151,13 +227,20 @@ class CryptoSession {
     return key;
   }
 
-  /// Rotates this device's sender key to a new epoch, after a membership change.
-  SenderKey rotateSenderKey(String conversationId) {
+  /// Rotates this device's sender key to a new epoch.
+  ///
+  /// Called when a conversation's membership changes. A member who was removed
+  /// keeps the keys it already received — no protocol can un-send a message —
+  /// but the next epoch is distributed only to the people still in the
+  /// conversation, so the removed member cannot read anything new.
+  Future<SenderKey> rotateSenderKey(String conversationId) async {
     final current = ownSenderKey(conversationId);
     final next = SenderKey(key: _randomKey(), epoch: current.epoch + 1);
     _ownSenderKeys[conversationId] = next;
-    // A new epoch means every recipient needs the new key again.
-    _distributed.clear();
+    // Every recipient needs the new key, and every old epoch's envelopes are
+    // now irrelevant for this conversation.
+    _distributed.removeWhere((marker) => marker.startsWith('$conversationId/'));
+    await _saveSenderKeys();
     return next;
   }
 
@@ -179,6 +262,7 @@ class CryptoSession {
     final senderKey = ownSenderKey(conversationId);
     final marker = '$conversationId/${senderKey.epoch}';
     if (_distributed.contains(marker)) return;
+    await _saveSenderKeys();
 
     for (final recipient in recipients) {
       final alreadySent = await _envelopeExists(conversationId, senderKey.epoch, recipient.id);
