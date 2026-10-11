@@ -77,6 +77,10 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
   Widget build(BuildContext context) {
     final state = di<AppState>();
 
+    final conversation = state.conversation(widget.conversationId);
+    final missingPeer =
+        conversation == null ? null : di<CryptoManager>().peerWithoutKey(conversation);
+
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.6,
@@ -87,7 +91,12 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
         children: [
           Row(
             children: [
-              Icon(Icons.lock, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                missingPeer == null ? Icons.lock : Icons.lock_open_outlined,
+                color: missingPeer == null
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.error,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Encryption',
@@ -101,7 +110,14 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
             style: TextStyle(color: RatatoskTheme.of(context).timestamp),
           ),
           const SizedBox(height: 16),
-          if (!state.encryptionReady)
+          if (missingPeer != null)
+            _Notice(
+              icon: Icons.error_outline,
+              text: '$missingPeer has no encryption keys yet, so a message cannot be sealed for them. '
+                  'Sending is refused rather than quietly sent in the clear. They need to sign in '
+                  'with the app once.',
+            )
+          else if (!state.encryptionReady)
             _Notice(
               icon: Icons.warning_amber_rounded,
               text: 'This device has no encryption keys yet, so messages are sent unencrypted.',
@@ -300,22 +316,50 @@ class _Notice extends StatelessWidget {
 }
 
 /// A compact lock badge for a conversation header.
+///
+/// It reports the truth rather than a reassurance: a conversation whose peer has
+/// published no key cannot be encrypted to, and showing a padlock over it would
+/// be the one kind of bug a user cannot detect.
 class EncryptionBadge extends StatelessWidget {
-  const EncryptionBadge({super.key, required this.verified, this.onTap});
+  const EncryptionBadge({
+    super.key,
+    required this.verified,
+    required this.canEncrypt,
+    this.onTap,
+  });
 
   /// Whether the user has confirmed the safety number for this conversation.
   final bool verified;
+
+  /// Whether outgoing messages in this conversation can actually be sealed.
+  final bool canEncrypt;
+
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = verified
-        ? Theme.of(context).colorScheme.primary
-        : RatatoskTheme.of(context).timestamp;
+    final scheme = Theme.of(context).colorScheme;
+    final (icon, color, tooltip) = switch ((canEncrypt, verified)) {
+      (false, _) => (
+          Icons.lock_open_outlined,
+          scheme.error,
+          'Not encrypted: this contact has no encryption keys yet — tap for details',
+        ),
+      (true, true) => (
+          Icons.lock,
+          scheme.primary,
+          'Encrypted and verified — tap to review',
+        ),
+      (true, false) => (
+          Icons.lock_outline,
+          RatatoskTheme.of(context).timestamp,
+          'Encrypted — tap to compare the safety number',
+        ),
+    };
     return IconButton(
-      tooltip: verified ? 'Encrypted and verified' : 'Encrypted — tap to verify',
+      tooltip: tooltip,
       onPressed: onTap,
-      icon: Icon(verified ? Icons.lock : Icons.lock_open_outlined, size: 18, color: color),
+      icon: Icon(icon, size: 18, color: color),
     );
   }
 }

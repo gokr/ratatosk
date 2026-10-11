@@ -48,6 +48,14 @@ func harnessOn(t *testing.T, srv *httptest.Server) *harness {
 	}
 }
 
+// newTestServer wraps a handler in an httptest server.
+func newTestServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 // testPublicURL is the origin invite links are built from. It is a fixed name
 // rather than the httptest URL so the assertions can name the exact string the
 // server is supposed to produce.

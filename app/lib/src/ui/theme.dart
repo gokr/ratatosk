@@ -9,14 +9,27 @@ class RatatoskTheme {
   const RatatoskTheme._();
 
   static const seed = Color(0xFF0084FF);
+
+  /// A slightly lighter blue for dark mode, where the full-strength accent is
+  /// heavy against a dark surface but still has to carry white text.
+  static const _darkAccent = Color(0xFF3D9BFF);
   static const _bubbleRadius = Radius.circular(18);
 
   static ThemeData light() => _build(Brightness.light);
   static ThemeData dark() => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: brightness);
     final isDark = brightness == Brightness.dark;
+    // `fromSeed` maps the seed onto Material 3's tonal palette, which turns a
+    // vivid blue into a muted one. The rest of the tonal palette is welcome, but
+    // the accent itself must be the actual colour: message bubbles use it too,
+    // and buttons in a different blue than the bubbles read as a mistake.
+    final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: brightness).copyWith(
+      primary: isDark ? _darkAccent : seed,
+      onPrimary: Colors.white,
+      primaryContainer: isDark ? const Color(0xFF10365C) : const Color(0xFFD6E9FF),
+      onPrimaryContainer: isDark ? const Color(0xFFCFE4FF) : const Color(0xFF00325C),
+    );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
@@ -48,7 +61,7 @@ class RatatoskTheme {
       snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
       extensions: [
         ChatColors(
-          ownBubble: seed,
+          ownBubble: isDark ? _darkAccent : seed,
           ownText: Colors.white,
           otherBubble: isDark ? const Color(0xFF3A3B3C) : const Color(0xFFE4E6EB),
           otherText: isDark ? const Color(0xFFE4E6EB) : const Color(0xFF050505),

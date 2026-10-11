@@ -25,6 +25,8 @@ void main() {
   setUp(() => crypto = RatatoskCrypto());
 
   /// A device identity with a fixed device key id, as the server would assign.
+  /// The returned fingerprint is the *key* fingerprint, which is what every
+  /// derivation uses.
   Future<({DeviceIdentity identity, String fingerprint})> device(String id) async {
     final identityPair = await crypto.newIdentityKeyPair();
     final signingPair = await crypto.newSigningKeyPair();
@@ -32,6 +34,10 @@ void main() {
     final signingPublic = await crypto.publicKeyBytes(signingPair);
     final fingerprint = await crypto.fingerprint(
       deviceKeyId: id,
+      identityPublicKey: identityPublic,
+      signingPublicKey: signingPublic,
+    );
+    final keyFingerprint = await crypto.keyFingerprint(
       identityPublicKey: identityPublic,
       signingPublicKey: signingPublic,
     );
@@ -44,8 +50,9 @@ void main() {
         signingPublicKey: signingPublic,
         deviceKeyId: id,
         fingerprint: fingerprint,
+        keyFingerprint: keyFingerprint,
       ),
-      fingerprint: fingerprint,
+      fingerprint: keyFingerprint,
     );
   }
 
@@ -184,6 +191,56 @@ void main() {
       // Identical plaintexts under the same key must not produce identical
       // ciphertexts; a repeating keystream would leak the relationship.
       expect(first.ciphertext, isNot(equals(second.ciphertext)));
+    });
+  });
+
+  group('key derivation does not depend on the server', () {
+    test('a device re-registered under a new id keeps the same conversation key', () async {
+      // The server assigns device ids, and it can hand out a new one (a reset
+      // database, a removed record). If a conversation key were derived from the
+      // id, that would be a lever over the cryptography: two peers would stop
+      // agreeing on a key without any key material changing.
+      final ada = await device('k-ada-1');
+      final grace = await device('k-grace');
+
+      final before = await crypto.directConversationKey(
+        own: ada.identity.identityKeyPair,
+        theirIdentity: crypto.identityPublic(grace.identity.identityPublicKey),
+        ownFingerprint: ada.identity.keyFingerprint,
+        theirFingerprint: grace.identity.keyFingerprint,
+      );
+      // The display fingerprint does change with the id...
+      final renamed = await crypto.fingerprint(
+        deviceKeyId: 'k-ada-2',
+        identityPublicKey: ada.identity.identityPublicKey,
+        signingPublicKey: ada.identity.signingPublicKey,
+      );
+      expect(renamed, isNot(ada.identity.fingerprint));
+      // ...but the key fingerprint, and therefore the conversation key, does not.
+      expect(ada.identity.keyFingerprint, isNot(equals(renamed)));
+      final after = await crypto.directConversationKey(
+        own: ada.identity.identityKeyPair,
+        theirIdentity: crypto.identityPublic(grace.identity.identityPublicKey),
+        ownFingerprint: ada.identity.keyFingerprint,
+        theirFingerprint: grace.identity.keyFingerprint,
+      );
+      expect(after, equals(before));
+    });
+
+    test('the safety number follows the keys, not the device id', () async {
+      final ada = await device('k-ada');
+      final grace = await device('k-grace');
+      // The same keys under a different server-assigned id, as a re-registration
+      // produces.
+      final reRegistered = await crypto.keyFingerprint(
+        identityPublicKey: grace.identity.identityPublicKey,
+        signingPublicKey: grace.identity.signingPublicKey,
+      );
+      expect(reRegistered, grace.identity.keyFingerprint);
+      expect(
+        await crypto.safetyNumber(ada.identity.keyFingerprint, reRegistered),
+        await crypto.safetyNumber(ada.identity.keyFingerprint, grace.identity.keyFingerprint),
+      );
     });
   });
 

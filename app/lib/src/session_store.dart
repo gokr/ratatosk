@@ -50,8 +50,33 @@ class SessionStore {
       if (parsed != null) return parsed;
     }
     if (kIsWeb) {
-      return Uri.base.replace(path: '', query: '', fragment: '');
+      return baseUrlFrom(Uri.base);
     }
     return Uri.parse('http://localhost:8080');
+  }
+
+  /// The API origin for a page served at [page].
+  ///
+  /// Built from parts rather than by `replace`ing the query and fragment away.
+  /// `replace(query: '', fragment: '')` does not remove those parts, it sets
+  /// them to *empty* — so the result renders as `http://host/?#`, and because
+  /// the Connect transport appends a procedure by string concatenation, the
+  /// request url becomes `http://host/?#/pkg.Service/Method`: the browser then
+  /// sends `POST /?` and everything after the `#` never leaves the client. The
+  /// server answers with the web app, and the client reports an unsupported
+  /// content type.
+  ///
+  /// A sub-path is kept (a deployment under `https://host/app/` talks to
+  /// `https://host/app`), so this is the directory of the page, not its origin.
+  static Uri baseUrlFrom(Uri page) {
+    final path = page.path;
+    final directory = path.endsWith('/') ? path : path.substring(0, path.lastIndexOf('/') + 1);
+    return Uri(
+      scheme: page.scheme,
+      userInfo: page.userInfo.isEmpty ? null : page.userInfo,
+      host: page.host,
+      port: page.hasPort ? page.port : null,
+      path: directory,
+    );
   }
 }

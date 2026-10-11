@@ -204,11 +204,11 @@ class RatatoskCrypto {
     return _hex(Uint8List.fromList(digest.bytes));
   }
 
-  /// The fingerprint of a device key: what safety numbers digest and what every
-  /// key derivation is bound to.
-  ///
-  /// Defined identically on the server so both can display it; a client always
-  /// recomputes it rather than trusting the server's copy.
+  /// The fingerprint of a device key, as shown to a human: it covers the
+  /// server-assigned device id as well as the public keys, so two devices of one
+  /// account are distinguishable. Defined identically on the server so both can
+  /// display it; a client always recomputes it rather than trusting the copy it
+  /// is sent.
   Future<String> fingerprint({
     required String deviceKeyId,
     required List<int> identityPublicKey,
@@ -223,11 +223,32 @@ class RatatoskCrypto {
         ...signingPublicKey,
       ]);
 
+  /// The fingerprint used for *key derivation* and safety numbers: it covers the
+  /// public keys only.
+  ///
+  /// Deliberately not the display fingerprint. That one includes the device id,
+  /// and the device id is assigned by the server: deriving a conversation key
+  /// from it would give the server a lever over the cryptography — re-register a
+  /// device under a new id and two peers stop agreeing on a key. Keys must depend
+  /// on key material and nothing else.
+  Future<String> keyFingerprint({
+    required List<int> identityPublicKey,
+    required List<int> signingPublicKey,
+  }) =>
+      sha256Hex([
+        ...utf8.encode('$cryptoVersion/keyfp|'),
+        ...identityPublicKey,
+        ...utf8.encode('|'),
+        ...signingPublicKey,
+      ]);
+
   /// The safety number two users compare out of band.
   ///
   /// Twelve groups of five digits, so it can be read aloud without ambiguity.
-  /// Both sides compute the same value; a malicious server that swapped a
-  /// public key produces a different one.
+  /// Both sides compute the same value; a malicious server that swapped a public
+  /// key produces a different one. It digests the *key* fingerprints, so it
+  /// changes only when key material does — not when the server re-registers a
+  /// device under a new id.
   Future<String> safetyNumber(String fingerprintA, String fingerprintB) async {
     final sorted = [fingerprintA, fingerprintB]..sort();
     final digest = await sha256Hex([

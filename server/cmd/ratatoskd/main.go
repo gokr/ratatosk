@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -44,6 +45,7 @@ type options struct {
 	publicURL       string
 	corsOrigins     string
 	deepLinkScheme  string
+	webDir          string
 	sessionTTL      time.Duration
 	inviteTTL       time.Duration
 	inviteMaxUses   int
@@ -60,6 +62,7 @@ func run() error {
 	flag.StringVar(&o.publicURL, "public-url", env("RATATOSK_PUBLIC_URL", ""), "public origin used in invite links (default http://<addr>)")
 	flag.StringVar(&o.corsOrigins, "cors-origins", env("RATATOSK_CORS_ORIGINS", "*"), "comma-separated browser origins allowed to call the API, or * for any")
 	flag.StringVar(&o.deepLinkScheme, "deeplink-scheme", env("RATATOSK_DEEPLINK_SCHEME", "ratatosk"), "URI scheme the mobile apps register for invite links")
+	flag.StringVar(&o.webDir, "web", env("RATATOSK_WEB_DIR", defaultWebDir()), "directory of a built Flutter web app to serve at / (empty to serve no app)")
 	flag.DurationVar(&o.sessionTTL, "session-ttl", envDuration("RATATOSK_SESSION_TTL", 30*24*time.Hour), "how long a login lasts")
 	flag.DurationVar(&o.inviteTTL, "invite-ttl", envDuration("RATATOSK_INVITE_TTL", 7*24*time.Hour), "default lifetime of a new invite link (0 for no expiry)")
 	flag.IntVar(&o.inviteMaxUses, "invite-max-uses", envInt("RATATOSK_INVITE_MAX_USES", 1), "default number of uses for a new invite link (0 for unlimited)")
@@ -109,6 +112,7 @@ func run() error {
 		PublicURL:      publicURL,
 		CORSOrigins:    splitOrigins(o.corsOrigins),
 		DeepLinkScheme: o.deepLinkScheme,
+		WebDir:         resolveWebDir(o.webDir),
 		Log:            log,
 	}, st, hub, presence, services)
 
@@ -127,9 +131,16 @@ func run() error {
 	}
 
 	errc := make(chan error, 1)
+	webDir := resolveWebDir(o.webDir)
+	serves := "no web app (build one with `cd app && flutter build web`)"
+	if webDir != "" {
+		serves = "web app from " + webDir
+	}
 	go func() {
 		log.Info("ratatosk listening",
-			"addr", o.addr, "publicUrl", publicURL, "data", o.dataDir, "version", version)
+			"addr", o.addr, "publicUrl", publicURL, "data", o.dataDir,
+			"web", serves, "version", version)
+		log.Info("open " + publicURL + " in a browser, or point a client at it")
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errc <- err
 		}
@@ -148,6 +159,39 @@ func run() error {
 		log.Warn("graceful shutdown timed out", "err", err)
 	}
 	return nil
+}
+
+// defaultWebDir is where `flutter build web` puts the app, found relative to
+// the working directory first (running from the repository root) and then to
+// the binary (running an installed server beside an installed app).
+func defaultWebDir() string {
+	candidates := []string{
+		filepath.Join("app", "build", "web"),
+	}
+	if exe, err := os.Executable(); err == nil {
+		// var/bin/ratatoskd -> the repository root is two levels up.
+		root := filepath.Dir(filepath.Dir(filepath.Dir(exe)))
+		candidates = append(candidates, filepath.Join(root, "app", "build", "web"))
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(filepath.Join(candidate, "index.html")); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// resolveWebDir reports the web directory to serve, or "" when there is none.
+// A path that does not hold an index.html is treated as absent rather than as
+// an error: a server without a web app is a normal configuration.
+func resolveWebDir(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(dir, "index.html")); err != nil {
+		return ""
+	}
+	return dir
 }
 
 // resolvePublicURL is the origin handed to clients in invite and attachment

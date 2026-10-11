@@ -14,6 +14,8 @@ docs/PROTOCOL.md       accounts, conversations, messages, invites, realtime
 
 ## What works
 
+- **One url**: the server serves the built web app, so a browser needs nothing
+  but `make server`.
 - **Chat**: one-to-one and group conversations, a message thread with
   optimistic sends, edit, delete, emoji reactions, replies, read receipts,
   typing indicators, presence, mute/pin, unread counts, search.
@@ -55,23 +57,25 @@ sudo apt install libsecret-1-dev
 ## Running it
 
 ```bash
-make proto        # regenerate Go and Dart code from proto/ (needs buf)
-make server       # build and run the server on :8080, data in ./data
-make app          # run the Flutter app against it
-make test         # server tests + client tests (the client's interop tests
-                  # need a server on :8080, or RATATOSK_URL pointing at one)
+make setup && make proto    # once: prerequisites and code generation
+make server                 # builds the web app + server, then serves both
 ```
 
-The app talks to `http://localhost:8080` unless told otherwise: build with
-`--dart-define=RATATOSK_URL=https://chat.example`, or change it in the app's
-settings (which is the point of the setting).
+Then open **<http://localhost:8080>** and create an account. The server serves
+the Flutter web app itself, so the app, the API, attachment downloads and
+invitation links all live on one origin.
 
-To try two users on one machine, run the server once and start the app twice
-(`flutter run -d linux` in two terminals, or one desktop and one browser).
+```bash
+make app DEVICE=linux       # or run a native window beside the browser
+make test                   # server tests + client tests
+```
 
-**Create an invitation to connect two accounts.** Sign in, tap the invite icon,
-copy the link; opening it in a browser shows a landing page that hands off to
-the app, and the app's "Accept invitation" makes the two accounts contacts.
+**See two people talk**: sign in, tap the invite icon, copy the link, and open
+it in a second browser profile (`docs/RUNNING.md` walks through it, and through
+what each screen shows).
+
+The full runbook — two-user walkthrough, configuration, what to look at,
+troubleshooting — is [docs/RUNNING.md](docs/RUNNING.md).
 
 ## Layout
 

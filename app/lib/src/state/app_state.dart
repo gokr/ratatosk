@@ -245,6 +245,13 @@ class AppState extends ChangeNotifier {
         label: _deviceLabel(),
         platform: _platformName(),
       );
+      if (crypto.reregistered) {
+        // The server had no record of this device (a reset database, usually).
+        // The keys are unchanged, so this is informational, not a warning: no
+        // conversation needs re-verifying.
+        _lastError = 'This device was registered with the server again; '
+            'your encryption keys are unchanged.';
+      }
     } catch (error) {
       _lastError = 'Encryption is not available on this device: ${describeError(error)}';
     }
@@ -273,6 +280,13 @@ class AppState extends ChangeNotifier {
 
   /// Whether this device can encrypt and decrypt.
   bool get encryptionReady => crypto.ready;
+
+  /// Whether a conversation's outgoing messages can be sealed right now.
+  bool canEncryptConversation(String conversationId) {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return false;
+    return crypto.canEncrypt(conversation);
+  }
 
   /// This device's key fingerprint, for the safety-number screen.
   String get ownFingerprint => crypto.ownFingerprint;
@@ -686,6 +700,9 @@ class AppState extends ChangeNotifier {
 
     // The wire copy: sealed bytes only. Locally the UI keeps the plaintext in
     // the decryption cache, so it does not have to be sent to itself to be read.
+    // Encryption is the default and the only path: a conversation whose peer
+    // cannot receive a sealed message is refused above rather than downgraded,
+    // because a silent downgrade is the one failure a user would never notice.
     Message? sealedRecord;
     if (conversation != null && crypto.ready) {
       try {
@@ -828,6 +845,15 @@ class AppState extends ChangeNotifier {
       }
     }
     return ReplyQuote(messageId: replyToId, text: '');
+  }
+
+  /// Re-reads the device keys of a conversation, for tests and for the case
+  /// where a peer publishes a key after the conversation was opened.
+  Future<void> refreshConversationKeys(String conversationId) async {
+    final conversation = _conversations[conversationId];
+    if (conversation == null) return;
+    await crypto.prepareConversation(conversation);
+    notifyListeners();
   }
 
   /// Re-sends a message that failed.
@@ -1110,6 +1136,12 @@ class AppState extends ChangeNotifier {
 
   void _startRealtime() {
     _subscription?.cancel();
+    // The badge is cleared as soon as the stream is open.
+    //
+    // A healthy stream may deliver nothing for hours, so waiting for the first
+    // event to clear a "Reconnecting…" badge leaves it showing for the whole
+    // session — a status light reporting the opposite of the truth. `subscribe`
+    // has put the request on the wire by the time it returns.
     _subscription = backend.subscribe().listen(
       _onEvent,
       onError: (Object _) {
@@ -1124,6 +1156,8 @@ class AppState extends ChangeNotifier {
       },
       cancelOnError: true,
     );
+    _realtimeConnected = true;
+    notifyListeners();
   }
 
   void _stopRealtime() {

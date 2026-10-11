@@ -27,10 +27,16 @@ type DeviceKey struct {
 	Revoked   bool      `json:"revoked,omitempty"`
 }
 
-// Fingerprint is the canonical digest of a device key's public halves.
+// Fingerprint is the canonical digest of a device key: its id and its public
+// halves.
 //
 // It is defined here as well as on the client so the server can show the same
 // value; the client always recomputes it rather than trusting this one.
+//
+// This is the *display* fingerprint — what a human compares when checking which
+// device a key belongs to. Key derivation uses a digest of the public keys
+// alone (docs/E2EE.md §2), so that the server-assigned id cannot influence any
+// key: this value deliberately is not used for that.
 func (d *DeviceKey) Fingerprint() string {
 	h := sha256.New()
 	h.Write([]byte("ratatosk/v1/fingerprint|"))

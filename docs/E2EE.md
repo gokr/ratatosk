@@ -86,6 +86,13 @@ encrypted under the old pair fails to decrypt rather than silently decrypting
 under a substituted key. Sorting the two fingerprints means both sides compute
 the same `info` without agreeing on an order first.
 
+These are **key fingerprints** — a digest of the two public keys and nothing
+else — not the display fingerprints of §6, which also cover the device id. The
+device id is assigned by the server, so deriving a conversation key from it would
+hand the server a lever over the cryptography: hand out a new id and two peers
+stop agreeing on a key with no key material having changed. Keys depend on key
+material only.
+
 ### Group conversations: sender keys
 
 Groups do not use pairwise keys, because that would multiply one message into
@@ -181,8 +188,14 @@ A safety number is a digest of both identity keys, rendered as 12 groups of 5
 digits:
 
 ```
-digest = SHA-256("ratatosk/v1/safety|" + min(fp_a, fp_b) + "|" + max(fp_a, fp_b))
+digest = SHA-256("ratatosk/v1/safety|" + min(kfp_a, kfp_b) + "|" + max(kfp_a, kfp_b))
 ```
+
+`kfp` is the **key fingerprint**: `SHA-256("ratatosk/v1/keyfp|" + identity_pub +
+"|" + signing_pub)`. It covers key material only, so the number changes when a
+key changes and stays put when the server re-registers a device under a new id.
+The per-device *display* fingerprint, which does include the id, is shown in the
+device list of the encryption panel — that is the place for it.
 
 Both users compute the same number. Comparing it over a channel the server does
 not control (in person, on a call, by reading it aloud) rules out a
@@ -233,13 +246,16 @@ Everything above except the roadmap items below:
 | The sealed message envelope and file sealing | `app/lib/src/crypto/message_content.dart` |
 | The UI-facing façade (device keys, safety numbers) | `app/lib/src/crypto/manager.dart` |
 | Key registry and envelope relay | `server/internal/service/key_service.go`, `store/keys.go` |
+| Re-registration when the server has forgotten a device | `app/lib/src/crypto/identity.dart` (`_register`) |
 | Public key directory, immutable device keys | `server/internal/store/keys.go` |
 | Encryption at rest of the snapshot | `server/internal/store/atrest.go` |
 | Safety numbers and the verify screen | `app/lib/src/ui/encryption_sheet.dart` |
 
 What the tests pin, and where:
 
-- `app/test/crypto_test.dart` — key agreement is symmetric and peer-specific,
+- `app/test/crypto_test.dart` — key derivation does not depend on the
+  server-assigned device id (a re-registration keeps the conversation key and the
+  safety number), key agreement is symmetric and peer-specific,
   sealing rejects a wrong key / wrong AAD / flipped byte, nonces never repeat,
   safety numbers agree and differ under substitution, the envelope path
   distributes a sender key that opens a group message and refuses a device it

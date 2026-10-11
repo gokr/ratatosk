@@ -54,6 +54,14 @@ class FakeBackend implements ChatBackend {
   /// Set to make the next sendMessage throw, exercising the failure UI.
   bool failNextSend = false;
 
+  /// Every message body that arrived *in the clear*. A test asserts this stays
+  /// empty for an encrypted conversation.
+  final List<String> sentPlaintext = [];
+
+  /// Every sealed body that arrived, which is what an encrypted conversation
+  /// must produce instead.
+  final List<Uint8List> sealedSends = [];
+
   /// Set to make subscribe() emit an error, exercising the reconnect path.
   bool failSubscribe = false;
 
@@ -271,6 +279,7 @@ class FakeBackend implements ChatBackend {
       failNextSend = false;
       throw StateError('network down');
     }
+    if (text.isNotEmpty) sentPlaintext.add(text);
     final existing = (messages[conversationId] ?? const <Message>[]).where(
       (m) => clientMessageId != null && clientMessageId.isNotEmpty && m.clientMessageId == clientMessageId,
     );
@@ -399,10 +408,26 @@ class FakeBackend implements ChatBackend {
       platform: platform,
       createdAt: _now(),
       lastSeen: _now(),
-      fingerprint: 'fp-$keyId',
+      // Left empty on purpose: the field is a convenience, and a client that
+      // recomputes the fingerprint must accept a server that does not send one.
+      // (A *disagreeing* fingerprint is a different matter: the client refuses
+      // to continue, which crypto_test.dart covers.)
+      fingerprint: '',
     );
     deviceKeys[keyId] = key;
     return key;
+  }
+
+  /// Registers a device key for somebody else, as a real peer's app would when
+  /// it publishes one.
+  void addDeviceKey({required String userId, required DeviceKey key}) {
+    deviceKeys[key.id] = DeviceKey(
+      id: key.id,
+      userId: userId,
+      identityPublicKey: key.identityPublicKey,
+      signingPublicKey: key.signingPublicKey,
+      fingerprint: key.fingerprint,
+    );
   }
 
   @override
@@ -476,6 +501,7 @@ class FakeBackend implements ChatBackend {
     List<String> attachmentIds = const [],
     String? clientMessageId,
   }) async {
+    sealedSends.add(ciphertext);
     final stored = await sendMessage(
       conversationId,
       text: '',

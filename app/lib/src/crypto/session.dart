@@ -126,8 +126,9 @@ class CryptoSession {
     final key = await crypto.directConversationKey(
       own: identity.identityKeyPair,
       theirIdentity: crypto.identityPublic(peer.identityPublicKey),
-      ownFingerprint: identity.fingerprint,
-      theirFingerprint: peer.fingerprint,
+      // Key fingerprints, not display fingerprints: see RatatoskCrypto.
+      ownFingerprint: identity.keyFingerprint,
+      theirFingerprint: await _peerKeyFingerprint(peer),
     );
     _directKeys[peer.fingerprint] = key;
     return key;
@@ -185,8 +186,8 @@ class CryptoSession {
       final wrapKey = await crypto.envelopeKey(
         own: identity.identityKeyPair,
         theirIdentity: crypto.identityPublic(recipient.identityPublicKey),
-        ownFingerprint: identity.fingerprint,
-        theirFingerprint: recipient.fingerprint,
+        ownFingerprint: identity.keyFingerprint,
+        theirFingerprint: await _peerKeyFingerprint(recipient),
       );
       final payload = Uint8List.fromList(senderKey.key);
       final sealed = await crypto.seal(
@@ -265,8 +266,8 @@ class CryptoSession {
       final wrapKey = await crypto.envelopeKey(
         own: identity.identityKeyPair,
         theirIdentity: crypto.identityPublic(sender.identityPublicKey),
-        ownFingerprint: identity.fingerprint,
-        theirFingerprint: sender.fingerprint,
+        ownFingerprint: identity.keyFingerprint,
+        theirFingerprint: await _peerKeyFingerprint(sender),
       );
       final plain = await crypto.unseal(
         key: wrapKey,
@@ -381,6 +382,21 @@ class CryptoSession {
       return Opened.failed('This message could not be opened');
     }
   }
+
+  /// A peer's key fingerprint, computed from its public keys (and cached, since
+  /// every message needs it).
+  Future<String> _peerKeyFingerprint(DeviceKey peer) async {
+    final cached = _keyFingerprints[peer.id];
+    if (cached != null) return cached;
+    final value = await crypto.keyFingerprint(
+      identityPublicKey: peer.identityPublicKey,
+      signingPublicKey: peer.signingPublicKey,
+    );
+    _keyFingerprints[peer.id] = value;
+    return value;
+  }
+
+  final Map<String, String> _keyFingerprints = {};
 
   /// The peer device key of a direct conversation, from the cache.
   DeviceKey? peerDeviceKey(String peerUserId) {

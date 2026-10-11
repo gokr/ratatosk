@@ -47,6 +47,7 @@ class DeviceIdentity {
     required this.signingPublicKey,
     required this.deviceKeyId,
     required this.fingerprint,
+    required this.keyFingerprint,
   });
 
   final RatatoskCrypto crypto;
@@ -62,9 +63,13 @@ class DeviceIdentity {
   /// The server-assigned id of this device key; empty until registered.
   final String deviceKeyId;
 
-  /// Hex SHA-256 of the id and both public keys. Every key derivation and every
-  /// safety number is bound to it.
+  /// Hex SHA-256 of the device id and both public keys: what a human compares
+  /// when checking which device a key belongs to.
   final String fingerprint;
+
+  /// Hex SHA-256 of the public keys alone: what key derivation and safety
+  /// numbers are bound to. See [RatatoskCrypto.keyFingerprint].
+  final String keyFingerprint;
 
   c.SimplePublicKey get identityPublic => crypto.identityPublic(identityPublicKey);
   c.SimplePublicKey get signingPublic => crypto.signingPublic(signingPublicKey);
@@ -77,6 +82,7 @@ class DeviceIdentity {
         signingPublicKey: signingPublicKey,
         deviceKeyId: deviceKeyId ?? this.deviceKeyId,
         fingerprint: fingerprint ?? this.fingerprint,
+        keyFingerprint: keyFingerprint,
       );
 }
 
@@ -135,6 +141,10 @@ class IdentityManager {
         identityPublicKey: identityPublic,
         signingPublicKey: signingPublic,
       ),
+      keyFingerprint: await crypto.keyFingerprint(
+        identityPublicKey: identityPublic,
+        signingPublicKey: signingPublic,
+      ),
     );
 
     // Re-register on every start: it is idempotent, it repairs a device key the
@@ -157,10 +167,15 @@ class IdentityManager {
       identityPublicKey: identityPublic,
       signingPublicKey: signingPublic,
       deviceKeyId: '',
-      // The fingerprint covers the device key id, which only exists once the
-      // server has assigned one; this value is replaced by _register.
+      // The display fingerprint covers the device key id, which only exists once
+      // the server has assigned one; this value is replaced by _register. The
+      // key fingerprint depends on the keys alone, so it is already final.
       fingerprint: await crypto.fingerprint(
         deviceKeyId: '',
+        identityPublicKey: identityPublic,
+        signingPublicKey: signingPublic,
+      ),
+      keyFingerprint: await crypto.keyFingerprint(
         identityPublicKey: identityPublic,
         signingPublicKey: signingPublic,
       ),
@@ -168,13 +183,33 @@ class IdentityManager {
   }
 
   Future<DeviceIdentity> _register(DeviceIdentity identity, {String label = '', String platform = ''}) async {
-    final key = await backend.publishDeviceKey(
-      id: identity.deviceKeyId,
-      identityPublicKey: identity.identityPublicKey,
-      signingPublicKey: identity.signingPublicKey,
-      label: label,
-      platform: platform,
-    );
+    DeviceKey key;
+    try {
+      key = await backend.publishDeviceKey(
+        id: identity.deviceKeyId,
+        identityPublicKey: identity.identityPublicKey,
+        signingPublicKey: identity.signingPublicKey,
+        label: label,
+        platform: platform,
+      );
+    } catch (error) {
+      // The server does not know this device key: a database that was reset, or
+      // a device record removed. The private keys are still ours and still good,
+      // so register them again under a fresh id rather than refusing to start.
+      //
+      // Nothing else changes: key derivation and safety numbers depend on the
+      // public keys, not on this id, so conversations keep working and nobody
+      // has to re-verify. Only the device id stamped into message records is new.
+      if (identity.deviceKeyId.isEmpty || !_isUnknownDeviceKey(error)) rethrow;
+      _reregistered = true;
+      key = await backend.publishDeviceKey(
+        id: '',
+        identityPublicKey: identity.identityPublicKey,
+        signingPublicKey: identity.signingPublicKey,
+        label: label,
+        platform: platform,
+      );
+    }
     final fingerprint = await crypto.fingerprint(
       deviceKeyId: key.id,
       identityPublicKey: identity.identityPublicKey,
@@ -202,6 +237,16 @@ class IdentityManager {
     );
     await storage.write(_deviceIdSlot, identity.deviceKeyId);
   }
+
+  /// Whether the last [ensureIdentity] had to register this device again because
+  /// the server did not know it. The UI can mention it; nothing needs re-verifying.
+  bool get reregistered => _reregistered;
+  bool _reregistered = false;
+
+  /// Whether a publish failed because the server has no such device key.
+  static bool _isUnknownDeviceKey(Object error) =>
+      error.toString().contains('unknown device key') ||
+      error.toString().contains('not_found');
 
   /// Forgets this install's keys.
   ///

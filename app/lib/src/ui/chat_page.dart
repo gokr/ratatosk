@@ -152,6 +152,7 @@ class _ChatPageState extends State<ChatPage> {
       actions: [
         EncryptionBadge(
           verified: state.isVerified(conversation.id),
+          canEncrypt: state.canEncryptConversation(conversation.id),
           onTap: () => showEncryptionSheet(context, conversation.id),
         ),
         IconButton(

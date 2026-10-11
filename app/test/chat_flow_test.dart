@@ -7,11 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:watch_it/watch_it.dart';
 
+import 'dart:typed_data';
+
 import 'package:ratatosk/src/api/backend.dart';
 import 'package:ratatosk/src/app.dart';
 import 'package:ratatosk/src/crypto/identity.dart';
 import 'package:ratatosk/src/crypto/manager.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/chat.pb.dart';
+import 'package:ratatosk/src/gen/ratatosk/v1/keys.pb.dart';
 import 'package:ratatosk/src/link_controller.dart';
 import 'package:ratatosk/src/session_store.dart';
 import 'package:ratatosk/src/state/app_state.dart';
@@ -58,6 +61,22 @@ void main() {
   /// Signs the state in without going through the server.
   Future<void> signIn() async {
     await state.bootstrap(savedToken: 'fake-token');
+  }
+
+  /// Publishes the other participant's device key and lets the app see it, so
+  /// the conversation can be encrypted to. Sending without it is *refused*, so
+  /// every test that sends has to do this — that is the point of the refusal.
+  Future<void> seedPeerKey({String userId = 'u2'}) async {
+    backend.addDeviceKey(
+      userId: userId,
+      key: DeviceKey(
+        id: 'k-$userId',
+        userId: userId,
+        identityPublicKey: Uint8List.fromList(List<int>.filled(32, 7)),
+        signingPublicKey: Uint8List.fromList(List<int>.filled(32, 9)),
+      ),
+    );
+    await state.refreshConversationKeys('c1');
   }
 
   /// Pumps a bounded number of frames.
@@ -107,6 +126,7 @@ void main() {
   testWidgets('opening a thread shows history and sends a message', (tester) async {
     backend.seedConversation(history: ['first from grace']);
     await signIn();
+    await seedPeerKey();
 
     await tester.pumpWidget(
       MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
@@ -125,8 +145,16 @@ void main() {
     expect(find.text('hello back'), findsOneWidget);
     await settle(tester);
     expect(find.text('hello back'), findsOneWidget);
-    expect(state.messages('c1').map((m) => m.message.text), contains('hello back'));
     expect(state.messages('c1').every((m) => !m.isPending), isTrue);
+
+    // The stored record carries the seal, not the words: this is what the
+    // server holds, and it is why the bubble is rendered from the local
+    // decryption rather than from the message on the wire.
+    final stored = state.messages('c1').last;
+    expect(stored.message.encrypted, isTrue);
+    expect(stored.message.text, isEmpty);
+    expect(stored.message.ciphertext, isNotEmpty);
+    expect(state.bodyOf(stored).text, 'hello back');
   });
 
   testWidgets('a message from someone else appears while the thread is open', (tester) async {
@@ -147,6 +175,7 @@ void main() {
   testWidgets('a failed send stays on screen with a retry', (tester) async {
     backend.seedConversation();
     await signIn();
+    await seedPeerKey();
     backend.failNextSend = true;
 
     await tester.pumpWidget(
@@ -169,6 +198,76 @@ void main() {
     await settle(tester);
     expect(find.text('Not sent'), findsNothing);
     expect(state.messages('c1').single.state, SendState.sent);
+  });
+
+  testWidgets('a message to a peer with no keys is refused, never sent in the clear', (tester) async {
+    // The peer has no device key: a script client, or somebody who has not
+    // opened an app yet. Encryption is the only path, so the send must fail
+    // with an explanation rather than fall back to plaintext — a silent
+    // downgrade is the one failure a user would never notice.
+    backend.seedConversation(history: ['hello']);
+    await signIn();
+    // Encryption is set up on this device; it is the *peer* who has no key.
+    expect(state.encryptionReady, isTrue);
+    final conversation = state.conversation('c1')!;
+    expect(state.canEncryptConversation('c1'), isFalse);
+    expect(di<CryptoManager>().peerWithoutKey(conversation), 'Grace Hopper');
+
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    // The badge reports the truth instead of showing a padlock.
+    expect(find.byTooltip('Not encrypted: this contact has no encryption keys yet — tap for details'),
+        findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, 'this must not go out in the clear');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send'));
+    await settle(tester);
+
+    // Nothing new reached the backend.
+    expect(backend.sentPlaintext, isEmpty);
+    expect(state.lastError, contains('has not set up encryption yet'));
+  });
+
+  testWidgets('a conversation with a keyed peer sends sealed, not plain', (tester) async {
+    // The mirror of the test above: with the peer's device key published, the
+    // send succeeds and the body goes out sealed — the fake never sees it in
+    // the clear.
+    backend.seedConversation();
+    await signIn();
+    await seedPeerKey();
+
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+    await tester.enterText(find.byType(TextField).last, 'this one is sealed');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send'));
+    await settle(tester);
+
+    expect(backend.sentPlaintext, isEmpty, reason: 'a sealed send must not put text on the wire');
+    expect(backend.sealedSends, hasLength(1));
+    expect(state.messages('c1').single.state, SendState.sent);
+    // The plaintext is still readable on this device.
+    expect(find.text('this one is sealed'), findsOneWidget);
+  });
+
+  testWidgets('the connection badge clears as soon as the stream is open', (tester) async {
+    backend.seedConversation();
+    await signIn();
+    await seedPeerKey();
+
+    await tester.pumpWidget(MaterialApp(theme: RatatoskTheme.light(), home: const ChatListPage()));
+    await settle(tester);
+
+    // A silent stream is a healthy stream: with no events arriving, the badge
+    // must still report a live connection rather than sitting on "Reconnecting…".
+    expect(state.realtimeConnected, isTrue);
+    expect(find.textContaining('Reconnecting'), findsNothing);
   });
 
   testWidgets('typing indicators appear and expire', (tester) async {
@@ -202,3 +301,4 @@ void main() {
     expect(find.textContaining('is typing'), findsNothing);
   });
 }
+

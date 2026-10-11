@@ -91,8 +91,13 @@ class CryptoManager {
   /// finished, which is what the UI gates on.
   bool get ready => _session != null;
 
-  /// This device's fingerprint, shown next to a safety number.
+  /// This device's display fingerprint: the id and keys together, shown when
+  /// listing the devices of a conversation.
   String get ownFingerprint => _identity?.current?.fingerprint ?? '';
+
+  /// Whether the server had to be told about this device again because it had
+  /// no record of it. Keys are unchanged; nothing needs re-verifying.
+  bool get reregistered => _identity?.reregistered ?? false;
 
   String get ownDeviceKeyId => _identity?.current?.deviceKeyId ?? '';
 
@@ -170,6 +175,29 @@ class CryptoManager {
     return session.collectSenderKeys(conversationId: conversation.id);
   }
 
+  /// Whether this device can seal a message for this conversation.
+  ///
+  /// False when encryption is not set up at all, and for a direct conversation
+  /// whose peer has published no device key — a script client, or somebody who
+  /// has not opened an app yet. The UI reports that state instead of claiming
+  /// the conversation is encrypted, and the send path refuses rather than
+  /// quietly falling back to plaintext.
+  bool canEncrypt(proto.Conversation conversation) {
+    if (!ready) return false;
+    if (conversation.kind == 'group') return true;
+    return peerKeyFor(conversation) != null;
+  }
+
+  /// The peer whose device key is missing, for the message that says so.
+  String? peerWithoutKey(proto.Conversation conversation) {
+    if (!ready || conversation.kind == 'group' || peerKeyFor(conversation) != null) return null;
+    if (conversation.hasPeer()) return conversation.peer.displayName;
+    for (final member in conversation.members) {
+      if (member.user.id != _userId) return member.user.displayName;
+    }
+    return null;
+  }
+
   /// Seals a message body and returns what to put on the wire.
   Future<({Uint8List ciphertext, Uint8List nonce, int epoch, String deviceKeyId})> sealMessage({
     required proto.Conversation conversation,
@@ -180,6 +208,13 @@ class CryptoManager {
       throw CryptoFailure('this device has no encryption keys yet');
     }
     final isGroup = conversation.kind == 'group';
+    if (!isGroup && peerKeyFor(conversation) == null) {
+      final who = peerWithoutKey(conversation) ?? 'this contact';
+      throw CryptoFailure(
+        '$who has not set up encryption yet, so there is no key to seal this message with. '
+        'They need to sign in with the app at least once.',
+      );
+    }
     final sealed = await session.encrypt(
       conversationId: conversation.id,
       content: content,
@@ -290,8 +325,18 @@ class CryptoManager {
 
   /// The safety number for a peer device: the value two users compare out of
   /// band to rule out a substituted key.
-  Future<String> safetyNumberFor(DeviceKey peer) =>
-      crypto.safetyNumber(ownFingerprint, peer.fingerprint);
+  ///
+  /// Digests the key fingerprints, so it changes when key material changes and
+  /// not when the server hands out a new device id.
+  Future<String> safetyNumberFor(DeviceKey peer) async {
+    final own = identity?.keyFingerprint;
+    if (own == null) throw CryptoFailure('this device has no keys yet');
+    final theirs = await crypto.keyFingerprint(
+      identityPublicKey: peer.identityPublicKey,
+      signingPublicKey: peer.signingPublicKey,
+    );
+    return crypto.safetyNumber(own, theirs);
+  }
 
   /// Signs a payload with this device's Ed25519 key.
   ///

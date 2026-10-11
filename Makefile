@@ -14,6 +14,7 @@ BIN          := var/bin
 DATA         ?= var/data
 ADDR         ?= :8080
 PUBLIC_URL   ?= http://localhost:8080
+WEB_DIR      := $(APP_DIR)/build/web
 # The address the client's interop tests talk to.
 TEST_URL     ?= http://localhost:8080
 
@@ -40,9 +41,17 @@ proto-tools: ## Install the code generators buf drives
 # --- server ------------------------------------------------------------------
 
 .PHONY: server
-server: build-server ## Build the server and run it in the foreground
+server: build-server web ## Build the web app and the server, then run both on $(ADDR)
 	mkdir -p $(DATA)
-	$(BIN)/ratatoskd --addr $(ADDR) --data $(DATA) --public-url $(PUBLIC_URL)
+	@echo
+	@echo '  Ratatosk is on $(PUBLIC_URL)'
+	@echo '  Open that address in a browser: it serves the app, the API and invite links.'
+	@echo
+	$(BIN)/ratatoskd --addr $(ADDR) --data $(DATA) --public-url $(PUBLIC_URL) --web $(WEB_DIR)
+
+.PHONY: web
+web: ## Build the Flutter web app that the server serves
+	cd $(APP_DIR) && $(FLUTTER) build web --release
 
 .PHONY: build-server
 build-server: ## Build the server binary into var/bin
@@ -63,15 +72,19 @@ app: ## Run the Flutter app (pass DEVICE=web, linux, ... to pick a target)
 app-test: ## Run the Flutter tests; interop tests need a server on $(TEST_URL)
 	cd $(APP_DIR) && $(FLUTTER) analyze && RATATOSK_URL=$(TEST_URL) $(FLUTTER) test
 
-.PHONY: app-build-web
-app-build-web: ## Build the web app into app/build/web
-	cd $(APP_DIR) && $(FLUTTER) build web --release
-
 .PHONY: app-build-linux
 app-build-linux: ## Build the Linux desktop app (needs libsecret-1-dev)
 	cd $(APP_DIR) && $(FLUTTER) build linux --release
 
 # --- everything --------------------------------------------------------------
+
+.PHONY: demo
+demo: server ## Start the server and seed it with two accounts and a conversation
+	@./scripts/seed-demo.sh
+
+.PHONY: smoke
+smoke: build-server web ## Run scripts/verify-run.sh: a real server, two clients, an invite
+	./scripts/verify-run.sh
 
 .PHONY: test
 test: server-test app-test ## Run both test suites

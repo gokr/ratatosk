@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -31,13 +33,19 @@ type Config struct {
 	Addr string
 	// PublicURL is the origin clients should use, for links in the landing page.
 	PublicURL string
-	// CORSOrigins lists allowed browser origins; "*" allows any. Needed for
-	// Flutter web, whose requests come from a different port.
+	// CORSOrigins lists allowed browser origins; "*" allows any. Only needed
+	// when the web app is served from a *different* origin than this API, e.g.
+	// `flutter run -d web-server` during development. Serving the built web app
+	// from WebDir (the default) needs no CORS at all.
 	CORSOrigins []string
 	// DeepLinkScheme is the custom scheme the mobile apps register, e.g.
 	// "ratatosk" in ratatosk://join/CODE.
 	DeepLinkScheme string
-	Log            *slog.Logger
+	// WebDir is a built Flutter web app (app/build/web). When it exists it is
+	// served from /, which makes one url the whole product: the app, its API,
+	// attachment bytes and the invitation landing page all on one origin.
+	WebDir string
+	Log    *slog.Logger
 }
 
 // Server wires the Connect handlers onto an HTTP mux.
@@ -455,7 +463,13 @@ func (s *Server) serveInviteJSON(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// serveRoot serves the built web app when there is one, and otherwise answers
+// with a small description of the API so `curl localhost:8080` says something
+// useful.
 func (s *Server) serveRoot(w http.ResponseWriter, r *http.Request) {
+	if s.serveWebAsset(w, r) {
+		return
+	}
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
@@ -470,10 +484,70 @@ func (s *Server) serveRoot(w http.ResponseWriter, r *http.Request) {
 		kinds = append(kinds, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"name":     "ratatosk",
-		"services": kinds,
+		"name":      "ratatosk",
+		"services":  kinds,
 		"publicUrl": s.cfg.PublicURL,
+		"hint":      "no web app found; build it with `flutter build web` and start with --web <dir>",
 	})
+}
+
+// serveWebAsset serves one file of the built Flutter web app. It reports
+// whether it handled the request.
+//
+// The app is a single page, so anything that is not an existing file falls back
+// to index.html: a deep link like /?invite=CODE or a future client-side route
+// must reach the app rather than a 404. The routes registered on the mux
+// (the RPC paths, /files/, /join/, /invite/, /healthz) are more specific
+// patterns, so Go's router sends them here only when they are not the target —
+// which is exactly the split wanted: server-rendered pages stay server-rendered.
+func (s *Server) serveWebAsset(w http.ResponseWriter, r *http.Request) bool {
+	if s.cfg.WebDir == "" {
+		return false
+	}
+	// Only GET and HEAD are served. An RPC or an upload that lands here has
+	// gone astray — a client whose base url has a stray query string, say — and
+	// answering it with an HTML page turns a clear "wrong url" into a confusing
+	// "unsupported content type" in the client. A 404 says what happened.
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.NotFound(w, r)
+		return true
+	}
+	path := path.Clean("/" + strings.TrimPrefix(r.URL.Path, "/"))
+	// Refuse anything that tries to climb out of the directory. Clean already
+	// removes "..", so this is belt and braces.
+	if strings.Contains(path, "..") {
+		http.NotFound(w, r)
+		return true
+	}
+
+	candidate := filepath.Join(s.cfg.WebDir, filepath.FromSlash(strings.TrimPrefix(path, "/")))
+	if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+		s.serveWebFile(w, r, candidate)
+		return true
+	}
+
+	index := filepath.Join(s.cfg.WebDir, "index.html")
+	if _, err := os.Stat(index); err != nil {
+		// A web directory without an index is not a web app; fall through to
+		// the API description rather than 404ing everything.
+		return false
+	}
+	s.serveWebFile(w, r, index)
+	return true
+}
+
+func (s *Server) serveWebFile(w http.ResponseWriter, r *http.Request, file string) {
+	// Everything is revalidated rather than cached on trust.
+	//
+	// Flutter's build does not content-address its entry points: `main.dart.js`
+	// is that name in every build, so a long max-age leaves a returning visitor
+	// running the previous app for as long as the header says — through a
+	// redeploy, a bug fix, anything. `no-cache` does not mean "do not store": it
+	// means "revalidate", and `http.ServeFile` answers with the Last-Modified
+	// check, so an unchanged file costs a 304 and the 3 MB of JavaScript is
+	// transferred only when it actually changed.
+	w.Header().Set("Cache-Control", "no-cache")
+	http.ServeFile(w, r, file)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
