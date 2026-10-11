@@ -19,8 +19,12 @@ It prints a ready-to-fill `/etc/ratatosk/ratatosk.env`. Three rules:
   it silently invalidates every device's existing notification subscription; users
   would have to re-enable notifications. It is not a secret worth rotating
   casually, and it is fine to treat it as public.
-- **Never regenerate these on a server that already has data** — the script
-  refuses to overwrite an existing env file for that reason.
+- **Never regenerate these on a server that already has data.** The script
+  checks for a database (beside the env file, or in the `ratatosk` Docker
+  volume) and refuses to run when one exists — generating a new data key would
+  make it unreadable, and a new VAPID pair would silently invalidate every
+  device's notification subscription. An env file with *no* data behind it is
+  not a refusal: that is just a first deploy being retried.
 
 ## Placeholders the script fills in
 
