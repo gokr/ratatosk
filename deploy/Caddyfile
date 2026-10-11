@@ -1,0 +1,40 @@
+# Caddyfile for https://ratatosk.flatout.works
+#
+# Caddy obtains and renews the TLS certificate automatically, which is what the
+# app needs: Web Push and a Home Screen install both require HTTPS, and invite
+# links must be https for the same reason.
+#
+# Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+
+ratatosk.flatout.works {
+	# Streaming: the app holds one long-lived Subscribe call open per client.
+	# With buffering left on, messages arrive in bursts or not at all.
+	reverse_proxy 127.0.0.1:8080 {
+		flush_interval -1
+	}
+
+	encode zstd gzip
+
+	# The app, the API, attachments and invite links are all on this one origin,
+	# so no CORS configuration is needed. Keep the default CORS origins unless
+	# you deliberately serve a client from somewhere else.
+	#
+	# Uploaded photos can be large; this only needs raising if you lowered
+	# --max-upload-bytes.
+	request_body {
+		max_size 32MB
+	}
+
+	header {
+		# The app is the same for everyone; the API responses set their own.
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# The service worker and notification permission need this origin only.
+		Permissions-Policy "geolocation=(), microphone=()"
+	}
+}
+
+# Optional: send the local development address to the same site.
+# http://localhost:8080 {
+# 	reverse_proxy 127.0.0.1:8080
+# }

@@ -1,0 +1,12 @@
+# Keep the build context small and, more importantly, keep secrets and state out
+# of an image: .env holds a real API key, var/ holds runtime data and tools.
+.git
+.env
+var/
+app/build/
+app/.dart_tool/
+app/linux/ app/macos/ app/windows/
+app/android/ app/ios/
+docs/screenshots/
+*.log
+ratatosk.env

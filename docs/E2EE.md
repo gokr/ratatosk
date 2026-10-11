@@ -64,8 +64,11 @@ One account may have several devices, and each is a separate device key. What
 happens with more than one device depends on the conversation kind — an
 asymmetry worth stating plainly rather than implying:
 
-* **Groups**: a sender key is distributed to *every* device of every member, so
-  all of a participant's devices can read the conversation.
+* **Groups**: a sender key is distributed to every device of every member —
+  *including your own other devices* — so all of a participant's devices can read
+  the conversation. Distribution is per recipient and re-checked whenever a
+  conversation is prepared, so a device that registers later still receives the
+  key from any device that is still running.
 * **Direct conversations**: the key is derived from the two *identity keys*, and
   a client derives it against one peer device (the oldest registered one). So a
   second device of the peer cannot read the conversation yet.
@@ -74,6 +77,15 @@ The fix for the direct case is to stop deriving and use a sender key there too,
 with one envelope per peer device — the same shape groups already use, which
 would make the two cases one code path instead of two. Until then the
 encryption panel says so, in the conversation, next to the key list.
+
+A limit that distribution cannot remove: a lost device's sender key cannot be
+recovered by a new device unless another copy survives. Devices that already
+received its key can still read those messages; losing the sender does not
+invalidate those copies. But if the sender never shared the key with a device,
+and no usable copy or backup remains, that device cannot recover the history.
+Clients distinguish a missing key from another of your devices from an in-flight
+decryption. Recovery needs key backup or an explicit transfer from a device
+that still holds the key; see §9.
 
 ## 2. Conversation keys
 
@@ -311,12 +323,17 @@ end state:
    fix is to make it work.
 4. **Per-device verification.** Safety numbers currently cover the account, not
    each device; a per-device view would make a rogue device visible.
-5. **Metadata resistance.** Sealed sender, padding to fixed sizes, and
+5. **Sender-key recovery for a lost device.** Your own history dies with the
+   device that wrote it (§1). Backup of sender keys, or re-sealing a
+   conversation's history to the account's remaining devices, is what would make
+   "log in somewhere new" show the whole thread.
+6. **Metadata resistance.** Sealed sender, padding to fixed sizes, and
    traffic-shaping would hide the social graph from the server.
-6. **Backup and multi-device onboarding.** Today a lost device means lost
+7. **Backup and multi-device onboarding.** Today a lost device means lost
    history, because the private key has no backup and the messages are not
    readable without it. An encrypted, passphrase-protected key backup (and
-   history transfer between a user's own devices) is the practical fix.
+   history transfer between a user's own devices, sender keys included) is the
+   practical fix — the same item as (5) seen from the other direction.
 
 ## 11. Versioning
 

@@ -1,0 +1,59 @@
+# systemd unit for ratatoskd.
+#
+# Install:
+#   sudo cp deploy/ratatosk.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ratatosk
+#
+# The service runs as a dedicated user with the data directory as its home, and
+# listens on loopback only: a reverse proxy (Caddy, nginx) terminates TLS and
+# forwards to it. Web Push needs a secure context, so the public origin must be
+# HTTPS — see docs/DEPLOYMENT.md.
+
+[Unit]
+Description=Ratatosk chat server
+Documentation=https://github.com/gokr/ratatosk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ratatosk
+Group=ratatosk
+
+# Loopback only: the proxy is the only thing that should reach this.
+ExecStart=/usr/local/bin/ratatoskd \
+  --addr 127.0.0.1:8080 \
+  --data /var/lib/ratatosk \
+  --web /usr/local/share/ratatosk/web \
+  --public-url https://ratatosk.flatout.works
+
+# Secrets and configuration live here, not in the unit:
+#   RATATOSK_DATA_KEY=…            (keep this backed up; losing it loses the data)
+#   RATATOSK_VAPID_PUBLIC_KEY=…    (optional: enables notifications)
+#   RATATOSK_VAPID_PRIVATE_KEY=…
+#   RATATOSK_VAPID_CONTACT=mailto:you@example.org
+EnvironmentFile=-/etc/ratatosk/ratatosk.env
+
+Restart=on-failure
+RestartSec=2
+
+# The database, WAL and uploads are the whole state; keep it private.
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+# Only its own data directory is writable.
+ReadWritePaths=/var/lib/ratatosk
+
+[Install]
+WantedBy=multi-user.target

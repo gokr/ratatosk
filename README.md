@@ -19,7 +19,11 @@ docs/PROTOCOL.md       accounts, conversations, messages, invites, realtime
 - **Chat**: one-to-one and group conversations, a message thread with
   optimistic sends, edit, delete, emoji reactions, replies, read receipts,
   typing indicators, presence, mute/pin, unread counts, search.
-- **Attachments**: images and files, sealed client-side like everything else.
+- **Attachments**: images and files, sealed client-side like everything else —
+  including a **camera capture** straight from the composer.
+- **Notifications**: Web Push, so one install covers Android, iPhone (16.4+, from
+  the Home Screen) and the desktop browser with no app store involved. The push
+  payload is a bare `New message`: nothing about the sender or the content.
 - **Invitations**: generate a link and show it as a QR code, send it, or revoke
   it; the link is a web page (`/join/<code>`) *and* a deep link
   (`ratatosk://join/<code>`) that the app handles. Redeeming connects two
@@ -94,8 +98,12 @@ troubleshooting — is [docs/RUNNING.md](docs/RUNNING.md).
 ```
 server/
   cmd/ratatoskd/          entry point: flags, signal handling, shutdown
-  internal/store/         all state: users, conversations, messages, keys,
-                          at-rest encryption of the snapshot
+  internal/store/         all state in SQLite (goose migrations): users,
+                          conversations, messages, keys. Each row is sealed
+                          individually; an HMAC digest keys the indexes. A
+                          pre-SQLite JSON snapshot is imported on first start
+  internal/push/          Web Push delivery: VAPID-validated, queue-based,
+                          SSRF-guarded endpoint checks
   internal/service/       the four Connect services (auth, chat, social, keys)
   internal/realtime/      fan-out hub, presence, typing expiry
   internal/httpserver/    HTTP wiring, auth interceptor, attachments, invite page
@@ -124,5 +132,13 @@ app/lib/src/
 ## Status
 
 This is a working prototype, not a hardened product: it has no rate limiting,
-no abuse handling, no push notifications, no key backup and no audit. The
-encryption is designed and tested but has not been reviewed by a cryptographer.
+no abuse handling, no key backup and no audit. The encryption is designed and
+tested but has not been reviewed by a cryptographer.
+
+Counting the operations that exist: the database is SQLite with goose
+migrations and per-row at-rest encryption; notifications are Web Push with a
+content-free payload; a photo can be taken in the composer and is sealed like any
+other attachment. Before pointing this at real people, read
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — it lists what to configure, what to
+back up (and how to test the restore), and which claims about a stolen server are
+true and which are not.

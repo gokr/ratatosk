@@ -1,0 +1,42 @@
+name: ratatosk
+
+services:
+  ratatosk:
+    build:
+      # Arcane builds from this repository on the host, the same way ktd does:
+      # the image is built on wowbagger itself, so no registry push is needed.
+      context: .
+      dockerfile: Dockerfile
+    image: ratatosk:latest
+    container_name: ratatosk
+    restart: unless-stopped
+    # Bound on all interfaces because Caddy reaches services through
+    # host.docker.internal (the docker bridge gateway); a loopback-only bind
+    # returns 502. This port must stay blocked from outside by the Netcup
+    # firewall and the DOCKER-USER drop rule — see wowbagger AGENTS.md.
+    ports:
+      - "18093:8080"
+    environment:
+      # Must be the public HTTPS origin: it is what invite links and attachment
+      # urls point at, and Web Push refuses to work over plain http.
+      PUBLIC_URL: https://ratatosk.flatout.works
+      # Secrets come from an env file that is NOT in this repository:
+      #   RATATOSK_DATA_KEY            seals every record (back it up!)
+      #   RATATOSK_VAPID_*             enables notifications
+      # Generate with ./deploy/gen-secrets.sh and keep a copy off the server.
+      # Marked optional so a missing file degrades to "notifications disabled"
+      # rather than a container that will not start.
+    env_file:
+      - path: ./ratatosk.env
+        required: false
+    volumes:
+      # THE important line: the database, its WAL and uploaded blobs live here.
+      # Without a volume at this exact path, every container replace silently
+      # starts with an empty database (verified: the user count drops to zero).
+      - ratatosk-data:/var/lib/ratatosk
+
+volumes:
+  # A named volume, not a host path: Docker seeds it with the ownership the
+  # image created (/var/lib/ratatosk, uid 10001), so the unprivileged server can
+  # write to it without anything running as root.
+  ratatosk-data:
