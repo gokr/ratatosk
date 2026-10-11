@@ -58,6 +58,7 @@ type options struct {
 
 func run() error {
 	var o options
+	var log *slog.Logger
 	flag.StringVar(&o.addr, "addr", env("RATATOSK_ADDR", ":8080"), "address to listen on")
 	flag.StringVar(&o.dataDir, "data", env("RATATOSK_DATA", "./data"), "directory holding the database and uploaded files")
 	flag.StringVar(&o.publicURL, "public-url", env("RATATOSK_PUBLIC_URL", ""), "public origin used in invite links (default http://<addr>)")
@@ -75,6 +76,10 @@ func run() error {
 	// A container has no curl and no shell tools by default; the binary probes
 	// itself so a HEALTHCHECK needs nothing extra in the image.
 	healthcheck := flag.Bool("healthcheck", false, "probe the running server's /healthz and exit (for container health checks)")
+	// An operator action, not an RPC: there is no self-service account deletion
+	// yet, and a handle plus a password prompt is not a reason to hand-edit
+	// encrypted rows. Run it with the server stopped.
+	deleteAccount := flag.String("delete-account", "", "delete the named account and its data, then exit (stop the server first)")
 	flag.Parse()
 
 	if *showVersion {
@@ -82,12 +87,18 @@ func run() error {
 		return nil
 	}
 
+	log = newLogger(o.logLevel, o.logFormat)
+	slog.SetDefault(log)
+
 	if *healthcheck {
 		return probeHealth(o.addr)
 	}
 
-	log := newLogger(o.logLevel, o.logFormat)
-	slog.SetDefault(log)
+	// Deletion opens the store itself and returns; it must not race a running
+	// server for the database.
+	if *deleteAccount != "" {
+		return runDeleteAccount(o, *deleteAccount, log)
+	}
 
 	publicURL, err := resolvePublicURL(o.publicURL, o.addr)
 	if err != nil {
@@ -243,6 +254,38 @@ func probeHealth(addr string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health probe: status %d", resp.StatusCode)
 	}
+	return nil
+}
+
+// runDeleteAccount removes an account and reports exactly what went with it.
+//
+// It opens the store directly — the store check refuses to start on a mismatch,
+// which is the guard that keeps a delete from running against the wrong key —
+// and it insists the server is stopped, because a second process writing the
+// same SQLite file is the one thing this design does not support.
+func runDeleteAccount(o options, username string, log *slog.Logger) error {
+	st, err := store.Open(o.dataDir, log)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	if _, err := st.UserByUsername(username); err != nil {
+		return fmt.Errorf("no account named %q in %s", username, o.dataDir)
+	}
+	summary, err := st.DeleteUserByUsername(username)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("deleted account %q (%s)\n", summary.Username, summary.UserID)
+	fmt.Printf("  sessions:                  %d\n", summary.Sessions)
+	fmt.Printf("  push subscriptions:        %d\n", summary.PushSubscriptions)
+	fmt.Printf("  device keys:               %d (with %d key envelopes)\n", summary.DeviceKeys, summary.KeyEnvelopes)
+	fmt.Printf("  contacts:                  %d\n", summary.Contacts)
+	fmt.Printf("  invitations:               %d\n", summary.Invites)
+	fmt.Printf("  attachments:               %d (files removed)\n", summary.Attachments)
+	fmt.Printf("  direct conversations:      %d (deleted, with %d messages)\n", summary.DirectChats, summary.Messages)
+	fmt.Printf("  group memberships:         %d (messages kept)\n", summary.GroupMemberships)
 	return nil
 }
 
