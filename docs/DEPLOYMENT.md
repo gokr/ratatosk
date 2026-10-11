@@ -64,3 +64,35 @@ steal future plaintext/keys. Home-screen installation does not remove that
 web-code supply-chain risk. The prototype has no forward secrecy, audited key
 backup or durable offline client transcript cache. Read [E2EE.md](E2EE.md)
 before making stronger privacy claims.
+
+## What is actually deployed (2026-10-12)
+
+`https://ratatosk.flatout.works` — wowbagger, Arcane GitOps project `ratatosk`
+building `gokr/ratatosk` on the host, Caddy proxying to `18093`.
+
+Two things that bit us, worth knowing before the next deploy:
+
+- **The env var carries its prefix.** `RATATOSK_PUBLIC_URL`, not `PUBLIC_URL`. A
+  bare name is silently ignored, the server falls back to
+  `http://localhost:<port>`, and every invitation link it hands out is unusable
+  by the recipient. Check a link, not just the health endpoint.
+- **Arcane syncs the compose file alone unless the sync has `syncDirectory`.**
+  With it off the build fails with `dockerfile not found`, because only
+  `compose.yaml` reaches the project directory. It also needs an explicit
+  `<project>-<service>:latest` image tag for a locally-built service, or it tries
+  to pull from a registry that has nothing.
+
+The database lives in the named volume `ratatosk_ratatosk-data`, mounted at
+`/var/lib/ratatosk`, owned by uid 10001. It survives `docker rm` and
+`--force-recreate`; it does not survive the volume being removed, which is why
+the volume line in the compose file is the one thing that must not be edited away.
+
+Changing `RATATOSK_DATA_KEY` makes the server refuse to start — deliberately:
+
+```
+store: the data key does not open this database ... wrong RATATOSK_DATA_KEY
+```
+
+That is the guard, not a fault. Either restore the key that sealed the database,
+or remove the volume *as well* if the data is genuinely disposable. Never "fix" it
+by deleting only one of the two.
