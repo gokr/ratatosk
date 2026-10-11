@@ -7,7 +7,11 @@ services:
       # the image is built on wowbagger itself, so no registry push is needed.
       context: .
       dockerfile: Dockerfile
-    image: ratatosk:latest
+    # An explicit tag naming the project and service, which is what Arcane
+    # expects for a locally-built image: the convention in the wowbagger repo is
+    # `<project>-<service>:latest` (this is also Compose's own default here).
+    # Without it the deploy tries to pull a nonexistent registry image.
+    image: ratatosk-ratatosk:latest
     container_name: ratatosk
     restart: unless-stopped
     # Bound on all interfaces because Caddy reaches services through
