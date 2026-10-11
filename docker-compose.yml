@@ -21,9 +21,12 @@ services:
     ports:
       - "18093:8080"
     environment:
-      # Must be the public HTTPS origin: it is what invite links and attachment
-      # urls point at, and Web Push refuses to work over plain http.
-      PUBLIC_URL: https://ratatosk.flatout.works
+      # Must be the public HTTPS origin, and must carry the RATATOSK_ prefix the
+      # server's env lookup uses: it is what invite links and attachment urls
+      # point at, and Web Push refuses to work over plain http. Without it the
+      # server falls back to http://localhost:<port>, so every invitation link
+      # it hands out is unusable by the recipient.
+      RATATOSK_PUBLIC_URL: https://ratatosk.flatout.works
       # Secrets come from an env file that is NOT in this repository:
       #   RATATOSK_DATA_KEY            seals every record (back it up!)
       #   RATATOSK_VAPID_*             enables notifications
