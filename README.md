@@ -44,11 +44,15 @@ docs/PROTOCOL.md       accounts, conversations, messages, invites, realtime
 | --- | --- |
 | Go | 1.24+ |
 | Flutter | 3.47+ (Dart 3.7+) |
-| buf | for regenerating the protobuf code |
 | Linux desktop builds | `libsecret-1-dev` (the private keys live in the platform keystore) |
 
+`buf` and the four protobuf code generators are **not** a requirement: `make
+setup` fetches them into `var/tools/`, pinned to a known version, and writes
+`var/tools/env` so every other target finds them. Nothing is installed globally
+and no step needs sudo.
+
 `libsecret-1-dev` is only needed to *build* the Linux desktop app; the server,
-the tests and the web build do not need it. On Debian/Ubuntu:
+the tests and the web build do not need it:
 
 ```bash
 sudo apt install libsecret-1-dev
@@ -57,9 +61,14 @@ sudo apt install libsecret-1-dev
 ## Running it
 
 ```bash
-make setup && make proto    # once: prerequisites and code generation
-make server                 # builds the web app + server, then serves both
+make setup     # once: finds the toolchains, fetches buf + the generators,
+               # resolves dependencies. `make doctor` reports without changing.
+make proto     # regenerate the Go and Dart code from proto/
+make server    # builds the web app + the server, then serves both
 ```
+
+`make setup` is the only step that needs the network (it downloads buf and runs
+`go mod download` / `flutter pub get`).
 
 Then open **<http://localhost:8080>** and create an account. The server serves
 the Flutter web app itself, so the app, the API, attachment downloads and

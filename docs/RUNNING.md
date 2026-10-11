@@ -5,9 +5,19 @@ app, its API, attachment downloads and invitation links all live on one origin
 (no CORS, no second port, and invite links work in the same browser as the app).
 
 ```bash
-make setup && make proto    # once: prerequisites, then generate the code
-make server                 # builds the web app and the server, then runs both
+make setup     # once: toolchains, code generators, dependencies
+make proto     # generate the Go and Dart code from proto/
+make server    # build the web app and the server, then run both
 ```
+
+`make setup` needs no sudo and installs nothing globally: it finds your `go`,
+`flutter` and `dart`, downloads `buf` and the four protobuf plugins into
+`var/tools/` (pinned versions), and records the paths in `var/tools/env`, which
+the Makefile includes. Re-run it after a fresh clone; it is safe to re-run and
+skips what is already there. `FORCE=1 make setup` reinstalls the generators, and
+`BUF_VERSION=1.50.0 make setup` picks a different buf.
+
+If something does not work, `make doctor` prints what it can and cannot find.
 
 Then open **<http://localhost:8080>** and create an account.
 
@@ -124,4 +134,7 @@ Losing `data-key` means losing the database: keep a copy with any backup of
 | "unsupported content type text/html" in the console | a client whose base url has a stray `?` or `#`; fixed in `SessionStore.baseUrlFrom`, but a proxy that rewrites the path can do the same |
 | Links point at `localhost` behind a proxy | set `--public-url` |
 | `make app DEVICE=linux` fails on `libsecret-1` | `sudo apt install libsecret-1-dev`: the private keys go in the platform keystore |
+| `buf is not installed` | `make setup` |
+| `make proto` works but a generator is "not found" | `FORCE=1 make setup` to re-fetch them into `var/tools` |
+| `go: command not found` from make | `make setup` records the path it found; or pass `GO=/usr/local/go/bin/go` |
 | `cannot decrypt the snapshot` at start | `RATATOSK_DATA_KEY` does not match the one the database was written with |

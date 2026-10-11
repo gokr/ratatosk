@@ -10,3 +10,6 @@ app/ios/Pods/
 app/**/GeneratedPluginRegistrant.*
 # Local toolchain/scratch
 *.log
+
+# var/tools holds the pinned code generators that `make setup` fetches.
+# (var/ is already ignored wholesale; this line documents why it is fine.)
