@@ -118,7 +118,7 @@ class AppState extends ChangeNotifier {
   void clearError() {
     if (_lastError == null) return;
     _lastError = null;
-    notifyListeners();
+    _notify();
   }
 
   static void _ignoreToken(String _) {}
@@ -133,7 +133,7 @@ class AppState extends ChangeNotifier {
   }) async {
     _persistToken = onToken;
     _bootstrapping = true;
-    notifyListeners();
+    _notify();
     try {
       if (savedToken == null || savedToken.isEmpty) {
         _signedIn = false;
@@ -156,7 +156,7 @@ class AppState extends ChangeNotifier {
       }
     } finally {
       _bootstrapping = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -172,7 +172,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _authenticate(Future<AuthResult> Function() call) async {
     _lastError = null;
-    notifyListeners();
+    _notify();
     try {
       final result = await call();
       _token = result.token;
@@ -186,7 +186,7 @@ class AppState extends ChangeNotifier {
     } catch (error) {
       _lastError = describeError(error);
     } finally {
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -198,7 +198,7 @@ class AppState extends ChangeNotifier {
       // going away either way.
     }
     await _forgetSession();
-    notifyListeners();
+    _notify();
   }
 
   /// The token of the current session, for callers that build URLs by hand.
@@ -223,12 +223,28 @@ class AppState extends ChangeNotifier {
     _openConversationId = null;
   }
 
+  /// Whether this manager has been disposed.
+  ///
+  /// Several things here start async work and report the result when it lands: a
+  /// decryption, a key collection, a catch-up page, an attachment fetch. Any of
+  /// those can finish *after* the manager is disposed — the app was closed, or a
+  /// test moved on — and notifying a disposed ChangeNotifier throws. The work is
+  /// not worth reporting by then, so every notification goes through [_notify].
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _stopRealtime();
     _typingExpiryTimer?.cancel();
     _typingRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  /// Notifies listeners, unless this manager is already disposed.
+  void _notify() {
+    if (_disposed) return;
+    notifyListeners();
   }
 
   /// Brings up this install's encryption identity.
@@ -321,7 +337,7 @@ class AppState extends ChangeNotifier {
         _lastError = describeError(error);
       }
     } finally {
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -369,7 +385,7 @@ class AppState extends ChangeNotifier {
     _typing.remove(conversationId);
     if (_openConversationId == conversationId) _openConversationId = null;
     _reorderConversations();
-    notifyListeners();
+    _notify();
   }
 
   // --- conversation actions ---------------------------------------------
@@ -379,11 +395,11 @@ class AppState extends ChangeNotifier {
     try {
       final conversation = await backend.createDirectConversation(username: username, userId: userId);
       _upsertConversation(conversation);
-      notifyListeners();
+      _notify();
       return conversation;
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return null;
     }
   }
@@ -392,11 +408,11 @@ class AppState extends ChangeNotifier {
     try {
       final conversation = await backend.createGroupConversation(title: title, usernames: usernames);
       _upsertConversation(conversation);
-      notifyListeners();
+      _notify();
       return conversation;
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return null;
     }
   }
@@ -407,30 +423,30 @@ class AppState extends ChangeNotifier {
       _upsertConversation(
         await backend.updateConversation(conversationId, muted: muted, pinned: pinned),
       );
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
   Future<void> renameConversation(String conversationId, String title) async {
     try {
       _upsertConversation(await backend.updateConversation(conversationId, title: title));
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
   Future<void> addMembers(String conversationId, List<String> usernames) async {
     try {
       _upsertConversation(await backend.addMembers(conversationId, usernames: usernames));
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -441,7 +457,7 @@ class AppState extends ChangeNotifier {
       _forgetConversationLocal(conversationId);
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -449,10 +465,10 @@ class AppState extends ChangeNotifier {
   Future<void> removeMember(String conversationId, {required String userId}) async {
     try {
       _upsertConversation(await backend.removeMember(conversationId, userId: userId));
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -465,7 +481,7 @@ class AppState extends ChangeNotifier {
   /// then on treats arriving messages as read on arrival.
   Future<void> openConversation(String conversationId) async {
     _openConversationId = conversationId;
-    notifyListeners();
+    _notify();
     final conversation = _conversations[conversationId];
     if (conversation != null) {
       // Keys first: history that arrives before the sender keys is unreadable.
@@ -483,7 +499,7 @@ class AppState extends ChangeNotifier {
     if (_openConversationId != conversationId) return;
     _openConversationId = null;
     _stopTyping(conversationId);
-    notifyListeners();
+    _notify();
   }
 
   // --- messages ----------------------------------------------------------
@@ -500,7 +516,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadHistory(String conversationId, {int limit = 50}) async {
     _loadingHistory[conversationId] = true;
-    notifyListeners();
+    _notify();
     try {
       final page = await backend.listMessages(conversationId, limit: limit);
       _messages[conversationId] = page.messages.map(ChatMessage.new).toList();
@@ -515,7 +531,7 @@ class AppState extends ChangeNotifier {
       }
     } finally {
       _loadingHistory[conversationId] = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -525,7 +541,7 @@ class AppState extends ChangeNotifier {
     if (existing == null || existing.isEmpty) return;
     if (loadingHistory(conversationId) || !hasOlder(conversationId)) return;
     _loadingHistory[conversationId] = true;
-    notifyListeners();
+    _notify();
     try {
       final oldest = existing.firstWhere((m) => !m.isPending, orElse: () => existing.first);
       if (oldest.seq == 0) return;
@@ -540,7 +556,7 @@ class AppState extends ChangeNotifier {
       if (!isAuthFailure(error)) _lastError = describeError(error);
     } finally {
       _loadingHistory[conversationId] = false;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -605,7 +621,7 @@ class AppState extends ChangeNotifier {
     if (pending.isEmpty) return;
 
     _decrypting.addAll(pending.map((e) => e.id));
-    notifyListeners();
+    _notify();
 
     var missing = 0;
     for (final entry in pending) {
@@ -635,7 +651,7 @@ class AppState extends ChangeNotifier {
         return;
       }
     }
-    notifyListeners();
+    _notify();
   }
 
   /// The body the UI renders for a message: decrypted text, or a reason it
@@ -762,7 +778,7 @@ class AppState extends ChangeNotifier {
         );
       } catch (error) {
         _lastError = error is CryptoFailure ? error.message : describeError(error);
-        notifyListeners();
+        _notify();
         return;
       }
     }
@@ -805,7 +821,7 @@ class AppState extends ChangeNotifier {
     if (current != null) {
       _upsertConversation(current.deepCopy()..lastMessage = draft);
     }
-    notifyListeners();
+    _notify();
 
     await _deliver(conversationId, draft);
   }
@@ -825,38 +841,33 @@ class AppState extends ChangeNotifier {
     final conversation = _conversations[conversationId];
     if (conversation == null) return;
 
+    // Never send attachment bytes in the clear, even before crypto bootstrap.
+    if (files.isNotEmpty && !crypto.ready) {
+      _lastError = 'Cannot attach files until encryption is ready.';
+      _notify();
+      return;
+    }
     final sealedAttachments = <EncryptedAttachment>[];
-    final plainAttachments = <Attachment>[];
     for (final file in files) {
       try {
-        if (crypto.ready) {
-          final sealed = await crypto.sealFile(file.bytes);
-          final uploaded = await backend.uploadAttachment(
-            filename: file.filename,
-            contentType: file.contentType,
-            data: sealed.ciphertext,
-            encrypted: true,
-          );
-          sealedAttachments.add(EncryptedAttachment(
-            blobId: uploaded.id,
-            fileKey: sealed.key,
-            nonce: sealed.nonce,
-            filename: file.filename,
-            contentType: file.contentType,
-            size: file.bytes.length,
-          ));
-        } else {
-          // Without encryption set up there is nothing to seal the file with, so
-          // the file goes as it is and the UI shows it straight from the server.
-          plainAttachments.add(await backend.uploadAttachment(
-            filename: file.filename,
-            contentType: file.contentType,
-            data: file.bytes,
-          ));
-        }
+        final sealed = await crypto.sealFile(file.bytes);
+        final uploaded = await backend.uploadAttachment(
+          filename: file.filename,
+          contentType: file.contentType,
+          data: sealed.ciphertext,
+          encrypted: true,
+        );
+        sealedAttachments.add(EncryptedAttachment(
+          blobId: uploaded.id,
+          fileKey: sealed.key,
+          nonce: sealed.nonce,
+          filename: file.filename,
+          contentType: file.contentType,
+          size: file.bytes.length,
+        ));
       } catch (error) {
         _lastError = 'Could not attach ${file.filename}: ${describeError(error)}';
-        notifyListeners();
+        _notify();
         return;
       }
     }
@@ -869,7 +880,6 @@ class AppState extends ChangeNotifier {
     await sendMessage(
       conversationId,
       text: text,
-      attachments: plainAttachments,
       replyToId: replyToId,
       sealedBody: crypto.ready ? body : null,
     );
@@ -891,7 +901,7 @@ class AppState extends ChangeNotifier {
     final conversation = _conversations[conversationId];
     if (conversation == null) return;
     await crypto.prepareConversation(conversation);
-    notifyListeners();
+    _notify();
   }
 
   /// Re-sends a message that failed.
@@ -903,7 +913,7 @@ class AppState extends ChangeNotifier {
     final failed = list[index];
     if (!failed.isPending) return;
     list[index] = failed.copyWith(state: SendState.sending, error: null);
-    notifyListeners();
+    _notify();
     // The sealed bytes are re-sent unchanged, so the server's idempotency key
     // still matches if the first attempt actually landed.
     await _deliver(conversationId, failed.message);
@@ -997,7 +1007,7 @@ class AppState extends ChangeNotifier {
     if (conversation != null) {
       _upsertConversation(conversation.deepCopy()..lastMessage = stored);
     }
-    notifyListeners();
+    _notify();
   }
 
   void _markFailed(String conversationId, Message draft, String error) {
@@ -1007,7 +1017,7 @@ class AppState extends ChangeNotifier {
     if (index >= 0) {
       list[index] = ChatMessage(draft, state: SendState.failed, error: error);
     }
-    notifyListeners();
+    _notify();
   }
 
   Future<void> editMessage(String conversationId, String messageId, String text) async {
@@ -1052,20 +1062,20 @@ class AppState extends ChangeNotifier {
       } else {
         _mergeMessage(conversationId, await backend.editMessage(messageId, text));
       }
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
   Future<void> deleteMessage(String conversationId, String messageId) async {
     try {
       _mergeMessage(conversationId, await backend.deleteMessage(messageId));
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -1080,10 +1090,10 @@ class AppState extends ChangeNotifier {
           ? await backend.removeReaction(message.id, emoji)
           : await backend.addReaction(message.id, emoji);
       _mergeMessage(conversationId, stored);
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -1094,7 +1104,7 @@ class AppState extends ChangeNotifier {
       final conversation = _conversations[conversationId];
       if (conversation != null && conversation.unreadCount != 0) {
         _upsertConversation(conversation.deepCopy()..unreadCount = 0);
-        notifyListeners();
+        _notify();
       }
       return seq;
     } catch (error) {
@@ -1130,7 +1140,7 @@ class AppState extends ChangeNotifier {
       list.add(entry);
     }
     _startTypingSweep();
-    notifyListeners();
+    _notify();
   }
 
   void _clearTyping(String conversationId, String userId) {
@@ -1138,7 +1148,7 @@ class AppState extends ChangeNotifier {
     if (list == null) return;
     final before = list.length;
     list.removeWhere((t) => t.userId == userId);
-    if (list.length != before) notifyListeners();
+    if (list.length != before) _notify();
   }
 
   /// A sweep so an indicator disappears even if its stop event never arrives.
@@ -1152,7 +1162,7 @@ class AppState extends ChangeNotifier {
         final before = list.length;
         list.removeWhere((t) => t.expiredAt(now));
         if (list.isNotEmpty) anyoneLeft = true;
-        if (list.length != before) notifyListeners();
+        if (list.length != before) _notify();
       }
       if (!anyoneLeft) {
         timer.cancel();
@@ -1204,18 +1214,18 @@ class AppState extends ChangeNotifier {
       _onEvent,
       onError: (Object _) {
         _realtimeConnected = false;
-        notifyListeners();
+        _notify();
         _scheduleReconnect();
       },
       onDone: () {
         _realtimeConnected = false;
-        notifyListeners();
+        _notify();
         _scheduleReconnect();
       },
       cancelOnError: true,
     );
     _realtimeConnected = true;
-    notifyListeners();
+    _notify();
   }
 
   void _stopRealtime() {
@@ -1263,7 +1273,7 @@ class AppState extends ChangeNotifier {
         _onConversationEvent(event.conversation);
       case Event_Payload.presence:
         _presence[event.presence.userId] = event.presence.presence;
-        notifyListeners();
+        _notify();
       case Event_Payload.contact:
         unawaited(_reloadContacts());
       case Event_Payload.notSet:
@@ -1285,7 +1295,7 @@ class AppState extends ChangeNotifier {
     if (_openConversationId == message.conversationId && message.senderId != _me?.id) {
       unawaited(markRead(message.conversationId));
     }
-    notifyListeners();
+    _notify();
   }
 
   /// Opens a message that just arrived, then repaints.
@@ -1309,7 +1319,7 @@ class AppState extends ChangeNotifier {
       }
     }
     if (body.ok) _cacheLocalBody(message.id, body);
-    notifyListeners();
+    _notify();
   }
 
   void _onReadEvent(ReadEvent event) {
@@ -1322,7 +1332,7 @@ class AppState extends ChangeNotifier {
       }
     }
     _upsertConversation(updated);
-    notifyListeners();
+    _notify();
   }
 
   void _onConversationEvent(ConversationEvent event) {
@@ -1332,13 +1342,13 @@ class AppState extends ChangeNotifier {
     } else {
       _upsertConversation(event.conversation);
     }
-    notifyListeners();
+    _notify();
   }
 
   Future<void> _reloadContacts() async {
     try {
       contacts = await backend.listContacts();
-      notifyListeners();
+      _notify();
     } catch (_) {
       // A failed contact refresh is not worth interrupting the user over.
     }
@@ -1363,7 +1373,7 @@ class AppState extends ChangeNotifier {
       return await backend.searchUsers(query);
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return const [];
     }
   }
@@ -1375,11 +1385,11 @@ class AppState extends ChangeNotifier {
       await _reloadContacts();
       final conversation = result.conversation;
       if (conversation != null) _upsertConversation(conversation);
-      notifyListeners();
+      _notify();
       return conversation ?? (await _findDirectWith(result.contact.user.id));
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return null;
     }
   }
@@ -1388,7 +1398,7 @@ class AppState extends ChangeNotifier {
     try {
       final conversation = await backend.createDirectConversation(userId: userId);
       _upsertConversation(conversation);
-      notifyListeners();
+      _notify();
       return conversation;
     } catch (_) {
       return null;
@@ -1401,7 +1411,7 @@ class AppState extends ChangeNotifier {
       await _reloadContacts();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -1409,11 +1419,11 @@ class AppState extends ChangeNotifier {
     try {
       final invite = await backend.createInvite(expiresInHours: expiresInHours, maxUses: maxUses);
       invites = [invite, ...invites];
-      notifyListeners();
+      _notify();
       return invite;
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return null;
     }
   }
@@ -1422,10 +1432,10 @@ class AppState extends ChangeNotifier {
     try {
       await backend.revokeInvite(code);
       invites = await backend.listInvites();
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -1434,7 +1444,7 @@ class AppState extends ChangeNotifier {
       return await backend.previewInvite(code);
     } catch (error) {
       _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return null;
     }
   }
@@ -1444,11 +1454,11 @@ class AppState extends ChangeNotifier {
       final result = await backend.redeemInvite(code);
       await _reloadContacts();
       _upsertConversation(result.conversation);
-      notifyListeners();
+      _notify();
       return result;
     } catch (error) {
       _lastError = describeError(error);
-      notifyListeners();
+      _notify();
       return null;
     }
   }
@@ -1470,10 +1480,10 @@ class AppState extends ChangeNotifier {
         accentColor: accentColor,
         clearAvatar: clearAvatar,
       );
-      notifyListeners();
+      _notify();
     } catch (error) {
       if (!isAuthFailure(error)) _lastError = describeError(error);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -1497,7 +1507,7 @@ class AppState extends ChangeNotifier {
       _verified.remove(conversationId);
     }
     _saveVerification();
-    notifyListeners();
+    _notify();
   }
 
   /// Persisted through the same store as the token, so a verification survives

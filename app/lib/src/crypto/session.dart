@@ -143,9 +143,14 @@ class CryptoSession {
   final Map<String, DeviceKey> _deviceKeys = {};
   final Map<String, List<DeviceKey>> _deviceKeysByUser = {};
 
-  /// Conversations we have already greeted with a sender key, so a burst of
-  /// messages does not repeat the distribution.
-  final Set<String> _distributed = {};
+  /// Which devices have already been handed this device's sender key, per
+  /// conversation and epoch, so a burst of messages does not repeat the
+  /// distribution.
+  ///
+  /// Per *recipient*, not per conversation: a device that appears later (a
+  /// second phone, another browser) has to be given the key too, and a flag that
+  /// only remembered "this conversation was done" would never come back to it.
+  final Map<String, Set<String>> _distributedTo = {};
 
   DeviceIdentity get device => identity;
 
@@ -239,34 +244,49 @@ class CryptoSession {
     _ownSenderKeys[conversationId] = next;
     // Every recipient needs the new key, and every old epoch's envelopes are
     // now irrelevant for this conversation.
-    _distributed.removeWhere((marker) => marker.startsWith('$conversationId/'));
+    _distributedTo.removeWhere((marker, _) => marker.startsWith('$conversationId/'));
     await _saveSenderKeys();
     return next;
   }
 
   /// Distributes this device's sender key for [conversationId] to every other
-  /// member's device, once per epoch.
+  /// member's device, including this account's *other* devices.
   ///
-  /// Called before the first message this device sends in a conversation; a
-  /// recipient that cannot find a key asks for one by reopening the
-  /// conversation, which is where `_distributed` is cleared.
+  /// Called before the first message this device sends in a conversation, and
+  /// again whenever the conversation is prepared: whichever of the recipients
+  /// have not been given this epoch's key get it now, so a device that appeared
+  /// after the last distribution is picked up rather than left behind.
+  ///
+  /// Your own other devices are recipients like any other. A message this device
+  /// seals can only be opened with this device's sender key, so a device that is
+  /// not given it shows your own group messages as unopenable — and no member
+  /// can hand it over on this device's behalf.
   Future<void> distributeSenderKey({
     required String conversationId,
     required Iterable<String> memberUserIds,
   }) async {
-    final recipients = recipientKeys(memberUserIds)
-        .where((key) => key.userId != _ownUserId())
-        .toList();
+    // `recipientKeys` already excludes this device; it must not exclude the rest
+    // of this account, which is the whole point (see the doc comment).
+    final recipients = recipientKeys(memberUserIds);
     if (recipients.isEmpty) return;
 
     final senderKey = ownSenderKey(conversationId);
     final marker = '$conversationId/${senderKey.epoch}';
-    if (_distributed.contains(marker)) return;
     await _saveSenderKeys();
 
-    for (final recipient in recipients) {
-      final alreadySent = await _envelopeExists(conversationId, senderKey.epoch, recipient.id);
-      if (alreadySent) continue;
+    final done = _distributedTo.putIfAbsent(marker, () => <String>{});
+    final pending = recipients.where((key) => !done.contains(key.id)).toList();
+    if (pending.isEmpty) return;
+
+    // One listing for the batch: a false negative only costs a redundant write,
+    // because the server deduplicates envelopes.
+    final onServer = await _envelopeRecipients(conversationId, senderKey.epoch);
+
+    for (final recipient in pending) {
+      if (onServer.contains(recipient.id)) {
+        done.add(recipient.id);
+        continue;
+      }
       final wrapKey = await crypto.envelopeKey(
         own: identity.identityKeyPair,
         theirIdentity: crypto.identityPublic(recipient.identityPublicKey),
@@ -292,23 +312,25 @@ class CryptoSession {
         wrappedKey: sealed.combined,
         nonce: sealed.nonce,
       );
+      done.add(recipient.id);
     }
-    _distributed.add(marker);
   }
 
-  /// Whether this device already deposited this envelope.
+  /// The devices on the server that already hold this device's sender key for
+  /// [conversationId] at [epoch].
   ///
-  /// The server deduplicates too, so a false negative costs one redundant write
-  /// and never a lost key.
-  Future<bool> _envelopeExists(String conversationId, int epoch, String recipientId) async {
+  /// A failed listing returns "none held": that costs one redundant write, which
+  /// the server deduplicates, rather than skipping a device that needs the key.
+  Future<Set<String>> _envelopeRecipients(String conversationId, int epoch) async {
     try {
       final existing = await backend.listKeyEnvelopes(conversationId: conversationId);
-      return existing.any((envelope) =>
-          envelope.senderDeviceKeyId == identity.deviceKeyId &&
-          envelope.recipientDeviceKeyId == recipientId &&
-          envelope.epoch == epoch);
+      return existing
+          .where((envelope) =>
+              envelope.senderDeviceKeyId == identity.deviceKeyId && envelope.epoch == epoch)
+          .map((envelope) => envelope.recipientDeviceKeyId)
+          .toSet();
     } catch (_) {
-      return false;
+      return {};
     }
   }
 
@@ -439,7 +461,9 @@ class CryptoSession {
         } else {
           final senderKey = senderKeyFor(conversationId, senderDeviceKeyId);
           if (senderKey == null) {
-            return const Opened.failed('Waiting for the key to this message');
+            return Opened.failed(
+              missingSenderKeyReason(senderDeviceKeyId, ownMessage: ownMessage),
+            );
           }
           key = senderKey.key;
         }
@@ -492,6 +516,30 @@ class CryptoSession {
     return sorted.first;
   }
 
+  /// Why a group message from [senderDeviceKeyId] cannot be opened here, in
+  /// words that do not promise a wait that may never end.
+  ///
+  /// This device may not have received the sender key yet. A sender that still
+  /// holds it can distribute it on its next preparation of the conversation.
+  /// Losing the sender does not destroy copies already distributed to other
+  /// devices, but a new device cannot recover a key when no usable copy remains.
+  /// Name a sibling device instead of promising that simply waiting will help.
+  String missingSenderKeyReason(String senderDeviceKeyId, {required bool ownMessage}) {
+    final known = _deviceKeys[senderDeviceKeyId];
+    // `ownMessage` comes from the caller (the sender's user id equals ours); the
+    // device directory is authoritative when it knows the device. Either is
+    // enough to say this is one of ours.
+    final mine = ownMessage ||
+        (known != null && _ownUserId().isNotEmpty && known.userId == _ownUserId());
+    if (!mine || senderDeviceKeyId == identity.deviceKeyId) {
+      // Somebody else's device: the key may still arrive, and usually does.
+      return 'Waiting for the key to this message';
+    }
+    final label = known == null ? '' : (known.label.isNotEmpty ? known.label : known.platform);
+    final from = label.isEmpty ? 'another of your devices' : 'your other device ($label)';
+    return "Sent from $from, which never shared this conversation's key with this device";
+  }
+
   String _ownUserId() => _ownUserIdCache ?? '';
 
   /// Set by the owner of this session once the signed-in user is known.
@@ -501,7 +549,7 @@ class CryptoSession {
   /// Forgets cached keys for a conversation, so a rotation is picked up.
   void forgetConversation(String conversationId) {
     _ownSenderKeys.remove(conversationId);
-    _distributed.removeWhere((marker) => marker.startsWith('$conversationId/'));
+    _distributedTo.removeWhere((marker, _) => marker.startsWith('$conversationId/'));
     _receivedSenderKeys.removeWhere((key, _) => key.startsWith('$conversationId/'));
   }
 }

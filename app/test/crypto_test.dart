@@ -56,12 +56,13 @@ void main() {
     );
   }
 
-  DeviceKey publicRecord(DeviceIdentity identity, String userId) => DeviceKey(
+  DeviceKey publicRecord(DeviceIdentity identity, String userId, {String label = ''}) => DeviceKey(
         id: identity.deviceKeyId,
         userId: userId,
         identityPublicKey: identity.identityPublicKey,
         signingPublicKey: identity.signingPublicKey,
         fingerprint: identity.fingerprint,
+        label: label,
       );
 
   group('key agreement', () {
@@ -497,6 +498,150 @@ void main() {
         ),
         throwsA(isA<CryptoFailure>()),
       );
+    });
+  });
+
+  group('this account\'s other devices', () {
+    // The send side and the receive side must agree. `decrypt` has always
+    // handled "another device of mine sent this" (it consults `senderKeyFor` for
+    // any device that is not this one), but the distribution skipped every device
+    // belonging to our own user, so that case could never arise: a message sent
+    // from one of your devices was unreadable on all of the others, for good.
+    test('a message from this account\'s other device opens on this one', () async {
+      final laptop = await device('k-laptop');
+      final phoneIdentity = await device('k-phone');
+
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(laptop.identity, 'u-ada'))
+        // The sibling device, same account, its own device key.
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(phoneIdentity.identity, 'u-ada'));
+
+      final laptopSession = CryptoSession(backend: server, identity: laptop.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final phoneSession = CryptoSession(backend: server, identity: phoneIdentity.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+
+      final sealed = await laptopSession.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'sent from the laptop'),
+        isGroup: true,
+      );
+
+      // Both are members of the group, so the laptop's distribution covers the
+      // phone: our own devices are recipients like anybody else's.
+      await laptopSession.refreshDeviceKeys(['u-ada']);
+      await laptopSession.distributeSenderKey(conversationId: 'g1', memberUserIds: ['u-ada']);
+      expect(
+        server.envelopes.map((e) => e.recipientDeviceKeyId),
+        contains('k-phone'),
+        reason: 'the sibling device must be handed the sender key',
+      );
+
+      await phoneSession.refreshDeviceKeys(['u-ada']);
+      await phoneSession.collectSenderKeys(conversationId: 'g1');
+      final opened = await phoneSession.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-laptop',
+        ciphertext: sealed.sealed.combined,
+        nonce: sealed.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: true,
+      );
+      expect(opened.ok, isTrue, reason: opened.failure ?? '');
+      expect(opened.content!.text, 'sent from the laptop');
+    });
+
+    test('a device that appears later is handed the key on the next distribution', () async {
+      // Sequence: the laptop distributes to whoever existed then; a second device
+      // appears afterwards. A flag that remembered only "this conversation is
+      // done" would skip the second call and strand it — which is the shape of
+      // this bug in the field (open a second browser, log in, see placeholders).
+      final laptop = await device('k-laptop');
+      final phoneIdentity = await device('k-phone');
+      final grace = await device('k-grace');
+
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(laptop.identity, 'u-ada'))
+        // A fellow member, so the first distribution has a recipient and
+        // completes: that is what sets the "this conversation was done" flag the
+        // second call has to get past.
+        ..addDeviceKey(userId: 'u-grace', key: publicRecord(grace.identity, 'u-grace'));
+
+      final laptopSession = CryptoSession(backend: server, identity: laptop.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+
+      await laptopSession.refreshDeviceKeys(['u-ada', 'u-grace']);
+      final members = ['u-ada', 'u-grace'];
+      await laptopSession.distributeSenderKey(conversationId: 'g1', memberUserIds: members);
+      expect(server.envelopes.map((e) => e.recipientDeviceKeyId), ['k-grace']);
+
+      // The phone registers and is now part of the conversation.
+      server.addDeviceKey(userId: 'u-ada', key: publicRecord(phoneIdentity.identity, 'u-ada'));
+      await laptopSession.refreshDeviceKeys(['u-ada', 'u-grace']);
+      await laptopSession.distributeSenderKey(conversationId: 'g1', memberUserIds: members);
+
+      expect(
+        server.envelopes.map((e) => e.recipientDeviceKeyId),
+        contains('k-phone'),
+        reason: 'the later device gets the key without a rotation',
+      );
+
+      // And a third call does not deposit anything twice.
+      await laptopSession.distributeSenderKey(conversationId: 'g1', memberUserIds: members);
+      expect(server.envelopes.where((e) => e.recipientDeviceKeyId == 'k-phone'), hasLength(1));
+      expect(server.envelopes.where((e) => e.recipientDeviceKeyId == 'k-grace'), hasLength(1));
+    });
+
+    test('an unreadable message from another of my devices says so, and does not promise a wait', () async {
+      // The key lives on that device and nothing escrows it, so "Waiting for the
+      // key" would be a promise that can never be kept. Name the device instead.
+      final phoneIdentity = await device('k-phone');
+      final laptop = await device('k-laptop');
+
+      final server = StubBackend()
+        // The sibling device carries a label, as a registered device does, so the
+        // reader is told *which* device holds the key.
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(laptop.identity, 'u-ada', label: 'Linux desktop'))
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(phoneIdentity.identity, 'u-ada'));
+
+      final phoneSession = CryptoSession(backend: server, identity: phoneIdentity.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      await phoneSession.refreshDeviceKeys(['u-ada']);
+
+      final laptopSession = CryptoSession(backend: server, identity: laptop.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final sealed = await laptopSession.encrypt(
+        conversationId: 'g1',
+        content: MessageContent(text: 'from the lost laptop'),
+        isGroup: true,
+      );
+
+      final opened = await phoneSession.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-laptop',
+        ciphertext: sealed.sealed.combined,
+        nonce: sealed.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: true,
+      );
+      expect(opened.ok, isFalse);
+      expect(opened.failure, 'Sent from your other device (Linux desktop), '
+          "which never shared this conversation's key with this device");
+      expect(opened.failure, isNot(contains('Waiting')));
+
+      // Somebody else's device still gets the "waiting" wording: it may arrive.
+      final strangerOpened = await phoneSession.decrypt(
+        conversationId: 'g1',
+        senderDeviceKeyId: 'k-stranger',
+        ciphertext: sealed.sealed.combined,
+        nonce: sealed.sealed.nonce,
+        isGroup: true,
+        peer: null,
+        ownMessage: false,
+      );
+      expect(strangerOpened.failure, contains('Waiting for the key'));
     });
   });
 
