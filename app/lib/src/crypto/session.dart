@@ -209,16 +209,17 @@ class CryptoSession {
 
   /// The conversation key for a direct chat, derived on first use.
   Future<Uint8List> directKey(DeviceKey peer) async {
-    final cached = _directKeys[peer.fingerprint];
+    final fingerprint = await _peerKeyFingerprint(peer);
+    final cached = _directKeys[fingerprint];
     if (cached != null) return cached;
     final key = await crypto.directConversationKey(
       own: identity.identityKeyPair,
       theirIdentity: crypto.identityPublic(peer.identityPublicKey),
       // Key fingerprints, not display fingerprints: see RatatoskCrypto.
       ownFingerprint: identity.keyFingerprint,
-      theirFingerprint: await _peerKeyFingerprint(peer),
+      theirFingerprint: fingerprint,
     );
-    _directKeys[peer.fingerprint] = key;
+    _directKeys[fingerprint] = key;
     return key;
   }
 
@@ -500,6 +501,7 @@ class CryptoSession {
     required DeviceKey? peer,
     required bool ownMessage,
     int epoch = 0,
+    List<DeviceKey> directPeers = const [],
   }) async {
     try {
       final aad = messageAad(
@@ -513,8 +515,18 @@ class CryptoSession {
         if (other == null) {
           return const Opened.failed('This conversation has no key to open it with');
         }
-        final clear = await crypto.unseal(key: await directKey(other), sealed: sealed, aad: aad);
-        return Opened(MessageContent.decode(clear));
+        // Own history does not record a recipient device in the legacy wire
+        // format. Try known peer devices, but accept only a valid AEAD tag.
+        for (final candidate in [other, ...directPeers]) {
+          try {
+            final clear = await crypto.unseal(
+                key: await directKey(candidate), sealed: sealed, aad: aad);
+            return Opened(MessageContent.decode(clear));
+          } on CryptoFailure {
+            // No plaintext is accepted unless authentication succeeds.
+          }
+        }
+        return const Opened.failed('could not open this message with the key we have');
       }
 
       // A group message can be sealed under any epoch this device has seen: the

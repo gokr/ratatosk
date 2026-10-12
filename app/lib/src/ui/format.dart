@@ -46,6 +46,7 @@ class ChatFormat {
   static String preview(Message? message) {
     if (message == null) return 'No messages yet';
     if (message.deleted) return 'This message was deleted';
+    if (message.encrypted) return 'Encrypted message';
     if (message.kind == MessageKind.MESSAGE_KIND_SYSTEM) return message.text;
     final body = message.text.trim();
     if (message.attachments.isNotEmpty) {

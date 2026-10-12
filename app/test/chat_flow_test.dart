@@ -115,6 +115,7 @@ void main() {
   });
 
   tearDown(() async {
+    state.dispose();
     await di.reset();
     backend.dispose();
   });
@@ -142,6 +143,22 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
   }
+
+  test('incoming direct message uses the actual sender, not oldest device', () async {
+    backend.seedConversation();
+    await signIn();
+    await seedPeerKey(); // Older device is first in the directory.
+    final newerCrypto = RatatoskCrypto();
+    final newer = Peer(await _peerIdentity(newerCrypto, id: 'k-newer'), newerCrypto);
+    backend.addDeviceKey(userId: 'u2', key: newer.record);
+    await state.refreshConversationKeys('c1');
+    final sealed = await newer.sealFor(app: state.crypto.identity!,
+        conversationId: 'c1', text: 'from the newer phone', seq: 1);
+    final opened = await state.crypto.decryptMessage(
+        conversation: backend.conversations['c1']!, message: sealed, ownMessage: false);
+    expect(opened.ok, isTrue, reason: opened.unreadable);
+    expect(opened.text, 'from the newer phone');
+  });
 
   testWidgets('sign-in screen accepts credentials and shows the chat list', (tester) async {
     // No stored token: the bootstrap finishes on the sign-in screen.
@@ -481,7 +498,7 @@ void main() {
 }
 
 /// A device identity for a peer, with a fixed device key id.
-Future<DeviceIdentity> _peerIdentity(RatatoskCrypto crypto) async {
+Future<DeviceIdentity> _peerIdentity(RatatoskCrypto crypto, {String id = 'k-peer'}) async {
   final identityPair = await crypto.newIdentityKeyPair();
   final signingPair = await crypto.newSigningKeyPair();
   final identityPublic = await crypto.publicKeyBytes(identityPair);
@@ -492,9 +509,9 @@ Future<DeviceIdentity> _peerIdentity(RatatoskCrypto crypto) async {
     signingKeyPair: signingPair,
     identityPublicKey: identityPublic,
     signingPublicKey: signingPublic,
-    deviceKeyId: 'k-peer',
+    deviceKeyId: id,
     fingerprint: await crypto.fingerprint(
-      deviceKeyId: 'k-peer',
+      deviceKeyId: id,
       identityPublicKey: identityPublic,
       signingPublicKey: signingPublic,
     ),

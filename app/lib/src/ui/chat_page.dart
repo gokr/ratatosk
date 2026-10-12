@@ -102,7 +102,7 @@ class _ChatPageState extends State<ChatPage> {
     final peer = state.peerOf(conversation);
     final subtitle = _subtitle(state, conversation);
     return AppBar(
-      titleSpacing: 0,
+      titleSpacing: 12,
       title: InkWell(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(

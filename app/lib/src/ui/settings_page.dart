@@ -1,3 +1,5 @@
+import 'package:file_selector/file_selector.dart';
+import 'profile_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -187,6 +189,15 @@ Future<void> showProfileDialog(BuildContext context) async {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Wrap(spacing: 8, children: [
+            TextButton.icon(icon: const Icon(Icons.photo), label: const Text('Upload picture'),
+              onPressed: () => _chooseProfilePhoto(context)),
+            TextButton(onPressed: () => _useGravatar(context), child: const Text('Use Gravatar')),
+            TextButton(onPressed: () => state.updateProfile(clearAvatar: true),
+              child: const Text('Remove picture')),
+          ]),
+          const Text('Profile pictures are shared profile data, not encrypted chat attachments.',
+              style: TextStyle(fontSize: 12)),
           TextField(
             controller: nameController,
             decoration: const InputDecoration(labelText: 'Name'),
@@ -213,4 +224,56 @@ Future<void> showProfileDialog(BuildContext context) async {
   bioController.dispose();
   if (selected == null) return;
   await state.updateProfile(displayName: selected, bio: bio);
+}
+
+Future<void> _chooseProfilePhoto(BuildContext context) async {
+  final state = di<AppState>();
+  try {
+    final file = await openFile(acceptedTypeGroups: [
+      const XTypeGroup(label: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'webp'],
+          mimeTypes: ['image/png', 'image/jpeg', 'image/webp']),
+    ]);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > 2 * 1024 * 1024) throw StateError('Choose a picture smaller than 2 MB');
+    final lower = file.name.toLowerCase();
+    final type = file.mimeType ?? (lower.endsWith('.png') ? 'image/png' :
+        lower.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
+    final uploaded = await state.backend.uploadAttachment(filename: file.name,
+        contentType: type, data: bytes, encrypted: false);
+    await state.updateProfile(avatarAttachmentId: uploaded.id);
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update picture: $error')));
+    }
+  }
+}
+
+Future<void> _useGravatar(BuildContext context) async {
+  final state = di<AppState>();
+  final controller = TextEditingController();
+  final email = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
+    title: const Text('Use Gravatar'),
+    content: Column(mainAxisSize: MainAxisSize.min, children: [
+      const Text('This contacts Gravatar with an email hash and your IP address. '
+          'The downloaded picture is uploaded to Ratatosk; your email is not saved.'),
+      TextField(controller: controller, decoration: const InputDecoration(labelText: 'Gravatar email')),
+    ]),
+    actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+      FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('Import'))],
+  ));
+  controller.dispose();
+  if (email == null) return;
+  try {
+    final bytes = await fetchGravatar(email);
+    final uploaded = await state.backend.uploadAttachment(filename: 'gravatar.jpg',
+        contentType: 'image/jpeg', data: bytes, encrypted: false);
+    await state.updateProfile(avatarAttachmentId: uploaded.id);
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not import Gravatar: $error')));
+    }
+  }
 }

@@ -1492,6 +1492,10 @@ class AppState extends ChangeNotifier {
   /// A URL the UI can hand to an image widget.
   String fileUrl(String path) => backend.fileUrl(path);
 
+  /// Preview from locally opened content, never plaintext copied to the server.
+  DecryptedMessage? previewBody(Message message) =>
+      _localBodies[message.id] ?? crypto.cached(message);
+
   /// Whether the user has confirmed the safety number of a conversation.
   ///
   /// The verdict is local and per conversation: it records that a human

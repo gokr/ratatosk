@@ -357,8 +357,15 @@ class CryptoManager {
       ciphertext: message.ciphertext,
       nonce: message.nonce,
       isGroup: isGroup,
-      peer: isGroup ? null : peerKeyFor(conversation),
+      // Incoming direct messages must use the actual sending device, not the
+      // contact's oldest device (which may be a different browser/phone).
+      peer: isGroup ? null : (ownMessage
+          ? peerKeyFor(conversation)
+          : session.deviceKey(message.senderDeviceKeyId)),
       ownMessage: ownMessage,
+      directPeers: isGroup || !ownMessage ? const [] : session
+          .recipientKeys(conversation.members.map((m) => m.user.id))
+          .where((key) => key.userId != _userId).toList(),
       // The epoch the sender sealed it with; a rotation means this is not
       // necessarily the newest key we hold.
       epoch: message.keyEpoch,

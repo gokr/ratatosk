@@ -122,7 +122,12 @@ class _ConversationTile extends StatelessWidget {
     final state = di<AppState>();
     final scheme = Theme.of(context).colorScheme;
     final peer = state.peerOf(conversation);
-    final preview = ChatFormat.preview(conversation.hasLastMessage() ? conversation.lastMessage : null);
+    final last = conversation.hasLastMessage() ? conversation.lastMessage : null;
+    final opened = last == null || last.deleted ? null : state.previewBody(last);
+    final preview = opened != null && opened.ok
+        ? (opened.text.trim().isNotEmpty ? opened.text.trim()
+            : opened.attachments.isNotEmpty ? 'Photo or attachment' : 'Message')
+        : ChatFormat.preview(last);
     final unread = conversation.unreadCount;
     final isUnread = unread > 0;
     final lastMine = conversation.hasLastMessage() && conversation.lastMessage.senderId == state.me?.id;
