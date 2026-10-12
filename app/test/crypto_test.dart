@@ -645,6 +645,128 @@ void main() {
     });
   });
 
+  group('a direct conversation reaches every device of the peer', () {
+    // The reported failure: a direct message could only be opened by the one
+    // device its key was derived against. The sender picked the peer's *oldest*
+    // registered device, which for a real account is often a browser profile
+    // that no longer exists — so a message showed "could not open this message
+    // with the key we have" on the peer's actual phone, every time.
+    test('both of the peer\'s devices can read it', () async {
+      final ada = await device('k-ada');
+      final phone = await device('k-phone');
+      final laptop = await device('k-laptop');
+
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(ada.identity, 'u-ada'))
+        ..addDeviceKey(userId: 'u-phone', key: publicRecord(phone.identity, 'u-phone'))
+        ..addDeviceKey(userId: 'u-laptop', key: publicRecord(laptop.identity, 'u-laptop'));
+
+      final adaSession = CryptoSession(backend: server, identity: ada.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final phoneSession = CryptoSession(backend: server, identity: phone.identity, crypto: crypto)
+        ..ownUserId = 'u-phone';
+      final laptopSession = CryptoSession(backend: server, identity: laptop.identity, crypto: crypto)
+        ..ownUserId = 'u-laptop';
+
+      const members = ['u-ada', 'u-phone', 'u-laptop'];
+
+      // Ada seals with her sender key and hands it to every device.
+      final sealed = await adaSession.encrypt(
+        conversationId: 'd1',
+        content: MessageContent(text: 'from ada'),
+        isGroup: false,
+      );
+      await adaSession.refreshDeviceKeys(members);
+      await adaSession.distributeSenderKey(conversationId: 'd1', memberUserIds: members);
+      expect(server.envelopes.map((e) => e.recipientDeviceKeyId),
+          containsAll(['k-phone', 'k-laptop']),
+          reason: 'one envelope per device of the peer, not one for the whole account');
+
+      for (final (name, reader) in [('phone', phoneSession), ('laptop', laptopSession)]) {
+        await reader.refreshDeviceKeys(members);
+        await reader.collectSenderKeys(conversationId: 'd1');
+        final opened = await reader.decrypt(
+          conversationId: 'd1',
+          senderDeviceKeyId: 'k-ada',
+          ciphertext: sealed.sealed.combined,
+          nonce: sealed.sealed.nonce,
+          isGroup: false,
+          peer: null,
+          ownMessage: false,
+        );
+        expect(opened.ok, isTrue, reason: '$name could not read it: ${opened.failure}');
+        expect(opened.content!.text, 'from ada');
+      }
+    });
+
+    test('a message sealed with the old derived key still opens', () async {
+      // History written before this change is sealed with the key derived from
+      // the two identity keys. It must keep opening on the device it was derived
+      // against, or the change would lose the past to fix the future.
+      final ada = await device('k-ada');
+      final grace = await device('k-grace');
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(ada.identity, 'u-ada'))
+        ..addDeviceKey(userId: 'u-grace', key: publicRecord(grace.identity, 'u-grace'));
+      final adaSession = CryptoSession(backend: server, identity: ada.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final graceSession = CryptoSession(backend: server, identity: grace.identity, crypto: crypto)
+        ..ownUserId = 'u-grace';
+
+      await adaSession.refreshDeviceKeys(['u-ada', 'u-grace']);
+      final graceKey = adaSession.deviceKey('k-grace')!;
+      final legacyKey = await adaSession.directKey(graceKey);
+      final legacy = await crypto.seal(
+        key: legacyKey,
+        plaintext: MessageContent(text: 'written before the change').encode(),
+        aad: messageAad(conversationId: 'd1', senderDeviceKeyId: 'k-ada'),
+      );
+
+      await graceSession.refreshDeviceKeys(['u-ada', 'u-grace']);
+      final opened = await graceSession.decrypt(
+        conversationId: 'd1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: legacy.combined,
+        nonce: legacy.nonce,
+        isGroup: false,
+        peer: graceSession.deviceKey('k-ada'),
+        ownMessage: false,
+      );
+      expect(opened.ok, isTrue, reason: opened.failure ?? '');
+      expect(opened.content!.text, 'written before the change');
+    });
+
+    test('a peer device that never got the key still fails cleanly', () async {
+      // The honest limit: a device whose envelope was never deposited cannot
+      // read the message, and says so rather than showing garbage.
+      final ada = await device('k-ada');
+      final stranger = await device('k-stranger');
+      final server = StubBackend()
+        ..addDeviceKey(userId: 'u-ada', key: publicRecord(ada.identity, 'u-ada'));
+      final adaSession = CryptoSession(backend: server, identity: ada.identity, crypto: crypto)
+        ..ownUserId = 'u-ada';
+      final sealed = await adaSession.encrypt(
+        conversationId: 'd1',
+        content: MessageContent(text: 'for ada only'),
+        isGroup: false,
+      );
+      final strangerSession = CryptoSession(
+        backend: server, identity: stranger.identity, crypto: crypto)
+        ..ownUserId = 'u-stranger';
+      final opened = await strangerSession.decrypt(
+        conversationId: 'd1',
+        senderDeviceKeyId: 'k-ada',
+        ciphertext: sealed.sealed.combined,
+        nonce: sealed.sealed.nonce,
+        isGroup: false,
+        peer: null,
+        ownMessage: false,
+      );
+      expect(opened.ok, isFalse);
+      expect(opened.content, isNull);
+    });
+  });
+
   group('rotation keeps older epochs readable', () {
     // The reported bug: a receiver that legitimately holds the key for the epoch
     // a message was sealed with could not open it, because decryption always used

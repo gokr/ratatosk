@@ -211,9 +211,9 @@ class CryptoManager {
 
   /// Makes sure the sender keys for a conversation are available.
   ///
-  /// Called when a conversation is opened: it refreshes the member device keys,
-  /// collects any envelopes addressed to this device, and distributes this
-  /// device's sender key when the conversation is a group.
+  /// Called when a conversation is opened, and again before a send: it refreshes
+  /// the member device keys, collects any envelopes addressed to this device, and
+  /// distributes this device's sender key to every other member's device.
   Future<void> prepareConversation(proto.Conversation conversation) async {
     final session = _session;
     if (session == null) return;
@@ -235,17 +235,18 @@ class CryptoManager {
       _membership[conversation.id] = membership;
     }
 
-    if (isGroup && !_collected.contains(conversation.id)) {
+    if (!_collected.contains(conversation.id)) {
       await session.collectSenderKeys(conversationId: conversation.id);
       _collected.add(conversation.id);
     }
-    if (isGroup) {
-      // Distributing before the first send means a recipient never has to ask.
-      await session.distributeSenderKey(
-        conversationId: conversation.id,
-        memberUserIds: memberIds,
-      );
-    }
+    // Distribution is not group-only any more: a direct conversation sealed with
+    // a sender key is readable on every device of the peer, whereas the derived
+    // key it replaced was readable on exactly one. Doing it before the first send
+    // means the recipient never has to ask for the key.
+    await session.distributeSenderKey(
+      conversationId: conversation.id,
+      memberUserIds: memberIds,
+    );
   }
 
   /// The epoch this device rotated to most recently, per conversation. The UI

@@ -464,28 +464,22 @@ class CryptoSession {
     required bool isGroup,
     DeviceKey? peer,
   }) async {
-    final Uint8List key;
-    final int epoch;
-    if (isGroup) {
-      final senderKey = ownSenderKey(conversationId);
-      key = senderKey.key;
-      epoch = senderKey.epoch;
-    } else {
-      if (peer == null) {
-        throw CryptoFailure('this conversation has no peer key to encrypt to');
-      }
-      key = await directKey(peer);
-      epoch = 0;
-    }
+    // Direct conversations use a sender key too, for the same reason groups do:
+    // the alternative derives one key against one specific device of the peer,
+    // so only that device can read the message. Sealing with this device's
+    // sender key and handing it to *every* device of the peer (see
+    // distributeSenderKey) is what makes a direct conversation readable on all
+    // of the other person's phones and browsers.
+    final senderKey = ownSenderKey(conversationId);
     final sealed = await crypto.seal(
-      key: key,
+      key: senderKey.key,
       plaintext: content.encode(),
       aad: messageAad(
         conversationId: conversationId,
         senderDeviceKeyId: identity.deviceKeyId,
       ),
     );
-    return SealedContent(sealed: sealed, epoch: epoch);
+    return SealedContent(sealed: sealed, epoch: senderKey.epoch);
   }
 
   /// Opens a stored message.
@@ -512,12 +506,32 @@ class CryptoSession {
 
       if (!isGroup) {
         final other = peer;
-        if (other == null) {
+        // Messages sealed since direct conversations used sender keys: try the
+        // sender key for the device that sent it, whichever device of the peer's
+        // that is.
+        for (final candidate in candidatesFor(
+          conversationId,
+          senderDeviceKeyId,
+          ownMessage: ownMessage,
+          epoch: epoch,
+        )) {
+          try {
+            final clear = await crypto.unseal(
+                key: candidate.key, sealed: sealed, aad: aad);
+            return Opened(MessageContent.decode(clear));
+          } on CryptoFailure {
+            // Wrong key for this message: keep looking.
+          }
+        }
+        // Older messages, and anything sent by a client that still derives a
+        // key: the conversation key derived from the two identity keys, which
+        // only the device it was derived against can open. Tried after the
+        // sender keys so a modern message never depends on which device of the
+        // peer happens to be listed first.
+        if (other == null && directPeers.isEmpty) {
           return const Opened.failed('This conversation has no key to open it with');
         }
-        // Own history does not record a recipient device in the legacy wire
-        // format. Try known peer devices, but accept only a valid AEAD tag.
-        for (final candidate in [other, ...directPeers]) {
+        for (final candidate in [if (other != null) other, ...directPeers]) {
           try {
             final clear = await crypto.unseal(
                 key: await directKey(candidate), sealed: sealed, aad: aad);
