@@ -14,6 +14,7 @@ ARG BUILD_ID
 WORKDIR /source
 COPY app/lib ./app/lib
 COPY app/web ./app/web
+COPY app/assets ./app/assets
 COPY app/pubspec.yaml app/pubspec.lock ./app/
 COPY server ./server
 RUN if [ -n "$BUILD_ID" ]; then printf '%s' "$BUILD_ID" > /build-id; \

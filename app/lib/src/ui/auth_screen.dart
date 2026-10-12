@@ -5,6 +5,7 @@ import '../api/backend.dart';
 import '../link_controller.dart';
 import '../session_store.dart';
 import '../state/app_state.dart';
+import 'widgets/brand_logo.dart';
 
 /// Sign in, create an account, or accept an invitation.
 ///
@@ -61,15 +62,7 @@ class _Brand extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: const Icon(Icons.forum_rounded, color: Colors.white, size: 40),
-        ),
+        const BrandLogo(size: 96),
         const SizedBox(height: 16),
         Text(
           'Ratatosk',

@@ -10,6 +10,7 @@ import 'new_chat_sheet.dart';
 import 'settings_page.dart';
 import 'theme.dart';
 import 'widgets/avatar.dart';
+import 'widgets/brand_logo.dart';
 
 /// The list of conversations: the app's home screen.
 class ChatListPage extends WatchingWidget {
@@ -30,15 +31,7 @@ class ChatListPage extends WatchingWidget {
       appBar: AppBar(
         title: Row(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.forum_rounded, color: Colors.white, size: 18),
-            ),
+            const BrandLogo(size: 32),
             const SizedBox(width: 10),
             const Text('Chats', style: TextStyle(fontWeight: FontWeight.w700)),
           ],
