@@ -219,6 +219,21 @@ class FakeBackend implements ChatBackend {
     return (token: 'fake-token', user: signedInAs.toProto());
   }
 
+  /// Accounts this fake has deleted, so a test can assert the call happened.
+  final List<String> deletedAccounts = [];
+
+  @override
+  Future<AccountDeletion> deleteAccount({required String password}) async {
+    final user = signedInAs;
+    if (password != 'correct horse battery') {
+      throw StateError('permission_denied: that password is not correct');
+    }
+    deletedAccounts.add(user.id);
+    // The fake mirrors the server's shape: the account's own conversations go.
+    conversations.removeWhere((_, c) => c.members.every((m) => m.user.id == user.id));
+    return const AccountDeletion(conversations: 1, messages: 2, attachments: 0);
+  }
+
   @override
   Future<void> logout() async {}
 

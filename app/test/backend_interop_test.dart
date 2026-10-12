@@ -26,6 +26,7 @@ import 'package:ratatosk/src/crypto/manager.dart';
 import 'package:ratatosk/src/crypto/message_content.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/chat.pb.dart';
 import 'package:ratatosk/src/gen/ratatosk/v1/common.pb.dart';
+import 'package:ratatosk/src/state/app_state.dart';
 
 void main() {
   final baseUrl = Uri.parse(
@@ -436,6 +437,41 @@ void main() {
     final remaining = await owner.backend.listConversations();
     final stillThere = remaining.firstWhere((c) => c.id == group.id);
     expect(stillThere.members.map((m) => m.user.id), isNot(contains(member.user.id)));
+  });
+  test('a reaction added through the manager lands on the stored message', () async {
+    if (!serverUp) return;
+    // The seam nothing else covers: AppState.toggleReaction against the REAL
+    // backend. The widget test uses the fake (whose addReaction returns the same
+    // object it mutated), and the interop test above calls the backend directly
+    // and never goes through the manager. So "the chip does not appear" could
+    // live exactly here and no test would have caught it.
+    final ada = await _newClient(baseUrl, handle('reactada'), 'Ada');
+    final grace = await _newClient(baseUrl, handle('reactgrace'), 'Grace');
+
+    final conversation =
+        await ada.backend.createDirectConversation(username: grace.user.username);
+    final state = AppState(
+      backend: ada.backend,
+      crypto: ada.crypto,
+      clock: () => DateTime.now(),
+    );
+    await state.bootstrap(savedToken: 'unused');
+    await state.openConversation(conversation.id);
+
+    final sent = await ada.backend.sendMessage(conversation.id, text: 'react to me');
+    await state.refresh();
+    final entry = state.messages(conversation.id).firstWhere((m) => m.id == sent.id);
+    expect(entry.message.reactions, isEmpty);
+
+    await state.toggleReaction(conversation.id, entry.message, '👍');
+
+    // What the bubble renders from. If the manager merged nothing, the chip has
+    // nothing to draw and the user sees exactly the reported symptom.
+    final after = state.messages(conversation.id).firstWhere((m) => m.id == sent.id);
+    expect(after.message.reactions, isNotEmpty,
+        reason: 'the manager did not merge the server\'s reaction into the thread');
+    expect(after.message.reactions.single.emoji, '👍');
+    expect(after.message.reactions.single.userIds, contains(ada.user.id));
   });
 }
 

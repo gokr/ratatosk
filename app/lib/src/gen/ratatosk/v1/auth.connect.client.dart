@@ -119,4 +119,26 @@ extension type AuthServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// Delete the calling account and everything that belongs to it.
+  /// Requires the password to be repeated in the request: an action this
+  /// destructive must not be reachable by anyone who merely has a live session
+  /// (a shared laptop, a stolen token). It is the one irreversible thing a user
+  /// can ask for, so the same check the operator's --delete-account does applies.
+  Future<ratatoskv1auth.DeleteAccountResponse> deleteAccount(
+    ratatoskv1auth.DeleteAccountRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.deleteAccount,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

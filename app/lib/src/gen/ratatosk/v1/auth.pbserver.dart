@@ -33,6 +33,8 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $2.UpdateProfileRequest request);
   $async.Future<$2.ChangePasswordResponse> changePassword(
       $pb.ServerContext ctx, $2.ChangePasswordRequest request);
+  $async.Future<$2.DeleteAccountResponse> deleteAccount(
+      $pb.ServerContext ctx, $2.DeleteAccountRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -48,6 +50,8 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
         return $2.UpdateProfileRequest();
       case 'ChangePassword':
         return $2.ChangePasswordRequest();
+      case 'DeleteAccount':
+        return $2.DeleteAccountRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -68,6 +72,8 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
         return updateProfile(ctx, request as $2.UpdateProfileRequest);
       case 'ChangePassword':
         return changePassword(ctx, request as $2.ChangePasswordRequest);
+      case 'DeleteAccount':
+        return deleteAccount(ctx, request as $2.DeleteAccountRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

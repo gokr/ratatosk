@@ -13,6 +13,24 @@ import 'http_client.dart';
 /// The result of a successful sign-in or sign-up.
 typedef AuthResult = ({String token, User user});
 
+/// What an account deletion actually removed.
+///
+/// Reported rather than assumed: the UI states the outcome instead of claiming a
+/// success it did not verify.
+class AccountDeletion {
+  const AccountDeletion({
+    this.conversations = 0,
+    this.messages = 0,
+    this.attachments = 0,
+  });
+
+  final int conversations;
+  final int messages;
+  final int attachments;
+
+  bool get removedAnything => conversations > 0 || messages > 0 || attachments > 0;
+}
+
 /// Everything the app's UI needs from the server.
 ///
 /// The UI talks to this interface rather than to the generated clients, for two
@@ -57,6 +75,17 @@ abstract interface class ChatBackend {
   Future<AuthResult> login({required String username, required String password});
 
   Future<void> logout();
+
+  /// Deletes this account and everything belonging to it.
+  ///
+  /// Irreversible: the store removes the account, its sessions (so every other
+  /// device is signed out), device keys, key envelopes, contacts, invites and
+  /// attachments, and any direct conversation it was part of. A group it was in
+  /// keeps its history minus this member.
+  ///
+  /// The password is required even though the caller is already authenticated,
+  /// because a live session is not the same thing as the account's owner.
+  Future<AccountDeletion> deleteAccount({required String password});
 
   Future<User> getMe();
 

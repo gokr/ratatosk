@@ -201,6 +201,25 @@ class AppState extends ChangeNotifier {
     _notify();
   }
 
+  /// Deletes this account, then signs this device out.
+  ///
+  /// The sign-out is the point: the account is gone, so the token cannot work
+  /// any more and the app must not pretend otherwise. Only after the server
+  /// confirms does anything local change — a failure leaves the session intact so
+  /// the user can try again rather than being stranded signed-out of a live
+  /// account.
+  Future<AccountDeletion?> deleteAccount({required String password}) async {
+    try {
+      final summary = await backend.deleteAccount(password: password);
+      await signOut();
+      return summary;
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return null;
+    }
+  }
+
   /// The token of the current session, for callers that build URLs by hand.
   String? get token => _token;
 

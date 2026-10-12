@@ -819,6 +819,152 @@ class ChangePasswordResponse extends $pb.GeneratedMessage {
   static ChangePasswordResponse? _defaultInstance;
 }
 
+class DeleteAccountRequest extends $pb.GeneratedMessage {
+  factory DeleteAccountRequest({
+    $core.String? password,
+  }) {
+    final result = DeleteAccountRequest._();
+    if (password != null) result.password = password;
+    return result;
+  }
+
+  DeleteAccountRequest._();
+
+  factory DeleteAccountRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteAccountRequest()..mergeFromBuffer(data, registry);
+  factory DeleteAccountRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteAccountRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DeleteAccountRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: DeleteAccountRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'password')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteAccountRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteAccountRequest copyWith(void Function(DeleteAccountRequest) updates) =>
+      super.copyWith((message) => updates(message as DeleteAccountRequest))
+          as DeleteAccountRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeleteAccountRequest() / DeleteAccountRequest.new instead')
+  static DeleteAccountRequest create() => DeleteAccountRequest._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteAccountRequest._();
+  @$core.override
+  DeleteAccountRequest createEmptyInstance() => DeleteAccountRequest._();
+  @$core.pragma('dart2js:noInline')
+  static DeleteAccountRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DeleteAccountRequest>(
+          DeleteAccountRequest.$_createMessage);
+  static DeleteAccountRequest? _defaultInstance;
+
+  /// The caller's password. Confirms intent rather than merely proving identity.
+  @$pb.TagNumber(1)
+  $core.String get password => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set password($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPassword() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPassword() => $_clearField(1);
+}
+
+class DeleteAccountResponse extends $pb.GeneratedMessage {
+  factory DeleteAccountResponse({
+    $core.int? conversationsDeleted,
+    $core.int? messagesDeleted,
+    $core.int? attachmentsDeleted,
+  }) {
+    final result = DeleteAccountResponse._();
+    if (conversationsDeleted != null)
+      result.conversationsDeleted = conversationsDeleted;
+    if (messagesDeleted != null) result.messagesDeleted = messagesDeleted;
+    if (attachmentsDeleted != null)
+      result.attachmentsDeleted = attachmentsDeleted;
+    return result;
+  }
+
+  DeleteAccountResponse._();
+
+  factory DeleteAccountResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteAccountResponse()..mergeFromBuffer(data, registry);
+  factory DeleteAccountResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteAccountResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DeleteAccountResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: DeleteAccountResponse.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'conversationsDeleted')
+    ..aI(2, _omitFieldNames ? '' : 'messagesDeleted')
+    ..aI(3, _omitFieldNames ? '' : 'attachmentsDeleted')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteAccountResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteAccountResponse copyWith(
+          void Function(DeleteAccountResponse) updates) =>
+      super.copyWith((message) => updates(message as DeleteAccountResponse))
+          as DeleteAccountResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeleteAccountResponse() / DeleteAccountResponse.new instead')
+  static DeleteAccountResponse create() => DeleteAccountResponse._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteAccountResponse._();
+  @$core.override
+  DeleteAccountResponse createEmptyInstance() => DeleteAccountResponse._();
+  @$core.pragma('dart2js:noInline')
+  static DeleteAccountResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DeleteAccountResponse>(
+          DeleteAccountResponse.$_createMessage);
+  static DeleteAccountResponse? _defaultInstance;
+
+  /// What the deletion removed, so the app can state it rather than assert it.
+  /// The server does not report counts it did not actually delete.
+  @$pb.TagNumber(1)
+  $core.int get conversationsDeleted => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set conversationsDeleted($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasConversationsDeleted() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearConversationsDeleted() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get messagesDeleted => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set messagesDeleted($core.int value) => $_setSignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessagesDeleted() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessagesDeleted() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get attachmentsDeleted => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set attachmentsDeleted($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAttachmentsDeleted() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAttachmentsDeleted() => $_clearField(3);
+}
+
 /// Account creation, sign-in and profile management.
 ///
 /// Register and Login are the only procedures that work without a bearer
@@ -864,6 +1010,17 @@ class AuthServiceApi {
           $pb.ClientContext? ctx, ChangePasswordRequest request) =>
       _client.invoke<ChangePasswordResponse>(ctx, 'AuthService',
           'ChangePassword', request, ChangePasswordResponse());
+
+  /// Delete the calling account and everything that belongs to it.
+  ///
+  /// Requires the password to be repeated in the request: an action this
+  /// destructive must not be reachable by anyone who merely has a live session
+  /// (a shared laptop, a stolen token). It is the one irreversible thing a user
+  /// can ask for, so the same check the operator's --delete-account does applies.
+  $async.Future<DeleteAccountResponse> deleteAccount(
+          $pb.ClientContext? ctx, DeleteAccountRequest request) =>
+      _client.invoke<DeleteAccountResponse>(ctx, 'AuthService', 'DeleteAccount',
+          request, DeleteAccountResponse());
 }
 
 const $core.bool _omitFieldNames =

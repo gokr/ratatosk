@@ -622,6 +622,113 @@ func (*ChangePasswordResponse) Descriptor() ([]byte, []int) {
 	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{11}
 }
 
+type DeleteAccountRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The caller's password. Confirms intent rather than merely proving identity.
+	Password      string `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAccountRequest) Reset() {
+	*x = DeleteAccountRequest{}
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAccountRequest) ProtoMessage() {}
+
+func (x *DeleteAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccountRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAccountRequest) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *DeleteAccountRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type DeleteAccountResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What the deletion removed, so the app can state it rather than assert it.
+	// The server does not report counts it did not actually delete.
+	ConversationsDeleted int32 `protobuf:"varint,1,opt,name=conversations_deleted,json=conversationsDeleted,proto3" json:"conversations_deleted,omitempty"`
+	MessagesDeleted      int32 `protobuf:"varint,2,opt,name=messages_deleted,json=messagesDeleted,proto3" json:"messages_deleted,omitempty"`
+	AttachmentsDeleted   int32 `protobuf:"varint,3,opt,name=attachments_deleted,json=attachmentsDeleted,proto3" json:"attachments_deleted,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *DeleteAccountResponse) Reset() {
+	*x = DeleteAccountResponse{}
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAccountResponse) ProtoMessage() {}
+
+func (x *DeleteAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccountResponse.ProtoReflect.Descriptor instead.
+func (*DeleteAccountResponse) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DeleteAccountResponse) GetConversationsDeleted() int32 {
+	if x != nil {
+		return x.ConversationsDeleted
+	}
+	return 0
+}
+
+func (x *DeleteAccountResponse) GetMessagesDeleted() int32 {
+	if x != nil {
+		return x.MessagesDeleted
+	}
+	return 0
+}
+
+func (x *DeleteAccountResponse) GetAttachmentsDeleted() int32 {
+	if x != nil {
+		return x.AttachmentsDeleted
+	}
+	return 0
+}
+
 var File_ratatosk_v1_auth_proto protoreflect.FileDescriptor
 
 const file_ratatosk_v1_auth_proto_rawDesc = "" +
@@ -661,14 +768,21 @@ const file_ratatosk_v1_auth_proto_rawDesc = "" +
 	"\x15ChangePasswordRequest\x12)\n" +
 	"\x10current_password\x18\x01 \x01(\tR\x0fcurrentPassword\x12!\n" +
 	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\"\x18\n" +
-	"\x16ChangePasswordResponse2\xd8\x03\n" +
+	"\x16ChangePasswordResponse\"2\n" +
+	"\x14DeleteAccountRequest\x12\x1a\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\"\xa8\x01\n" +
+	"\x15DeleteAccountResponse\x123\n" +
+	"\x15conversations_deleted\x18\x01 \x01(\x05R\x14conversationsDeleted\x12)\n" +
+	"\x10messages_deleted\x18\x02 \x01(\x05R\x0fmessagesDeleted\x12/\n" +
+	"\x13attachments_deleted\x18\x03 \x01(\x05R\x12attachmentsDeleted2\xb2\x04\n" +
 	"\vAuthService\x12I\n" +
 	"\bRegister\x12\x1c.ratatosk.v1.RegisterRequest\x1a\x1d.ratatosk.v1.RegisterResponse\"\x00\x12@\n" +
 	"\x05Login\x12\x19.ratatosk.v1.LoginRequest\x1a\x1a.ratatosk.v1.LoginResponse\"\x00\x12C\n" +
 	"\x06Logout\x12\x1a.ratatosk.v1.LogoutRequest\x1a\x1b.ratatosk.v1.LogoutResponse\"\x00\x12@\n" +
 	"\x05GetMe\x12\x19.ratatosk.v1.GetMeRequest\x1a\x1a.ratatosk.v1.GetMeResponse\"\x00\x12X\n" +
 	"\rUpdateProfile\x12!.ratatosk.v1.UpdateProfileRequest\x1a\".ratatosk.v1.UpdateProfileResponse\"\x00\x12[\n" +
-	"\x0eChangePassword\x12\".ratatosk.v1.ChangePasswordRequest\x1a#.ratatosk.v1.ChangePasswordResponse\"\x00B<Z:github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1b\x06proto3"
+	"\x0eChangePassword\x12\".ratatosk.v1.ChangePasswordRequest\x1a#.ratatosk.v1.ChangePasswordResponse\"\x00\x12X\n" +
+	"\rDeleteAccount\x12!.ratatosk.v1.DeleteAccountRequest\x1a\".ratatosk.v1.DeleteAccountResponse\"\x00B<Z:github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1b\x06proto3"
 
 var (
 	file_ratatosk_v1_auth_proto_rawDescOnce sync.Once
@@ -682,7 +796,7 @@ func file_ratatosk_v1_auth_proto_rawDescGZIP() []byte {
 	return file_ratatosk_v1_auth_proto_rawDescData
 }
 
-var file_ratatosk_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_ratatosk_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_ratatosk_v1_auth_proto_goTypes = []any{
 	(*RegisterRequest)(nil),        // 0: ratatosk.v1.RegisterRequest
 	(*RegisterResponse)(nil),       // 1: ratatosk.v1.RegisterResponse
@@ -696,30 +810,34 @@ var file_ratatosk_v1_auth_proto_goTypes = []any{
 	(*UpdateProfileResponse)(nil),  // 9: ratatosk.v1.UpdateProfileResponse
 	(*ChangePasswordRequest)(nil),  // 10: ratatosk.v1.ChangePasswordRequest
 	(*ChangePasswordResponse)(nil), // 11: ratatosk.v1.ChangePasswordResponse
-	(*User)(nil),                   // 12: ratatosk.v1.User
-	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
+	(*DeleteAccountRequest)(nil),   // 12: ratatosk.v1.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),  // 13: ratatosk.v1.DeleteAccountResponse
+	(*User)(nil),                   // 14: ratatosk.v1.User
+	(*timestamppb.Timestamp)(nil),  // 15: google.protobuf.Timestamp
 }
 var file_ratatosk_v1_auth_proto_depIdxs = []int32{
-	12, // 0: ratatosk.v1.RegisterResponse.user:type_name -> ratatosk.v1.User
-	13, // 1: ratatosk.v1.RegisterResponse.expires_at:type_name -> google.protobuf.Timestamp
-	12, // 2: ratatosk.v1.LoginResponse.user:type_name -> ratatosk.v1.User
-	13, // 3: ratatosk.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
-	12, // 4: ratatosk.v1.GetMeResponse.user:type_name -> ratatosk.v1.User
-	12, // 5: ratatosk.v1.UpdateProfileResponse.user:type_name -> ratatosk.v1.User
+	14, // 0: ratatosk.v1.RegisterResponse.user:type_name -> ratatosk.v1.User
+	15, // 1: ratatosk.v1.RegisterResponse.expires_at:type_name -> google.protobuf.Timestamp
+	14, // 2: ratatosk.v1.LoginResponse.user:type_name -> ratatosk.v1.User
+	15, // 3: ratatosk.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	14, // 4: ratatosk.v1.GetMeResponse.user:type_name -> ratatosk.v1.User
+	14, // 5: ratatosk.v1.UpdateProfileResponse.user:type_name -> ratatosk.v1.User
 	0,  // 6: ratatosk.v1.AuthService.Register:input_type -> ratatosk.v1.RegisterRequest
 	2,  // 7: ratatosk.v1.AuthService.Login:input_type -> ratatosk.v1.LoginRequest
 	4,  // 8: ratatosk.v1.AuthService.Logout:input_type -> ratatosk.v1.LogoutRequest
 	6,  // 9: ratatosk.v1.AuthService.GetMe:input_type -> ratatosk.v1.GetMeRequest
 	8,  // 10: ratatosk.v1.AuthService.UpdateProfile:input_type -> ratatosk.v1.UpdateProfileRequest
 	10, // 11: ratatosk.v1.AuthService.ChangePassword:input_type -> ratatosk.v1.ChangePasswordRequest
-	1,  // 12: ratatosk.v1.AuthService.Register:output_type -> ratatosk.v1.RegisterResponse
-	3,  // 13: ratatosk.v1.AuthService.Login:output_type -> ratatosk.v1.LoginResponse
-	5,  // 14: ratatosk.v1.AuthService.Logout:output_type -> ratatosk.v1.LogoutResponse
-	7,  // 15: ratatosk.v1.AuthService.GetMe:output_type -> ratatosk.v1.GetMeResponse
-	9,  // 16: ratatosk.v1.AuthService.UpdateProfile:output_type -> ratatosk.v1.UpdateProfileResponse
-	11, // 17: ratatosk.v1.AuthService.ChangePassword:output_type -> ratatosk.v1.ChangePasswordResponse
-	12, // [12:18] is the sub-list for method output_type
-	6,  // [6:12] is the sub-list for method input_type
+	12, // 12: ratatosk.v1.AuthService.DeleteAccount:input_type -> ratatosk.v1.DeleteAccountRequest
+	1,  // 13: ratatosk.v1.AuthService.Register:output_type -> ratatosk.v1.RegisterResponse
+	3,  // 14: ratatosk.v1.AuthService.Login:output_type -> ratatosk.v1.LoginResponse
+	5,  // 15: ratatosk.v1.AuthService.Logout:output_type -> ratatosk.v1.LogoutResponse
+	7,  // 16: ratatosk.v1.AuthService.GetMe:output_type -> ratatosk.v1.GetMeResponse
+	9,  // 17: ratatosk.v1.AuthService.UpdateProfile:output_type -> ratatosk.v1.UpdateProfileResponse
+	11, // 18: ratatosk.v1.AuthService.ChangePassword:output_type -> ratatosk.v1.ChangePasswordResponse
+	13, // 19: ratatosk.v1.AuthService.DeleteAccount:output_type -> ratatosk.v1.DeleteAccountResponse
+	13, // [13:20] is the sub-list for method output_type
+	6,  // [6:13] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
 	6,  // [6:6] is the sub-list for extension extendee
 	0,  // [0:6] is the sub-list for field type_name
@@ -738,7 +856,7 @@ func file_ratatosk_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ratatosk_v1_auth_proto_rawDesc), len(file_ratatosk_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -226,6 +226,48 @@ const ChangePasswordResponse$json = {
 final $typed_data.Uint8List changePasswordResponseDescriptor =
     $convert.base64Decode('ChZDaGFuZ2VQYXNzd29yZFJlc3BvbnNl');
 
+@$core.Deprecated('Use deleteAccountRequestDescriptor instead')
+const DeleteAccountRequest$json = {
+  '1': 'DeleteAccountRequest',
+  '2': [
+    {'1': 'password', '3': 1, '4': 1, '5': 9, '10': 'password'},
+  ],
+};
+
+/// Descriptor for `DeleteAccountRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List deleteAccountRequestDescriptor =
+    $convert.base64Decode(
+        'ChREZWxldGVBY2NvdW50UmVxdWVzdBIaCghwYXNzd29yZBgBIAEoCVIIcGFzc3dvcmQ=');
+
+@$core.Deprecated('Use deleteAccountResponseDescriptor instead')
+const DeleteAccountResponse$json = {
+  '1': 'DeleteAccountResponse',
+  '2': [
+    {
+      '1': 'conversations_deleted',
+      '3': 1,
+      '4': 1,
+      '5': 5,
+      '10': 'conversationsDeleted'
+    },
+    {'1': 'messages_deleted', '3': 2, '4': 1, '5': 5, '10': 'messagesDeleted'},
+    {
+      '1': 'attachments_deleted',
+      '3': 3,
+      '4': 1,
+      '5': 5,
+      '10': 'attachmentsDeleted'
+    },
+  ],
+};
+
+/// Descriptor for `DeleteAccountResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List deleteAccountResponseDescriptor = $convert.base64Decode(
+    'ChVEZWxldGVBY2NvdW50UmVzcG9uc2USMwoVY29udmVyc2F0aW9uc19kZWxldGVkGAEgASgFUh'
+    'Rjb252ZXJzYXRpb25zRGVsZXRlZBIpChBtZXNzYWdlc19kZWxldGVkGAIgASgFUg9tZXNzYWdl'
+    'c0RlbGV0ZWQSLwoTYXR0YWNobWVudHNfZGVsZXRlZBgDIAEoBVISYXR0YWNobWVudHNEZWxldG'
+    'Vk');
+
 const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
   '1': 'AuthService',
   '2': [
@@ -265,6 +307,12 @@ const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
       '3': '.ratatosk.v1.ChangePasswordResponse',
       '4': {}
     },
+    {
+      '1': 'DeleteAccount',
+      '2': '.ratatosk.v1.DeleteAccountRequest',
+      '3': '.ratatosk.v1.DeleteAccountResponse',
+      '4': {}
+    },
   ],
 };
 
@@ -285,6 +333,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.ratatosk.v1.UpdateProfileResponse': UpdateProfileResponse$json,
   '.ratatosk.v1.ChangePasswordRequest': ChangePasswordRequest$json,
   '.ratatosk.v1.ChangePasswordResponse': ChangePasswordResponse$json,
+  '.ratatosk.v1.DeleteAccountRequest': DeleteAccountRequest$json,
+  '.ratatosk.v1.DeleteAccountResponse': DeleteAccountResponse$json,
 };
 
 /// Descriptor for `AuthService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -297,4 +347,6 @@ final $typed_data.Uint8List authServiceDescriptor = $convert.base64Decode(
     '1lUmVzcG9uc2UiABJYCg1VcGRhdGVQcm9maWxlEiEucmF0YXRvc2sudjEuVXBkYXRlUHJvZmls'
     'ZVJlcXVlc3QaIi5yYXRhdG9zay52MS5VcGRhdGVQcm9maWxlUmVzcG9uc2UiABJbCg5DaGFuZ2'
     'VQYXNzd29yZBIiLnJhdGF0b3NrLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBojLnJhdGF0b3Nr'
-    'LnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiAA==');
+    'LnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiABJYCg1EZWxldGVBY2NvdW50EiEucmF0YXRvc2'
+    'sudjEuRGVsZXRlQWNjb3VudFJlcXVlc3QaIi5yYXRhdG9zay52MS5EZWxldGVBY2NvdW50UmVz'
+    'cG9uc2UiAA==');

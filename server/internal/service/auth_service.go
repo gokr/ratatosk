@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"connectrpc.com/connect"
 
@@ -186,4 +187,47 @@ func (s *AuthService) ChangePassword(ctx context.Context, req *connect.Request[r
 	// Other sessions are signed out; the caller's own token keeps working.
 	s.st.DeleteUserSessions(user.ID, auth.TokenFrom(ctx))
 	return connect.NewResponse(&ratatoskv1.ChangePasswordResponse{}), nil
+}
+
+// DeleteAccount removes the caller's account and everything that belongs to it.
+//
+// The password is required again even though the caller is already
+// authenticated: this is the one irreversible action in the product, and a live
+// session is not the same thing as the person who owns the account (a shared
+// laptop, a token lifted from a browser profile). Asking for the password turns
+// "someone is signed in" into "the owner meant it".
+//
+// The deletion itself is the same store operation the operator's
+// `--delete-account` uses, so the two paths cannot drift: a direct conversation
+// goes with its messages, a group keeps its history minus this member, and
+// sessions, device keys, envelopes, contacts, invites and attachments all go.
+func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[ratatoskv1.DeleteAccountRequest]) (*connect.Response[ratatoskv1.DeleteAccountResponse], error) {
+	user, err := s.requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !auth.VerifyPassword(req.Msg.GetPassword(), user.PasswordHash, user.PasswordSalt) {
+		return nil, connect.NewError(connect.CodePermissionDenied,
+			errInvalid("that password is not correct"))
+	}
+
+	summary, err := s.st.DeleteUser(user.ID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			// Already gone (a double submit). Treat as success: the caller asked
+			// for the account to not exist, and it does not.
+			return connect.NewResponse(&ratatoskv1.DeleteAccountResponse{}), nil
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	s.log.Info("account deleted by its owner",
+		"user", summary.UserID, "username", summary.Username,
+		"directConversations", summary.DirectChats, "messages", summary.Messages,
+		"attachments", summary.Attachments)
+	return connect.NewResponse(&ratatoskv1.DeleteAccountResponse{
+		ConversationsDeleted: int32(summary.DirectChats + summary.GroupMemberships),
+		MessagesDeleted:      int32(summary.Messages),
+		AttachmentsDeleted:   int32(summary.Attachments),
+	}), nil
 }

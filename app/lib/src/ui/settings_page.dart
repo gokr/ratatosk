@@ -10,6 +10,7 @@ import '../notifications/manager.dart';
 import 'auth_screen.dart';
 import 'theme.dart';
 import 'widgets/avatar.dart';
+import 'widgets/privacy_policy_link.dart';
 
 /// Profile, contacts and the way out.
 class SettingsPage extends WatchingWidget {
@@ -124,6 +125,17 @@ class SettingsPage extends WatchingWidget {
             ...contacts.map((contact) => _ContactTile(contact: contact)),
           const Divider(),
           ListTile(
+            leading: Icon(Icons.delete_forever_outlined, color: Theme.of(context).colorScheme.error),
+            title: Text(
+              'Delete account',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            subtitle: const Text('Permanently removes your account and your messages'),
+            onTap: () => confirmDeleteAccount(context),
+          ),
+          const Center(child: PrivacyPolicyLink()),
+          const Divider(),
+          ListTile(
             leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
             title: Text(
               'Sign out',
@@ -182,57 +194,111 @@ class _ContactTile extends StatelessWidget {
 /// Edits the display name, bio and accent colour.
 Future<void> showProfileDialog(BuildContext context) async {
   final state = di<AppState>();
-  final me = state.me;
-  if (me == null) return;
-  final nameController = TextEditingController(text: me.displayName);
-  final bioController = TextEditingController(text: me.bio);
-  final selected = await showDialog<String>(
+  if (state.me == null) return;
+  final result = await showDialog<({String name, String bio})>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (dialogContext) => const _ProfileDialog(),
+  );
+  if (result == null) return;
+  await state.updateProfile(displayName: result.name, bio: result.bio);
+}
+
+/// Edits the display name, bio and picture.
+///
+/// A widget rather than a builder closure so it owns its controllers: disposing
+/// them in the caller happens while the route is still animating out, and the
+/// framework rebuilds the fields for those frames — which throws "A
+/// TextEditingController was used after being disposed".
+class _ProfileDialog extends StatefulWidget {
+  const _ProfileDialog();
+
+  @override
+  State<_ProfileDialog> createState() => _ProfileDialogState();
+}
+
+class _ProfileDialogState extends State<_ProfileDialog> {
+  late final TextEditingController _name;
+  late final TextEditingController _bio;
+
+  @override
+  void initState() {
+    super.initState();
+    final me = di<AppState>().me;
+    _name = TextEditingController(text: me?.displayName ?? '');
+    _bio = TextEditingController(text: me?.bio ?? '');
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _bio.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = di<AppState>();
+    final me = state.me;
+    return AlertDialog(
       title: const Text('Edit profile'),
       content: SizedBox(
         width: 360,
-        child: SingleChildScrollView(child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            TextButton.icon(icon: const Icon(Icons.photo), label: const Text('Upload picture'),
-              onPressed: () => _chooseProfilePhoto(context)),
-            TextButton(onPressed: () => _useGravatar(context), child: const Text('Use Gravatar')),
-            TextButton(onPressed: () => state.updateProfile(clearAvatar: true),
-              child: const Text('Remove picture')),
-          ]),
-          const SizedBox(height: 12),
-          const Text('Profile pictures are shared profile data, not encrypted chat attachments.',
-              style: TextStyle(fontSize: 12)),
-          TextField(
-            controller: nameController,
-            decoration: const InputDecoration(labelText: 'Name'),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (me != null)
+                Center(child: Avatar.user(me, size: 72, resolveUrl: state.fileUrl)),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.photo),
+                  label: const Text('Upload picture'),
+                  onPressed: () => _chooseProfilePhoto(context),
+                ),
+                TextButton(
+                  onPressed: () => _useGravatar(context),
+                  child: const Text('Use Gravatar'),
+                ),
+                TextButton(
+                  onPressed: () => state.updateProfile(clearAvatar: true),
+                  child: const Text('Remove picture'),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              const Text(
+                'Profile pictures are shared profile data, not encrypted chat attachments.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _bio,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'About'),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: bioController,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'About'),
-          ),
-        ],
-      )),
+        ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, nameController.text.trim()),
+          onPressed: () => Navigator.pop(
+              context, (name: _name.text.trim(), bio: _bio.text.trim())),
           child: const Text('Save'),
         ),
       ],
-    ),
-  );
-  final bio = bioController.text.trim();
-  nameController.dispose();
-  bioController.dispose();
-  if (selected == null) return;
-  await state.updateProfile(displayName: selected, bio: bio);
+    );
+  }
 }
 
 Future<void> _chooseProfilePhoto(BuildContext context) async {
@@ -284,5 +350,132 @@ Future<void> _useGravatar(BuildContext context) async {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not import Gravatar: $error')));
     }
+  }
+}
+
+/// Confirms and performs account deletion.
+///
+/// Two steps, because the action cannot be undone and there is no recovery: the
+/// password is asked for (the server requires it too, and for the same reason — a
+/// live session is not proof that the person at the keyboard owns the account),
+/// and the button says what actually happens rather than "OK".
+///
+/// The wording is deliberately concrete about what is *not* deleted: a group's
+/// history stays for the other members, because this store keeps messages
+/// gapless and deleting from the middle would corrupt every client's cursor.
+/// Promising "everything" and then keeping some of it would be a lie.
+Future<void> confirmDeleteAccount(BuildContext context) async {
+  final state = di<AppState>();
+  final navigator = Navigator.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+
+  final password = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => const _DeleteAccountDialog(),
+  );
+  if (password == null || password.isEmpty) return;
+
+  final summary = await state.deleteAccount(password: password);
+  if (summary == null) {
+    // The server refused (a wrong password, or an unreachable server). The
+    // session is still intact, so say what went wrong and leave the user signed
+    // in rather than stranded.
+    messenger?.showSnackBar(SnackBar(
+      content: Text(state.lastError ?? 'Could not delete the account.'),
+    ));
+    return;
+  }
+
+  // Signed out by the manager; drop the settings screen with it.
+  messenger?.showSnackBar(const SnackBar(
+    content: Text('Your account has been deleted.'),
+  ));
+  if (navigator.canPop()) navigator.pop();
+}
+
+/// The confirmation, as a widget so it owns and disposes its own controller.
+///
+/// Disposing the controller in the caller does not work: `showDialog` returns
+/// while the route is still animating out, and the framework keeps rebuilding the
+/// TextField for those frames — which throws "A TextEditingController was used
+/// after being disposed".
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.pop(context, _controller.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Delete your account?'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'This cannot be undone, and there is no way to recover the account '
+                'or its messages afterwards.',
+              ),
+              const SizedBox(height: 12),
+              const Text('It removes:'),
+              const SizedBox(height: 4),
+              const Text('\u2022 your account and profile\n'
+                  '\u2022 every direct conversation you are part of, with its messages\n'
+                  '\u2022 your uploaded files\n'
+                  '\u2022 your devices and their encryption keys\n'
+                  '\u2022 all sessions, so you are signed out everywhere'),
+              const SizedBox(height: 12),
+              const Text(
+                // Promising "everything" and then keeping some of it would be a
+                // lie: this store keeps messages gapless, so a group's history
+                // stays for the members who remain.
+                'Messages you sent in a group stay for the other members.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Your password',
+                  helperText: 'Confirms it is really you',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Keep my account'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: _submit,
+          child: const Text('Delete everything'),
+        ),
+      ],
+    );
   }
 }

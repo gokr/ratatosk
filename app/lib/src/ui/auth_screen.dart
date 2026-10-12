@@ -6,6 +6,7 @@ import '../link_controller.dart';
 import '../session_store.dart';
 import '../state/app_state.dart';
 import 'widgets/brand_logo.dart';
+import 'widgets/privacy_policy_link.dart';
 
 /// Sign in, create an account, or accept an invitation.
 ///
@@ -46,6 +47,9 @@ class AuthScreen extends WatchingWidget {
                 ),
                 const SizedBox(height: 24),
                 const _ServerHint(),
+                // Above the server hint: a policy link is about the service, and
+                // Google's OAuth review looks for it on the page users land on.
+                const Center(child: PrivacyPolicyLink()),
               ],
             ),
           ),

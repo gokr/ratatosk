@@ -25,6 +25,13 @@ service AuthService {
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {}
   // Rotate the password; other sessions stay valid.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse) {}
+  // Delete the calling account and everything that belongs to it.
+  //
+  // Requires the password to be repeated in the request: an action this
+  // destructive must not be reachable by anyone who merely has a live session
+  // (a shared laptop, a stolen token). It is the one irreversible thing a user
+  // can ask for, so the same check the operator's --delete-account does applies.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse) {}
 }
 
 message RegisterRequest {
@@ -86,3 +93,16 @@ message ChangePasswordRequest {
 }
 
 message ChangePasswordResponse {}
+
+message DeleteAccountRequest {
+  // The caller's password. Confirms intent rather than merely proving identity.
+  string password = 1;
+}
+
+message DeleteAccountResponse {
+  // What the deletion removed, so the app can state it rather than assert it.
+  // The server does not report counts it did not actually delete.
+  int32 conversations_deleted = 1;
+  int32 messages_deleted = 2;
+  int32 attachments_deleted = 3;
+}

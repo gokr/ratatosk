@@ -164,9 +164,13 @@ void main() {
     await tester.tap(find.text('👍'));
     await settle(tester);
 
-    // The chip is the emoji under the bubble, so after the sheet closes there
-    // should be exactly one again — this time on the message.
-    expect(find.text('👍'), findsOneWidget);
+    // The sheet must be *gone* before counting emoji: while it is open it holds
+    // one itself, so a bare `find.text('👍')` cannot tell the chip apart from the
+    // sheet — which made this test pass even when no chip rendered.
+    expect(find.text('Reply'), findsNothing, reason: 'the action sheet is still open');
+    expect(find.text('Delete'), findsNothing, reason: 'the action sheet is still open');
+    expect(find.text('👍'), findsOneWidget,
+        reason: 'the reaction is in the state but nothing was drawn for it');
     expect(state.messages('c1').single.message.reactions.single.emoji, '👍');
   });
 

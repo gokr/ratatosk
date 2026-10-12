@@ -142,6 +142,16 @@ class ConnectBackend implements ChatBackend {
   }
 
   @override
+  Future<AccountDeletion> deleteAccount({required String password}) async {
+    final response = await auth.deleteAccount(DeleteAccountRequest(password: password));
+    return AccountDeletion(
+      conversations: response.conversationsDeleted,
+      messages: response.messagesDeleted,
+      attachments: response.attachmentsDeleted,
+    );
+  }
+
+  @override
   Future<User> getMe() async {
     final response = await auth.getMe(GetMeRequest());
     return response.user;
