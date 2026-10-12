@@ -30,23 +30,52 @@ for y in range(0, _h, 2):
             ys.append(y)
 BOX = (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
 PLATE = art.crop(BOX)
-# The plate's own colour, used as the adaptive background so the mask never
-# reveals an unrelated border. Sampled from the middle, not a corner: the plate is
-# a rounded square, so the corners of its bounding box are still the white margin.
+bw = (BOX[2] - BOX[0]) / _w
+bh = (BOX[3] - BOX[1]) / _h
+# Two colours matter. The plate's is sampled from its middle, not a corner: the
+# plate is a rounded square, so the corners of its bounding box are still margin.
 PLATE_COLOR = PLATE.getpixel((PLATE.width // 2, PLATE.height // 2))
 PLATE_HEX = '#%02X%02X%02X' % PLATE_COLOR
+# The margin is the design's background, and it is what makes the blue plate read
+# as a speech bubble rather than a full-bleed square. A masked icon therefore keeps
+# a ring of it.
+MARGIN_COLOR = art.getpixel((2, 2))
+MARGIN_HEX = '#%02X%02X%02X' % MARGIN_COLOR
+
+# How much of a masked canvas the plate should cover — taken from the artwork
+# itself rather than chosen, because the margin *is* the design: the plate is a
+# speech bubble on a light field, and that outline is what makes it read as one.
+#
+# Getting this wrong is visible in both directions. Scale the whole square down to
+# the maskable safe zone and the plate shrinks to about 45% and the icon is a small
+# tile in a sea of white; crop the plate to the full canvas and the outline
+# disappears, leaving a plain blue square. Measured, the plate is ~79.5% of the
+# artwork, which is just inside the ~80% circle a launcher crops to: the bubble
+# touches the circle at the cardinal edges and the margin shows between the bubble's
+# rounded corners and the circle, which is how the design is drawn.
+PLATE_FRACTION = round(max(bw, bh), 4)
 
 
 def _scaled(source, size):
     return source.resize((size, size), Image.Resampling.LANCZOS)
 
 
-def save(path, size, source=None, fill=1.0):
-    """Write `size`x`size`, drawing `source` (default: the whole artwork)."""
+def save(path, size, source=None, fill=1.0, background=None, transparent=False):
+    """Write `size`x`size`, drawing `source` (default: the whole artwork).
+
+    `transparent` leaves everything outside `source` unpainted, which is what an
+    Android adaptive foreground layer wants: the launcher composites it over the
+    background colour and then applies its own mask.
+    """
     source = source if source is not None else art
-    out = Image.new('RGB', (size, size), PLATE_COLOR)
+    if transparent:
+        out = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    else:
+        out = Image.new('RGB', (size, size), background or MARGIN_COLOR)
     inner = max(1, round(size * fill))
-    out.paste(_scaled(source, inner), ((size - inner) // 2, (size - inner) // 2))
+    scaled = _scaled(source, inner).convert('RGBA') if transparent else _scaled(source, inner)
+    out.paste(scaled, ((size - inner) // 2, (size - inner) // 2),
+              scaled if transparent else None)
     target = root / path
     target.parent.mkdir(parents=True, exist_ok=True)
     out.save(target)
@@ -60,29 +89,28 @@ save('app/assets/brand/logo.png', 512)
 # looks good on iOS).
 for size in (192, 512):
     save(f'app/web/icons/Icon-{size}.png', size)
-    # Maskable: the platform crops to a circle of about 80% of the canvas, so the
-    # plate fills the canvas and the squirrel lands well inside.
-    save(f'app/web/icons/Icon-maskable-{size}.png', size, source=PLATE)
+    # Maskable: the artwork whole. It is already drawn for a circle — see
+    # PLATE_FRACTION — so nothing is cropped and nothing is padded.
+    save(f'app/web/icons/Icon-maskable-{size}.png', size)
 save('app/web/icons/apple-touch-icon.png', 180)
 save('app/web/favicon.png', 32, source=PLATE, fill=1.0)
 
 # --- Android ---------------------------------------------------------------
 for density, size in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96),
                       ('xxhdpi', 144), ('xxxhdpi', 192)]:
-    # Legacy icons (Android 7 and older) are used whole.
-    save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher.png', size,
-         source=PLATE)
-    # The round variant is inscribed in the square, so it wants the plate too.
-    save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher_round.png', size,
-         source=PLATE)
-# Adaptive icons (Android 8+): the foreground layer is 108dp and the launcher
-# masks it to roughly the middle 72dp. Drawing the plate across the whole layer
-# means the mask lands on the plate's middle — a blue disc with a large squirrel —
-# instead of a small logo ringed by whatever the background happens to be.
+    # Legacy icons (Android 7 and older) are shown whole, exactly as iOS shows the
+    # artwork, so they get the full square with its margin.
+    save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher.png', size)
+    # The round variant is cropped to a circle, exactly like a maskable icon.
+    save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher_round.png', size)
+# Adaptive icons (Android 8+): a 108dp foreground layer the launcher masks to
+# roughly the middle 72dp, over a background layer of one colour. The foreground
+# carries the plate and is transparent outside it, so the background colour shows
+# as the bubble's outline — the same ring the artwork has.
 for density, size in [('mdpi', 108), ('hdpi', 162), ('xhdpi', 216),
                       ('xxhdpi', 324), ('xxxhdpi', 432)]:
     save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher_foreground.png',
-         size, source=PLATE, fill=1.0)
+         size, source=PLATE, fill=PLATE_FRACTION, transparent=True)
 for name in ('ic_launcher.xml', 'ic_launcher_round.xml'):
     path = root / f'app/android/app/src/main/res/mipmap-anydpi-v26/{name}'
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,7 +127,7 @@ colors.write_text(
     '<?xml version="1.0" encoding="utf-8"?>\n'
     '<!-- Generated by scripts/generate-icons.py from the artwork\'s plate colour. -->\n'
     '<resources>\n'
-    f'    <color name="ic_launcher_background">{PLATE_HEX}</color>\n'
+    f'    <color name="ic_launcher_background">{MARGIN_HEX}</color>\n'
     '</resources>\n')
 
 # --- iOS -------------------------------------------------------------------
@@ -109,4 +137,5 @@ for entry in json.loads((icons / 'Contents.json').read_text())['images']:
     size = round(float(entry['size'].split('x')[0]) * float(entry['scale'].rstrip('x')))
     save(str((icons / entry['filename']).relative_to(root)), size)
 
-print(f'Generated icons (plate {PLATE.size}, colour {PLATE_HEX})')
+print(f'Generated icons (plate {PLATE.size}, plate colour {PLATE_HEX}, '
+      f'margin {MARGIN_HEX}, plate fraction {PLATE_FRACTION})')
