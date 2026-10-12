@@ -74,6 +74,10 @@ server: build-server web ## Build the web app and the server, then run both on $
 web: ## Build the Flutter web app that the server serves
 	@cd $(APP_DIR) && $(FLUTTER) build web --release --dart-define=BUILD_ID=$(BUILD_ID)
 
+.PHONY: privacy-pdf
+privacy-pdf: ## Regenerate the published privacy policy PDF from privacy_policy.md
+	@./scripts/generate-privacy-pdf.sh
+
 .PHONY: build-server
 build-server: ## Build the server binary into var/bin
 	@mkdir -p $(BIN)

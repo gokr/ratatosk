@@ -145,6 +145,31 @@ void main() {
     }
   }
 
+  testWidgets('adding a reaction shows it on the message', (tester) async {
+    // Reported: long-pressing a message and picking an emoji added the reaction
+    // (the server had it) but the bubble never showed it.
+    backend.seedConversation(history: ['react to me']);
+    await signIn();
+    await state.openConversation('c1');
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    expect(find.text('👍'), findsNothing);
+    // The gesture: long-press the bubble, then tap the emoji in the sheet.
+    await tester.longPress(find.text('react to me'));
+    await settle(tester);
+    expect(find.text('👍'), findsOneWidget, reason: 'the reaction sheet did not open');
+    await tester.tap(find.text('👍'));
+    await settle(tester);
+
+    // The chip is the emoji under the bubble, so after the sheet closes there
+    // should be exactly one again — this time on the message.
+    expect(find.text('👍'), findsOneWidget);
+    expect(state.messages('c1').single.message.reactions.single.emoji, '👍');
+  });
+
   testWidgets('profile dialog fits phone width with keyboard inset', (tester) async {
     await signIn();
     tester.view.physicalSize = const Size(390, 650);

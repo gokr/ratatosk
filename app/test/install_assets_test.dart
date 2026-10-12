@@ -207,6 +207,24 @@ void main() {
     expect(b, greaterThan(200));
   });
 
+  test('the privacy policy is published as a PDF', () {
+    // Google's OAuth review wants a reachable privacy policy, and the app links
+    // to it; a missing or truncated file is a silent 404 in production.
+    final pdf = File('web/privacy_policy.pdf');
+    expect(pdf.existsSync(), isTrue,
+        reason: 'run ./scripts/generate-privacy-pdf.sh (make privacy-pdf)');
+    expect(pdf.lengthSync(), greaterThan(10000));
+    final bytes = pdf.readAsBytesSync();
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    // The policy must be regenerated when the Markdown changes, so a stale PDF is
+    // worse than a missing one: it asserts things that are no longer true.
+    final source = File('../privacy_policy.md');
+    if (source.existsSync()) {
+      expect(pdf.lastModifiedSync().isAfter(source.lastModifiedSync()), isTrue,
+          reason: 'privacy_policy.md is newer than the PDF; regenerate it');
+    }
+  });
+
   test('iOS is told the display name explicitly', () {
     final html = File('web/index.html').readAsStringSync();
     expect(html,
