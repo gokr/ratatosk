@@ -18,6 +18,7 @@ BUF          ?= buf
 TOOLS        ?= $(CURDIR)/var/tools
 # The directory holding the Dart SDK, for the generators that need it.
 DARTDIR      := $(patsubst %/,%,$(dir $(DART)))
+BUILD_ID     ?= $(shell git describe --always --dirty 2>/dev/null || echo dev)
 SERVER_DIR   := server
 APP_DIR      := app
 BIN          := var/bin
@@ -71,12 +72,12 @@ server: build-server web ## Build the web app and the server, then run both on $
 
 .PHONY: web
 web: ## Build the Flutter web app that the server serves
-	@cd $(APP_DIR) && $(FLUTTER) build web --release
+	@cd $(APP_DIR) && $(FLUTTER) build web --release --dart-define=BUILD_ID=$(BUILD_ID)
 
 .PHONY: build-server
 build-server: ## Build the server binary into var/bin
 	@mkdir -p $(BIN)
-	cd $(SERVER_DIR) && $(GO) build -o ../$(BIN)/ratatoskd ./cmd/ratatoskd
+	cd $(SERVER_DIR) && $(GO) build -ldflags "-X main.version=$(BUILD_ID)" -o ../$(BIN)/ratatoskd ./cmd/ratatoskd
 
 .PHONY: server-test
 server-test: ## Run the Go test suite

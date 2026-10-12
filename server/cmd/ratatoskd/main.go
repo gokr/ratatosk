@@ -139,6 +139,7 @@ func run() error {
 	services := service.New(st, hub, presence, cfg, log)
 
 	handler := httpserver.New(httpserver.Config{
+		Version:        version,
 		Push:           pushWorker,
 		Addr:           o.addr,
 		PublicURL:      publicURL,

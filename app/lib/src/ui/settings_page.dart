@@ -139,6 +139,10 @@ class SettingsPage extends WatchingWidget {
               if (navigator.canPop()) navigator.pop();
             },
           ),
+          const ListTile(
+            title: Text('Client build'),
+            subtitle: SelectableText(String.fromEnvironment('BUILD_ID', defaultValue: 'dev')),
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -186,16 +190,20 @@ Future<void> showProfileDialog(BuildContext context) async {
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Edit profile'),
-      content: Column(
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(spacing: 8, children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [
             TextButton.icon(icon: const Icon(Icons.photo), label: const Text('Upload picture'),
               onPressed: () => _chooseProfilePhoto(context)),
             TextButton(onPressed: () => _useGravatar(context), child: const Text('Use Gravatar')),
             TextButton(onPressed: () => state.updateProfile(clearAvatar: true),
               child: const Text('Remove picture')),
           ]),
+          const SizedBox(height: 12),
           const Text('Profile pictures are shared profile data, not encrypted chat attachments.',
               style: TextStyle(fontSize: 12)),
           TextField(
@@ -209,6 +217,7 @@ Future<void> showProfileDialog(BuildContext context) async {
             decoration: const InputDecoration(labelText: 'About'),
           ),
         ],
+      )),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),

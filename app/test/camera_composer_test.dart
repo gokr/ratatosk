@@ -159,6 +159,21 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   }
 
+  testWidgets('Enter sends and Shift Enter does not send', (tester) async {
+    await mount(tester);
+    await tester.enterText(find.byType(TextField), 'send by keyboard');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(backend.sealedSends, hasLength(1));
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    await tester.enterText(find.byType(TextField), 'keep drafting');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await settle(tester);
+    expect(backend.sealedSends, hasLength(1));
+  });
+
   testWidgets('capture previews locally, removal never uploads', (
     tester,
   ) async {

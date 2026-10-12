@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:watch_it/watch_it.dart';
@@ -204,6 +205,19 @@ class _ComposerState extends State<Composer> {
     return 'application/octet-stream';
   }
 
+  KeyEventResult _onComposerKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        (event.logicalKey != LogicalKeyboardKey.enter &&
+         event.logicalKey != LogicalKeyboardKey.numpadEnter) ||
+        HardwareKeyboard.instance.isShiftPressed) {
+      return KeyEventResult.ignored;
+    }
+    final composing = _controller.value.composing;
+    if (composing.isValid && !composing.isCollapsed) return KeyEventResult.ignored;
+    if (!_uploading && _canSend) unawaited(_send());
+    return KeyEventResult.handled;
+  }
+
   Future<void> _send() async {
     if (_uploading) return;
     final state = di<AppState>();
@@ -354,12 +368,14 @@ class _ComposerState extends State<Composer> {
                     icon: const Icon(Icons.camera_alt_outlined),
                   ),
                 Expanded(
-                  child: TextField(
+                  child: Focus(
+                    onKeyEvent: _onComposerKey,
+                    child: TextField(
                     controller: _controller,
                     focusNode: _focus,
                     minLines: 1,
                     maxLines: 6,
-                    textInputAction: TextInputAction.newline,
+                    textInputAction: TextInputAction.send,
                     onChanged: (value) {
                       if (value.trim().isEmpty) {
                         di<AppState>().stopTyping(widget.conversationId);
@@ -370,6 +386,7 @@ class _ComposerState extends State<Composer> {
                     },
                     onSubmitted: (_) => _send(),
                     decoration: const InputDecoration(hintText: 'Aa'),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -388,7 +405,7 @@ class _ComposerState extends State<Composer> {
               Padding(
                 padding: const EdgeInsets.only(top: 2, bottom: 2),
                 child: Text(
-                  'Enter to send · long-press a message to react',
+                  'Enter to send · Shift+Enter for a newline',
                   style: TextStyle(fontSize: 10, color: colors.timestamp),
                 ),
               ),

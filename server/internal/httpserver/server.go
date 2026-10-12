@@ -31,8 +31,9 @@ import (
 
 // Config is everything the HTTP layer needs to know.
 type Config struct {
-	Push *push.Worker
-	Addr string
+	Version string
+	Push    *push.Worker
+	Addr    string
 	// PublicURL is the origin clients should use, for links in the landing page.
 	PublicURL string
 	// CORSOrigins lists allowed browser origins; "*" allows any. Only needed
@@ -106,6 +107,7 @@ func (s *Server) build() http.Handler {
 		stats := s.st.Stats()
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":        "ok",
+			"version":       s.cfg.Version,
 			"users":         stats.Users,
 			"conversations": stats.Conversations,
 			"messages":      stats.Messages,

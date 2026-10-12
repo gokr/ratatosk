@@ -7,6 +7,18 @@
 #   docker build -t ratatosk .
 #   docker run -d -v ratatosk-data:/var/lib/ratatosk -p 8080:8080 ratatosk
 
+# Arcane's synced source has no .git directory. Compute a deterministic source
+# identifier shared by client/server; callers can supply a Git SHA instead.
+FROM debian:bookworm-slim AS revision
+ARG BUILD_ID
+WORKDIR /source
+COPY app/lib ./app/lib
+COPY app/web ./app/web
+COPY app/pubspec.yaml app/pubspec.lock ./app/
+COPY server ./server
+RUN if [ -n "$BUILD_ID" ]; then printf '%s' "$BUILD_ID" > /build-id; \
+    else printf 'src-%s' "$(find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)" > /build-id; fi
+
 # --- the web app ----------------------------------------------------------
 FROM ghcr.io/cirruslabs/flutter:stable AS web
 WORKDIR /src
@@ -14,7 +26,8 @@ WORKDIR /src
 COPY app/pubspec.yaml app/pubspec.lock ./
 RUN flutter pub get
 COPY app/ ./
-RUN flutter build web --release
+COPY --from=revision /build-id /build-id
+RUN flutter build web --release --dart-define=BUILD_ID=$(cat /build-id)
 
 # --- the server -----------------------------------------------------------
 FROM golang:1.26-bookworm AS server
@@ -23,7 +36,8 @@ COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
 # Static, so the runtime image needs no libc to match.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/ratatoskd ./cmd/ratatoskd
+COPY --from=revision /build-id /build-id
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(cat /build-id)" -o /out/ratatoskd ./cmd/ratatoskd
 
 # --- runtime --------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime

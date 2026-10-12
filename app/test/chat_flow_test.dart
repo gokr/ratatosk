@@ -23,6 +23,7 @@ import 'package:ratatosk/src/session_store.dart';
 import 'package:ratatosk/src/state/app_state.dart';
 import 'package:ratatosk/src/ui/chat_list_page.dart';
 import 'package:ratatosk/src/ui/chat_page.dart';
+import 'package:ratatosk/src/ui/settings_page.dart';
 import 'package:ratatosk/src/ui/invite_sheet.dart';
 import 'package:ratatosk/src/ui/theme.dart';
 import 'package:ratatosk/src/ui/widgets/qr_code.dart';
@@ -143,6 +144,23 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
   }
+
+  testWidgets('profile dialog fits phone width with keyboard inset', (tester) async {
+    await signIn();
+    tester.view.physicalSize = const Size(390, 650);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(theme: RatatoskTheme.light(),
+      home: Scaffold(body: Builder(builder: (context) => TextButton(
+        onPressed: () => showProfileDialog(context), child: const Text('Edit'))))));
+    await tester.tap(find.text('Edit'));
+    await settle(tester);
+    expect(find.text('Edit profile'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+  });
 
   test('incoming direct message uses the actual sender, not oldest device', () async {
     backend.seedConversation();
