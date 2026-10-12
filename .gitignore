@@ -18,5 +18,10 @@ ratatosk.env
 .env
 deploy/*.env
 
+# Credentials downloaded from Google Cloud, and anything else of the sort. These
+# must never be committed: the client secret is a password for the OAuth flow.
+client_secret*.json
+*credentials*.json
+
 # var/tools holds the pinned code generators that `make setup` fetches.
 # (var/ is already ignored wholesale; this line documents why it is fine.)
