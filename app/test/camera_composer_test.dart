@@ -174,6 +174,45 @@ void main() {
     expect(backend.sealedSends, hasLength(1));
   });
 
+  testWidgets('a photo whose name says nothing still previews as a picture', (tester) async {
+    // The Android gallery case: the picker reports no mime type and the file is
+    // a HEIC named IMG_…, so a name-based guess calls it an opaque attachment and
+    // the composer showed a file icon instead of the photo.
+    final heic = Uint8List(32)
+      ..setAll(4, 'ftyp'.codeUnits)
+      ..setAll(8, 'heic'.codeUnits);
+    await mount(tester, capture: () async => _MemXFile(heic, name: 'IMG_20260101.heic'));
+    await tester.tap(find.byTooltip('Take a photo'));
+    await settle(tester);
+    // An image slot, not the file icon.
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.byIcon(Icons.insert_drive_file_outlined), findsNothing);
+    // The envelope carries the sniffed type, so the receiver renders it as a
+    // picture too.
+    await tester.tap(find.byTooltip('Send'));
+    await settle(tester);
+    final body = state.bodyOf(state.messages('c1').last);
+    expect(body.attachments.single.contentType, 'image/heic');
+  });
+
+  testWidgets('the preview decodes at the size it is drawn', (tester) async {
+    // A camera photo is thousands of pixels wide; decoding it in full for a
+    // 72px thumbnail is a ~48MB bitmap, which is how a phone ends up drawing
+    // nothing at all.
+    await mount(tester, capture: () async => _nativePhoto());
+    await tester.tap(find.byTooltip('Take a photo'));
+    await settle(tester);
+    final image = tester.widget<Image>(find.byType(Image));
+    // `cacheWidth` surfaces as a ResizeImage provider, which is what actually
+    // bounds the decoded bitmap.
+    final provider = image.image;
+    expect(provider, isA<ResizeImage>(),
+        reason: 'a thumbnail must not decode the camera resolution');
+    expect((provider as ResizeImage).width, lessThan(1024));
+    expect(image.errorBuilder, isNotNull,
+        reason: 'a picture that cannot be decoded must say so, not vanish');
+  });
+
   testWidgets('capture previews locally, removal never uploads', (
     tester,
   ) async {

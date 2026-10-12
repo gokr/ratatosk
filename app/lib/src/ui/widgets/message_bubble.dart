@@ -411,6 +411,10 @@ class _Attachments extends StatelessWidget {
                 child: EncryptedImage(
                   attachment: attachment,
                   url: resolveUrl('/files/${attachment.blobId}'),
+                  // The thumbnail is at most 260 logical pixels across; decoding
+                  // the camera's full resolution for it is what makes a phone
+                  // fail to draw the picture.
+                  decodeWidth: (260 * MediaQuery.devicePixelRatioOf(context)).round(),
                   onTap: onOpenImage == null ? null : () => onOpenImage!(attachment),
                 ),
               ),

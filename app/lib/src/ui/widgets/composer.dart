@@ -11,6 +11,7 @@ import '../../api/backend.dart';
 import '../../gen/ratatosk/v1/chat.pb.dart';
 import '../../state/app_state.dart';
 import '../theme.dart';
+import 'image_sniff.dart';
 
 /// The message composer: type, attach, send.
 ///
@@ -110,7 +111,13 @@ class _ComposerState extends State<Composer> {
           setState(
             () => _pending.add((
               filename: file.name,
-              contentType: file.mimeType ?? _guessContentType(file.name),
+              // Sniffed, not guessed from the name: a gallery file's name is not
+              // evidence of what it is.
+              contentType: attachmentContentType(
+                bytes,
+                file.mimeType,
+                file.name,
+              ),
               bytes: bytes,
             )),
           );
@@ -150,6 +157,13 @@ class _ComposerState extends State<Composer> {
               ImagePicker().pickImage(
                 source: ImageSource.camera,
                 requestFullMetadata: false,
+                // A camera photo is several thousand pixels wide. Asking the
+                // plugin to re-encode and bound it is what keeps the bytes
+                // decodable and sendable on every device — without this it
+                // hands back the camera's original file untouched.
+                imageQuality: 85,
+                maxWidth: 2048,
+                maxHeight: 2048,
               ));
       if (photo == null) return; // Cancelled or no camera available.
       final bytes = await photo.readAsBytes();
@@ -157,8 +171,11 @@ class _ComposerState extends State<Composer> {
       setState(
         () => _pending.add((
           filename: photoFilename(photo),
-          contentType:
-              photo.mimeType ?? _guessContentType(photoFilename(photo)),
+          contentType: attachmentContentType(
+            bytes,
+            photo.mimeType,
+            photoFilename(photo),
+          ),
           bytes: bytes,
         )),
       );
@@ -189,20 +206,6 @@ class _ComposerState extends State<Composer> {
       default:
         return 'photo.jpg';
     }
-  }
-
-  /// file_selector leaves the MIME type empty on some platforms; the server
-  /// only uses it to decide between inline and download, so a suffix guess is
-  /// enough.
-  static String _guessContentType(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-    if (lower.endsWith('.gif')) return 'image/gif';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.pdf')) return 'application/pdf';
-    if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain';
-    return 'application/octet-stream';
   }
 
   KeyEventResult _onComposerKey(FocusNode node, KeyEvent event) {
@@ -314,6 +317,20 @@ class _ComposerState extends State<Composer> {
                                     ? Image.memory(
                                       file.bytes,
                                       fit: BoxFit.cover,
+                                      // Decode at the size it is drawn, not at
+                                      // the camera's full resolution: a 12MP
+                                      // photo is a ~48MB bitmap, and doing that
+                                      // per thumbnail is what makes a phone
+                                      // fail to draw it at all.
+                                      cacheWidth: (72 *
+                                              MediaQuery.devicePixelRatioOf(context))
+                                          .round(),
+                                      // A picture the platform cannot decode
+                                      // must say so instead of rendering an
+                                      // empty box.
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.broken_image_outlined,
+                                      ),
                                     )
                                     : const Icon(
                                       Icons.insert_drive_file_outlined,

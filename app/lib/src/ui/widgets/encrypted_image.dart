@@ -76,6 +76,7 @@ class EncryptedImage extends StatefulWidget {
     this.width,
     this.height,
     this.onTap,
+    this.decodeWidth,
   });
 
   final DecryptedAttachment attachment;
@@ -84,6 +85,13 @@ class EncryptedImage extends StatefulWidget {
   final double? width;
   final double? height;
   final VoidCallback? onTap;
+
+  /// Bound for the decoded bitmap, in physical pixels.
+  ///
+  /// The bytes are a camera's original file, so a thumbnail would otherwise
+  /// decode the full-resolution picture (a 12MP photo is roughly a 48MB bitmap)
+  /// — which is enough to make a phone fail to draw it at all.
+  final int? decodeWidth;
 
   @override
   State<EncryptedImage> createState() => _EncryptedImageState();
@@ -133,7 +141,20 @@ class _EncryptedImageState extends State<EncryptedImage> {
             ),
           );
         }
-        final image = Image.memory(bytes, fit: widget.fit);
+        final image = Image.memory(
+          bytes,
+          fit: widget.fit,
+          cacheWidth: widget.decodeWidth,
+          // Decryption succeeded but the platform cannot decode the picture
+          // (an unusual format, or bytes that decode nowhere). Say so rather
+          // than leaving a hole in the conversation.
+          errorBuilder: (_, __, ___) => _Placeholder(
+            width: widget.width,
+            height: widget.height,
+            label: 'Cannot display this picture',
+            child: const Icon(Icons.broken_image_outlined),
+          ),
+        );
         return widget.onTap == null
             ? image
             : GestureDetector(onTap: widget.onTap, child: image);
