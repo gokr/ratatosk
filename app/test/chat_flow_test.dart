@@ -174,6 +174,29 @@ void main() {
     expect(state.messages('c1').single.message.reactions.single.emoji, '👍');
   });
 
+  testWidgets('a refused reaction is reported instead of silently ignored', (tester) async {
+    // The reported symptom was "nothing happens at all". A refused request looked
+    // exactly like that, because the error was recorded in the manager and shown
+    // on no screen at all.
+    backend.seedConversation(history: ['react to me']);
+    backend.failNextReaction = true;
+    await signIn();
+    await state.openConversation('c1');
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    await tester.longPress(find.text('react to me'));
+    await settle(tester);
+    await tester.tap(find.text('👍'));
+    await settle(tester);
+
+    expect(find.byType(SnackBar), findsOneWidget,
+        reason: 'a failed reaction was swallowed with no feedback');
+    expect(state.messages('c1').single.message.reactions, isEmpty);
+  });
+
   testWidgets('profile dialog fits phone width with keyboard inset', (tester) async {
     await signIn();
     tester.view.physicalSize = const Size(390, 650);

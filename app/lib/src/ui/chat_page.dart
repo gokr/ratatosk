@@ -65,6 +65,18 @@ class _ChatPageState extends State<ChatPage> {
     // truth, so any change (a new message, a read receipt, typing) rebuilds
     // this page. watch_it requires watch calls in build, in a fixed order.
     final state = watchIt<AppState>();
+    // Report a failed action (a reaction, an edit, a delete) instead of swallowing
+    // it. `lastError` was recorded by the manager and never displayed anywhere but
+    // the sign-in screen, so a request the server refused looked exactly like a tap
+    // that did nothing.
+    final error = state.lastError;
+    if (error != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(error)));
+        state.clearError();
+      });
+    }
     final conversation = state.conversation(widget.conversationId);
     final messages = state.messages(widget.conversationId);
     final typing = state.typingIn(widget.conversationId);

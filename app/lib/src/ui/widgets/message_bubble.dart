@@ -281,8 +281,12 @@ class MessageBubble extends StatelessWidget {
                     .map((emoji) => InkWell(
                           borderRadius: BorderRadius.circular(24),
                           onTap: () {
-                            Navigator.pop(sheetContext);
+                            // React first, then close. Doing it the other way
+                            // round meant anything that went wrong while popping
+                            // was swallowed and the tap looked like it did
+                            // nothing at all.
                             onReact?.call(emoji);
+                            Navigator.pop(sheetContext);
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(8),

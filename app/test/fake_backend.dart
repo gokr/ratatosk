@@ -387,8 +387,15 @@ class FakeBackend implements ChatBackend {
     return message;
   }
 
+  /// When true the next reaction call fails, standing in for a server refusal.
+  bool failNextReaction = false;
+
   @override
   Future<Message> addReaction(String messageId, String emoji) async {
+    if (failNextReaction) {
+      failNextReaction = false;
+      throw StateError('permission_denied: reaction refused');
+    }
     final message = _find(messageId);
     final existing = message.reactions.where((r) => r.emoji == emoji);
     if (existing.isEmpty) {
