@@ -33,9 +33,17 @@ services:
       # Generate with ./deploy/gen-secrets.sh and keep a copy off the server.
       # Marked optional so a missing file degrades to "notifications disabled"
       # rather than a container that will not start.
-    env_file:
-      - path: ./ratatosk.env
-        required: false
+    # Arcane's *project environment* (.env), not a file in this repository.
+    #
+    # It must not live in the repository: the GitOps sync mirrors the repo into
+    # the project directory, so an untracked secrets file placed there is deleted
+    # by the next sync. That is exactly how the data key was lost once, leaving a
+    # database that could not be opened. Arcane's envContent is stored server-side
+    # and survives syncs.
+    #
+    # Set it with: PUT /api/environments/0/projects/<id> {"envContent": "..."}
+    # `required: false` so a deployment without secrets still starts (with
+    # notifications off) instead of refusing to boot.
     volumes:
       # THE important line: the database, its WAL and uploaded blobs live here.
       # Without a volume at this exact path, every container replace silently
