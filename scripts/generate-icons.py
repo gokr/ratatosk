@@ -55,6 +55,17 @@ MARGIN_HEX = '#%02X%02X%02X' % MARGIN_COLOR
 # rounded corners and the circle, which is how the design is drawn.
 PLATE_FRACTION = round(max(bw, bh), 4)
 
+# A masked canvas is cropped to a circle, and the artwork's corners — where the
+# bubble's tail and its rounded corners live — fall outside that circle at
+# PLATE_FRACTION. Measured: at 0.80 of the canvas the disc edge cuts through the
+# artwork (1.9% of the edge lands on it), so the bubble is visibly clipped; from
+# 0.74 down nothing is cut. 0.70 is used for masked variants, which also leaves a
+# visible ring of margin (~5% of the canvas at the cardinal edges) so the bubble
+# reads as a bubble instead of touching the mask.
+#
+# iOS is not masked at all, so it keeps PLATE_FRACTION and the full artwork.
+MASKED_PLATE_FRACTION = 0.70
+
 
 def _scaled(source, size):
     return source.resize((size, size), Image.Resampling.LANCZOS)
@@ -89,9 +100,10 @@ save('app/assets/brand/logo.png', 512)
 # looks good on iOS).
 for size in (192, 512):
     save(f'app/web/icons/Icon-{size}.png', size)
-    # Maskable: the artwork whole. It is already drawn for a circle — see
-    # PLATE_FRACTION — so nothing is cropped and nothing is padded.
-    save(f'app/web/icons/Icon-maskable-{size}.png', size)
+    # Maskable: inset to MASKED_PLATE_FRACTION so the launcher's circular crop
+    # does not cut the bubble's tail.
+    save(f'app/web/icons/Icon-maskable-{size}.png', size, source=PLATE,
+         fill=MASKED_PLATE_FRACTION)
 save('app/web/icons/apple-touch-icon.png', 180)
 save('app/web/favicon.png', 32, source=PLATE, fill=1.0)
 
@@ -102,7 +114,8 @@ for density, size in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96),
     # artwork, so they get the full square with its margin.
     save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher.png', size)
     # The round variant is cropped to a circle, exactly like a maskable icon.
-    save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher_round.png', size)
+    save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher_round.png', size,
+         source=PLATE, fill=MASKED_PLATE_FRACTION)
 # Adaptive icons (Android 8+): a 108dp foreground layer the launcher masks to
 # roughly the middle 72dp, over a background layer of one colour. The foreground
 # carries the plate and is transparent outside it, so the background colour shows
@@ -110,7 +123,7 @@ for density, size in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96),
 for density, size in [('mdpi', 108), ('hdpi', 162), ('xhdpi', 216),
                       ('xxhdpi', 324), ('xxxhdpi', 432)]:
     save(f'app/android/app/src/main/res/mipmap-{density}/ic_launcher_foreground.png',
-         size, source=PLATE, fill=PLATE_FRACTION, transparent=True)
+         size, source=PLATE, fill=MASKED_PLATE_FRACTION, transparent=True)
 for name in ('ic_launcher.xml', 'ic_launcher_round.xml'):
     path = root / f'app/android/app/src/main/res/mipmap-anydpi-v26/{name}'
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,4 +151,4 @@ for entry in json.loads((icons / 'Contents.json').read_text())['images']:
     save(str((icons / entry['filename']).relative_to(root)), size)
 
 print(f'Generated icons (plate {PLATE.size}, plate colour {PLATE_HEX}, '
-      f'margin {MARGIN_HEX}, plate fraction {PLATE_FRACTION})')
+      f'margin {MARGIN_HEX}, unmasked {PLATE_FRACTION}, masked {MASKED_PLATE_FRACTION})')

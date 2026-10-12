@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -100,11 +101,11 @@ void main() {
       test('$path shows a bubble and a margin', () async {
         // Measured as the launcher shows it: cropped to a circle.
         final p = await proportions(path, asDisc: true);
-        expect(p.plate, greaterThan(0.28),
+        expect(p.plate, greaterThan(0.24),
             reason: 'the bubble is missing or far too small: ${p.plate}');
-        expect(p.plate, lessThan(0.62),
+        expect(p.plate, lessThan(0.58),
             reason: 'the bubble fills the disc, so the outline is gone: ${p.plate}');
-        expect(p.margin, greaterThan(0.30),
+        expect(p.margin, greaterThan(0.34),
             reason: 'no light outline is visible inside the disc: ${p.margin}');
       });
     }
@@ -124,6 +125,44 @@ void main() {
     });
   });
 
+  test('the launcher mask does not cut the artwork', () async {
+    // Reported from a device: the bubble's tail was being sliced off by Android's
+    // circular crop, because the artwork was scaled to just inside it. Nothing the
+    // bubble is drawn with may reach the mask's edge.
+    for (final path in [
+      'web/icons/Icon-maskable-512.png',
+      'web/icons/Icon-maskable-192.png',
+      'android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png',
+    ]) {
+      final bytes = File(path).readAsBytesSync();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final pixels = data!.buffer.asUint8List();
+      final side = image.width;
+      final centre = (side - 1) / 2;
+      final radius = side / 2;
+      var cut = 0, sampled = 0;
+      for (var i = 0; i < 3600; i++) {
+        final angle = 2 * 3.141592653589793 * i / 3600;
+        final x = (centre + radius * math.cos(angle)).round();
+        final y = (centre + radius * math.sin(angle)).round();
+        if (x < 0 || y < 0 || x >= side || y >= side) continue;
+        sampled++;
+        final p = (y * side + x) * 4;
+        final r = pixels[p], g = pixels[p + 1], b = pixels[p + 2], a = pixels[p + 3];
+        // Anything that is not the light margin (or transparency) is artwork, and
+        // artwork at the edge means the mask is cutting it.
+        final isMargin = a < 16 || (r > 235 && g > 235 && b > 235);
+        if (!isMargin) cut++;
+      }
+      codec.dispose();
+      expect(cut / sampled, lessThan(0.005),
+          reason: '$path has artwork on the mask edge, so it is being clipped');
+    }
+  });
+
   test('the adaptive foreground carries transparency, not a filled square', () async {
     // Android composites the foreground over the background colour and then masks
     // it. If the foreground were opaque to its edges the outline would vanish and
@@ -136,11 +175,11 @@ void main() {
       // outline. An opaque foreground covers it and the white disappears. The
       // figure is smaller than the maskable icon's margin because the squirrel's
       // own white fur is opaque and sits inside the disc too.
-      expect(p.clear, greaterThan(0.12),
+      expect(p.clear, greaterThan(0.10),
           reason: '$density foreground covers the outline instead of leaving it '
               'transparent: $p');
-      expect(p.plate, greaterThan(0.28), reason: '$density bubble too small: $p');
-      expect(p.plate, lessThan(0.62), reason: '$density bubble too large: $p');
+      expect(p.plate, greaterThan(0.24), reason: '$density bubble too small: $p');
+      expect(p.plate, lessThan(0.58), reason: '$density bubble too large: $p');
     }
     // The background layer supplies the outline colour, and it must be the light
     // margin rather than the bubble's blue (setting it blue was the bug that
