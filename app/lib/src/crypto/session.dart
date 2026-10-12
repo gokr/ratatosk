@@ -330,14 +330,24 @@ class CryptoSession {
           recipientDeviceKeyId: recipient.id,
         ),
       );
-      await backend.putKeyEnvelope(
-        conversationId: conversationId,
-        senderDeviceKeyId: identity.deviceKeyId,
-        recipientDeviceKeyId: recipient.id,
-        epoch: senderKey.epoch,
-        wrappedKey: sealed.combined,
-        nonce: sealed.nonce,
-      );
+      try {
+        await backend.putKeyEnvelope(
+          conversationId: conversationId,
+          senderDeviceKeyId: identity.deviceKeyId,
+          recipientDeviceKeyId: recipient.id,
+          epoch: senderKey.epoch,
+          wrappedKey: sealed.combined,
+          nonce: sealed.nonce,
+        );
+      } catch (_) {
+        // A deposit the server refuses (this device is not in the conversation,
+        // or it went away mid-flight) must not break the caller. Handing over a
+        // sender key is best-effort by design: a recipient without one asks for
+        // it when it needs it, which is the same path a device that joined later
+        // takes. Leaving this recipient out of `done` means the next prepare
+        // tries again.
+        continue;
+      }
       done.add(recipient.id);
     }
   }

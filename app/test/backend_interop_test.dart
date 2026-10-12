@@ -455,7 +455,9 @@ void main() {
       crypto: ada.crypto,
       clock: () => DateTime.now(),
     );
-    await state.bootstrap(savedToken: 'unused');
+    // The real token: bootstrap sets it on the backend, so a placeholder here
+    // would make every call unauthenticated (which is exactly what it did first).
+    await state.bootstrap(savedToken: ada.token);
     await state.openConversation(conversation.id);
 
     final sent = await ada.backend.sendMessage(conversation.id, text: 'react to me');
@@ -476,7 +478,7 @@ void main() {
 }
 
 /// A signed-in client plus its user, with its own encryption identity.
-typedef _Client = ({ConnectBackend backend, User user, CryptoManager crypto});
+typedef _Client = ({ConnectBackend backend, User user, CryptoManager crypto, String token});
 
 Future<_Client> _newClient(Uri baseUrl, String username, String displayName) async {
   final backend = ConnectBackend(baseUrl: baseUrl);
@@ -490,7 +492,7 @@ Future<_Client> _newClient(Uri baseUrl, String username, String displayName) asy
   // private halves never leave this object.
   final crypto = CryptoManager(backend: backend, storage: MemoryKeyStorage());
   await crypto.initialize(userId: result.user.id, label: 'interop', platform: 'test');
-  return (backend: backend, user: result.user, crypto: crypto);
+  return (backend: backend, user: result.user, crypto: crypto, token: result.token);
 }
 
 /// Waits for an event matching [predicate], failing the test on timeout.
