@@ -34,6 +34,9 @@ class _ChatPageState extends State<ChatPage> {
   Message? _replyTo;
   Message? _editing;
 
+  /// The last error already shown, so a rebuild does not repeat it.
+  String? _reportedError;
+
   @override
   void initState() {
     super.initState();
@@ -66,15 +69,19 @@ class _ChatPageState extends State<ChatPage> {
     // this page. watch_it requires watch calls in build, in a fixed order.
     final state = watchIt<AppState>();
     // Report a failed action (a reaction, an edit, a delete) instead of swallowing
-    // it. `lastError` was recorded by the manager and never displayed anywhere but
-    // the sign-in screen, so a request the server refused looked exactly like a tap
-    // that did nothing.
+    // it. `lastError` was recorded by the manager and displayed on no screen but the
+    // sign-in one, so a request the server refused looked exactly like a tap that
+    // did nothing.
+    //
+    // The error is *reported*, not consumed: other screens and callers read
+    // `lastError`, so clearing it here would hide it from them. Tracking the last
+    // one shown keeps a rebuild from repeating the same snackbar.
     final error = state.lastError;
-    if (error != null) {
+    if (error != null && error != _reportedError) {
+      _reportedError = error;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(error)));
-        state.clearError();
       });
     }
     final conversation = state.conversation(widget.conversationId);
