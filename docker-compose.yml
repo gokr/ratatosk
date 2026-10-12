@@ -27,23 +27,22 @@ services:
       # server falls back to http://localhost:<port>, so every invitation link
       # it hands out is unusable by the recipient.
       RATATOSK_PUBLIC_URL: https://ratatosk.flatout.works
-      # Secrets come from an env file that is NOT in this repository:
-      #   RATATOSK_DATA_KEY            seals every record (back it up!)
-      #   RATATOSK_VAPID_*             enables notifications
-      # Generate with ./deploy/gen-secrets.sh and keep a copy off the server.
-      # Marked optional so a missing file degrades to "notifications disabled"
-      # rather than a container that will not start.
-    # Arcane's *project environment* (.env), not a file in this repository.
+    # The secrets: RATATOSK_DATA_KEY (seals every record — back it up),
+    # RATATOSK_VAPID_* (notifications) and RATATOSK_GOOGLE_CLIENT_ID.
+    # Generate with ./deploy/gen-secrets.sh; keep a copy off the server.
     #
-    # It must not live in the repository: the GitOps sync mirrors the repo into
-    # the project directory, so an untracked secrets file placed there is deleted
-    # by the next sync. That is exactly how the data key was lost once, leaving a
-    # database that could not be opened. Arcane's envContent is stored server-side
-    # and survives syncs.
+    # `./.env` is Arcane's *project environment*, not a file in this repository.
+    # It must not be a repo file: the GitOps sync mirrors the repo into this
+    # directory, so an untracked secrets file placed there is deleted by the next
+    # sync — which is exactly how the data key was lost once, leaving an intact
+    # database that could not be opened. Arcane stores envContent server-side and
+    # rewrites .env; it survives syncs.
     #
-    # Set it with: PUT /api/environments/0/projects/<id> {"envContent": "..."}
     # `required: false` so a deployment without secrets still starts (with
     # notifications off) instead of refusing to boot.
+    env_file:
+      - path: ./.env
+        required: false
     volumes:
       # THE important line: the database, its WAL and uploaded blobs live here.
       # Without a volume at this exact path, every container replace silently
