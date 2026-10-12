@@ -56,15 +56,25 @@ MARGIN_HEX = '#%02X%02X%02X' % MARGIN_COLOR
 PLATE_FRACTION = round(max(bw, bh), 4)
 
 # A masked canvas is cropped to a circle, and the artwork's corners — where the
-# bubble's tail and its rounded corners live — fall outside that circle at
-# PLATE_FRACTION. Measured: at 0.80 of the canvas the disc edge cuts through the
-# artwork (1.9% of the edge lands on it), so the bubble is visibly clipped; from
-# 0.74 down nothing is cut. 0.70 is used for masked variants, which also leaves a
-# visible ring of margin (~5% of the canvas at the cardinal edges) so the bubble
-# reads as a bubble instead of touching the mask.
+# bubble's tail and its rounded corners live — are the furthest thing from the
+# centre. This value is chosen so they stay clear of that crop.
+#
+# Measured as "furthest content pixel from the centre, over the disc radius", where
+# 1.00 means the mask cuts the artwork:
+#
+#     0.795 (the artwork's own proportion)  clipped
+#     0.70   7.5% clearance   — reported as still cutting the tail on Android
+#     0.66  12.8% clearance   — used here
+#     0.64  15.3% clearance
+#
+# 0.70 cleared in my simulation and still looked cut on a real device, which is the
+# useful lesson: a launcher's visible circle, its own insets and antialiasing at
+# small sizes all eat into a margin that a pixel measurement calls sufficient. So
+# the target is a real ring of margin, not the technical absence of a cut, and
+# install_assets_test asserts at least 10% clearance.
 #
 # iOS is not masked at all, so it keeps PLATE_FRACTION and the full artwork.
-MASKED_PLATE_FRACTION = 0.70
+MASKED_PLATE_FRACTION = 0.66
 
 
 def _scaled(source, size):

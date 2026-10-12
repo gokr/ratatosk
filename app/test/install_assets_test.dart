@@ -101,11 +101,11 @@ void main() {
       test('$path shows a bubble and a margin', () async {
         // Measured as the launcher shows it: cropped to a circle.
         final p = await proportions(path, asDisc: true);
-        expect(p.plate, greaterThan(0.24),
+        expect(p.plate, greaterThan(0.20),
             reason: 'the bubble is missing or far too small: ${p.plate}');
-        expect(p.plate, lessThan(0.58),
+        expect(p.plate, lessThan(0.55),
             reason: 'the bubble fills the disc, so the outline is gone: ${p.plate}');
-        expect(p.margin, greaterThan(0.34),
+        expect(p.margin, greaterThan(0.38),
             reason: 'no light outline is visible inside the disc: ${p.margin}');
       });
     }
@@ -120,12 +120,16 @@ void main() {
           'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png',
           asDisc: true);
       final maskable = await proportions('web/icons/Icon-maskable-512.png', asDisc: true);
-      expect((maskable.plate - ios.plate).abs(), lessThan(0.12),
-          reason: 'masked ${maskable.plate} vs iOS ${ios.plate}');
+      // The masked icon is deliberately inset (see MASKED_PLATE_FRACTION so a
+      // launcher's crop cannot reach the bubble), so it shows *less* plate than
+      // iOS rather than the same amount. What must not differ is the shape read:
+      // both must be clearly a bubble on a light field, not a filled square.
+      expect(maskable.margin, greaterThan(0.38));
+      expect(ios.margin, greaterThan(0.38));
     });
   });
 
-  test('the launcher mask does not cut the artwork', () async {
+  test('masked icons leave real clearance around the artwork', () async {
     // Reported from a device: the bubble's tail was being sliced off by Android's
     // circular crop, because the artwork was scaled to just inside it. Nothing the
     // bubble is drawn with may reach the mask's edge.
@@ -143,23 +147,31 @@ void main() {
       final side = image.width;
       final centre = (side - 1) / 2;
       final radius = side / 2;
-      var cut = 0, sampled = 0;
-      for (var i = 0; i < 3600; i++) {
-        final angle = 2 * 3.141592653589793 * i / 3600;
-        final x = (centre + radius * math.cos(angle)).round();
-        final y = (centre + radius * math.sin(angle)).round();
-        if (x < 0 || y < 0 || x >= side || y >= side) continue;
-        sampled++;
-        final p = (y * side + x) * 4;
-        final r = pixels[p], g = pixels[p + 1], b = pixels[p + 2], a = pixels[p + 3];
-        // Anything that is not the light margin (or transparency) is artwork, and
-        // artwork at the edge means the mask is cutting it.
-        final isMargin = a < 16 || (r > 235 && g > 235 && b > 235);
-        if (!isMargin) cut++;
+      // The furthest artwork pixel from the centre, as a fraction of the radius:
+      // 1.0 means the mask cuts it. A few pixels of clearance is not enough on a
+      // real launcher — its visible circle, its own insets and antialiasing at
+      // small sizes all eat into the margin — so require 10%.
+      var furthest = 0.0;
+      final marginR = pixels[0], marginG = pixels[1], marginB = pixels[2];
+      for (var y = 0; y < side; y++) {
+        for (var x = 0; x < side; x++) {
+          final dx = x - centre, dy = y - centre;
+          if (dx * dx + dy * dy > radius * radius) continue;
+          final p = (y * side + x) * 4;
+          final a = pixels[p + 3];
+          if (a < 16) continue; // transparent: not artwork
+          final dr = (pixels[p] - marginR).abs();
+          final dg = (pixels[p + 1] - marginG).abs();
+          final db = (pixels[p + 2] - marginB).abs();
+          if (dr <= 3 && dg <= 3 && db <= 3) continue; // the light margin
+          final distance = math.sqrt(dx * dx + dy * dy) / radius;
+          if (distance > furthest) furthest = distance;
+        }
       }
       codec.dispose();
-      expect(cut / sampled, lessThan(0.005),
-          reason: '$path has artwork on the mask edge, so it is being clipped');
+      expect(furthest, lessThan(0.90),
+          reason: '$path reaches ${furthest.toStringAsFixed(3)} of the mask radius, '
+              'so a launcher will clip the bubble\'s tail');
     }
   });
 
@@ -178,8 +190,8 @@ void main() {
       expect(p.clear, greaterThan(0.10),
           reason: '$density foreground covers the outline instead of leaving it '
               'transparent: $p');
-      expect(p.plate, greaterThan(0.24), reason: '$density bubble too small: $p');
-      expect(p.plate, lessThan(0.58), reason: '$density bubble too large: $p');
+      expect(p.plate, greaterThan(0.20), reason: '$density bubble too small: $p');
+      expect(p.plate, lessThan(0.55), reason: '$density bubble too large: $p');
     }
     // The background layer supplies the outline colour, and it must be the light
     // margin rather than the bubble's blue (setting it blue was the bug that
