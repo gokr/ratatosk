@@ -781,6 +781,361 @@ func (x *ListKeyEnvelopesResponse) GetEnvelopes() []*KeyEnvelope {
 	return nil
 }
 
+// An encrypted key backup. Every field is produced on the device.
+type KeyBackup struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Argon2id salt the passphrase was stretched with.
+	Salt []byte `protobuf:"bytes,1,opt,name=salt,proto3" json:"salt,omitempty"`
+	// Nonce of the AEAD that sealed the payload.
+	Nonce []byte `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	// The sealed payload: the device's key material.
+	Blob []byte `protobuf:"bytes,3,opt,name=blob,proto3" json:"blob,omitempty"`
+	// "argon2id"; named so a future algorithm can be added without guessing.
+	Kdf         string `protobuf:"bytes,4,opt,name=kdf,proto3" json:"kdf,omitempty"`
+	MemoryKib   int32  `protobuf:"varint,5,opt,name=memory_kib,json=memoryKib,proto3" json:"memory_kib,omitempty"`
+	Iterations  int32  `protobuf:"varint,6,opt,name=iterations,proto3" json:"iterations,omitempty"`
+	Parallelism int32  `protobuf:"varint,7,opt,name=parallelism,proto3" json:"parallelism,omitempty"`
+	// Payload format version, so an old backup stays restorable.
+	Version       string                 `protobuf:"bytes,8,opt,name=version,proto3" json:"version,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KeyBackup) Reset() {
+	*x = KeyBackup{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeyBackup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeyBackup) ProtoMessage() {}
+
+func (x *KeyBackup) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KeyBackup.ProtoReflect.Descriptor instead.
+func (*KeyBackup) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *KeyBackup) GetSalt() []byte {
+	if x != nil {
+		return x.Salt
+	}
+	return nil
+}
+
+func (x *KeyBackup) GetNonce() []byte {
+	if x != nil {
+		return x.Nonce
+	}
+	return nil
+}
+
+func (x *KeyBackup) GetBlob() []byte {
+	if x != nil {
+		return x.Blob
+	}
+	return nil
+}
+
+func (x *KeyBackup) GetKdf() string {
+	if x != nil {
+		return x.Kdf
+	}
+	return ""
+}
+
+func (x *KeyBackup) GetMemoryKib() int32 {
+	if x != nil {
+		return x.MemoryKib
+	}
+	return 0
+}
+
+func (x *KeyBackup) GetIterations() int32 {
+	if x != nil {
+		return x.Iterations
+	}
+	return 0
+}
+
+func (x *KeyBackup) GetParallelism() int32 {
+	if x != nil {
+		return x.Parallelism
+	}
+	return 0
+}
+
+func (x *KeyBackup) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *KeyBackup) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type PutKeyBackupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backup        *KeyBackup             `protobuf:"bytes,1,opt,name=backup,proto3" json:"backup,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PutKeyBackupRequest) Reset() {
+	*x = PutKeyBackupRequest{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutKeyBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutKeyBackupRequest) ProtoMessage() {}
+
+func (x *PutKeyBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutKeyBackupRequest.ProtoReflect.Descriptor instead.
+func (*PutKeyBackupRequest) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *PutKeyBackupRequest) GetBackup() *KeyBackup {
+	if x != nil {
+		return x.Backup
+	}
+	return nil
+}
+
+type PutKeyBackupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backup        *KeyBackup             `protobuf:"bytes,1,opt,name=backup,proto3" json:"backup,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PutKeyBackupResponse) Reset() {
+	*x = PutKeyBackupResponse{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutKeyBackupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutKeyBackupResponse) ProtoMessage() {}
+
+func (x *PutKeyBackupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutKeyBackupResponse.ProtoReflect.Descriptor instead.
+func (*PutKeyBackupResponse) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *PutKeyBackupResponse) GetBackup() *KeyBackup {
+	if x != nil {
+		return x.Backup
+	}
+	return nil
+}
+
+type GetKeyBackupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetKeyBackupRequest) Reset() {
+	*x = GetKeyBackupRequest{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKeyBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKeyBackupRequest) ProtoMessage() {}
+
+func (x *GetKeyBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetKeyBackupRequest.ProtoReflect.Descriptor instead.
+func (*GetKeyBackupRequest) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{15}
+}
+
+// Absent when the account has no backup yet, which is the normal state.
+type GetKeyBackupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Backup        *KeyBackup             `protobuf:"bytes,1,opt,name=backup,proto3" json:"backup,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetKeyBackupResponse) Reset() {
+	*x = GetKeyBackupResponse{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKeyBackupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKeyBackupResponse) ProtoMessage() {}
+
+func (x *GetKeyBackupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetKeyBackupResponse.ProtoReflect.Descriptor instead.
+func (*GetKeyBackupResponse) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetKeyBackupResponse) GetBackup() *KeyBackup {
+	if x != nil {
+		return x.Backup
+	}
+	return nil
+}
+
+type DeleteKeyBackupRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteKeyBackupRequest) Reset() {
+	*x = DeleteKeyBackupRequest{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteKeyBackupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteKeyBackupRequest) ProtoMessage() {}
+
+func (x *DeleteKeyBackupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteKeyBackupRequest.ProtoReflect.Descriptor instead.
+func (*DeleteKeyBackupRequest) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{17}
+}
+
+type DeleteKeyBackupResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteKeyBackupResponse) Reset() {
+	*x = DeleteKeyBackupResponse{}
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteKeyBackupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteKeyBackupResponse) ProtoMessage() {}
+
+func (x *DeleteKeyBackupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_keys_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteKeyBackupResponse.ProtoReflect.Descriptor instead.
+func (*DeleteKeyBackupResponse) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_keys_proto_rawDescGZIP(), []int{18}
+}
+
 var File_ratatosk_v1_keys_proto protoreflect.FileDescriptor
 
 const file_ratatosk_v1_keys_proto_rawDesc = "" +
@@ -842,14 +1197,40 @@ const file_ratatosk_v1_keys_proto_rawDesc = "" +
 	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x120\n" +
 	"\x05since\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"R\n" +
 	"\x18ListKeyEnvelopesResponse\x126\n" +
-	"\tenvelopes\x18\x01 \x03(\v2\x18.ratatosk.v1.KeyEnvelopeR\tenvelopes2\xec\x03\n" +
+	"\tenvelopes\x18\x01 \x03(\v2\x18.ratatosk.v1.KeyEnvelopeR\tenvelopes\"\x91\x02\n" +
+	"\tKeyBackup\x12\x12\n" +
+	"\x04salt\x18\x01 \x01(\fR\x04salt\x12\x14\n" +
+	"\x05nonce\x18\x02 \x01(\fR\x05nonce\x12\x12\n" +
+	"\x04blob\x18\x03 \x01(\fR\x04blob\x12\x10\n" +
+	"\x03kdf\x18\x04 \x01(\tR\x03kdf\x12\x1d\n" +
+	"\n" +
+	"memory_kib\x18\x05 \x01(\x05R\tmemoryKib\x12\x1e\n" +
+	"\n" +
+	"iterations\x18\x06 \x01(\x05R\n" +
+	"iterations\x12 \n" +
+	"\vparallelism\x18\a \x01(\x05R\vparallelism\x12\x18\n" +
+	"\aversion\x18\b \x01(\tR\aversion\x129\n" +
+	"\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"E\n" +
+	"\x13PutKeyBackupRequest\x12.\n" +
+	"\x06backup\x18\x01 \x01(\v2\x16.ratatosk.v1.KeyBackupR\x06backup\"F\n" +
+	"\x14PutKeyBackupResponse\x12.\n" +
+	"\x06backup\x18\x01 \x01(\v2\x16.ratatosk.v1.KeyBackupR\x06backup\"\x15\n" +
+	"\x13GetKeyBackupRequest\"F\n" +
+	"\x14GetKeyBackupResponse\x12.\n" +
+	"\x06backup\x18\x01 \x01(\v2\x16.ratatosk.v1.KeyBackupR\x06backup\"\x18\n" +
+	"\x16DeleteKeyBackupRequest\"\x19\n" +
+	"\x17DeleteKeyBackupResponse2\xfa\x05\n" +
 	"\n" +
 	"KeyService\x12a\n" +
 	"\x10PublishDeviceKey\x12$.ratatosk.v1.PublishDeviceKeyRequest\x1a%.ratatosk.v1.PublishDeviceKeyResponse\"\x00\x12[\n" +
 	"\x0eListDeviceKeys\x12\".ratatosk.v1.ListDeviceKeysRequest\x1a#.ratatosk.v1.ListDeviceKeysResponse\"\x00\x12^\n" +
 	"\x0fRevokeDeviceKey\x12#.ratatosk.v1.RevokeDeviceKeyRequest\x1a$.ratatosk.v1.RevokeDeviceKeyResponse\"\x00\x12[\n" +
 	"\x0ePutKeyEnvelope\x12\".ratatosk.v1.PutKeyEnvelopeRequest\x1a#.ratatosk.v1.PutKeyEnvelopeResponse\"\x00\x12a\n" +
-	"\x10ListKeyEnvelopes\x12$.ratatosk.v1.ListKeyEnvelopesRequest\x1a%.ratatosk.v1.ListKeyEnvelopesResponse\"\x00B<Z:github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1b\x06proto3"
+	"\x10ListKeyEnvelopes\x12$.ratatosk.v1.ListKeyEnvelopesRequest\x1a%.ratatosk.v1.ListKeyEnvelopesResponse\"\x00\x12U\n" +
+	"\fPutKeyBackup\x12 .ratatosk.v1.PutKeyBackupRequest\x1a!.ratatosk.v1.PutKeyBackupResponse\"\x00\x12U\n" +
+	"\fGetKeyBackup\x12 .ratatosk.v1.GetKeyBackupRequest\x1a!.ratatosk.v1.GetKeyBackupResponse\"\x00\x12^\n" +
+	"\x0fDeleteKeyBackup\x12#.ratatosk.v1.DeleteKeyBackupRequest\x1a$.ratatosk.v1.DeleteKeyBackupResponse\"\x00B<Z:github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1b\x06proto3"
 
 var (
 	file_ratatosk_v1_keys_proto_rawDescOnce sync.Once
@@ -863,7 +1244,7 @@ func file_ratatosk_v1_keys_proto_rawDescGZIP() []byte {
 	return file_ratatosk_v1_keys_proto_rawDescData
 }
 
-var file_ratatosk_v1_keys_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_ratatosk_v1_keys_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_ratatosk_v1_keys_proto_goTypes = []any{
 	(*DeviceKey)(nil),                // 0: ratatosk.v1.DeviceKey
 	(*KeyEnvelope)(nil),              // 1: ratatosk.v1.KeyEnvelope
@@ -877,32 +1258,49 @@ var file_ratatosk_v1_keys_proto_goTypes = []any{
 	(*PutKeyEnvelopeResponse)(nil),   // 9: ratatosk.v1.PutKeyEnvelopeResponse
 	(*ListKeyEnvelopesRequest)(nil),  // 10: ratatosk.v1.ListKeyEnvelopesRequest
 	(*ListKeyEnvelopesResponse)(nil), // 11: ratatosk.v1.ListKeyEnvelopesResponse
-	(*timestamppb.Timestamp)(nil),    // 12: google.protobuf.Timestamp
+	(*KeyBackup)(nil),                // 12: ratatosk.v1.KeyBackup
+	(*PutKeyBackupRequest)(nil),      // 13: ratatosk.v1.PutKeyBackupRequest
+	(*PutKeyBackupResponse)(nil),     // 14: ratatosk.v1.PutKeyBackupResponse
+	(*GetKeyBackupRequest)(nil),      // 15: ratatosk.v1.GetKeyBackupRequest
+	(*GetKeyBackupResponse)(nil),     // 16: ratatosk.v1.GetKeyBackupResponse
+	(*DeleteKeyBackupRequest)(nil),   // 17: ratatosk.v1.DeleteKeyBackupRequest
+	(*DeleteKeyBackupResponse)(nil),  // 18: ratatosk.v1.DeleteKeyBackupResponse
+	(*timestamppb.Timestamp)(nil),    // 19: google.protobuf.Timestamp
 }
 var file_ratatosk_v1_keys_proto_depIdxs = []int32{
-	12, // 0: ratatosk.v1.DeviceKey.created_at:type_name -> google.protobuf.Timestamp
-	12, // 1: ratatosk.v1.DeviceKey.last_seen:type_name -> google.protobuf.Timestamp
-	12, // 2: ratatosk.v1.KeyEnvelope.created_at:type_name -> google.protobuf.Timestamp
+	19, // 0: ratatosk.v1.DeviceKey.created_at:type_name -> google.protobuf.Timestamp
+	19, // 1: ratatosk.v1.DeviceKey.last_seen:type_name -> google.protobuf.Timestamp
+	19, // 2: ratatosk.v1.KeyEnvelope.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 3: ratatosk.v1.PublishDeviceKeyResponse.device_key:type_name -> ratatosk.v1.DeviceKey
 	0,  // 4: ratatosk.v1.ListDeviceKeysResponse.device_keys:type_name -> ratatosk.v1.DeviceKey
 	1,  // 5: ratatosk.v1.PutKeyEnvelopeResponse.envelope:type_name -> ratatosk.v1.KeyEnvelope
-	12, // 6: ratatosk.v1.ListKeyEnvelopesRequest.since:type_name -> google.protobuf.Timestamp
+	19, // 6: ratatosk.v1.ListKeyEnvelopesRequest.since:type_name -> google.protobuf.Timestamp
 	1,  // 7: ratatosk.v1.ListKeyEnvelopesResponse.envelopes:type_name -> ratatosk.v1.KeyEnvelope
-	2,  // 8: ratatosk.v1.KeyService.PublishDeviceKey:input_type -> ratatosk.v1.PublishDeviceKeyRequest
-	4,  // 9: ratatosk.v1.KeyService.ListDeviceKeys:input_type -> ratatosk.v1.ListDeviceKeysRequest
-	6,  // 10: ratatosk.v1.KeyService.RevokeDeviceKey:input_type -> ratatosk.v1.RevokeDeviceKeyRequest
-	8,  // 11: ratatosk.v1.KeyService.PutKeyEnvelope:input_type -> ratatosk.v1.PutKeyEnvelopeRequest
-	10, // 12: ratatosk.v1.KeyService.ListKeyEnvelopes:input_type -> ratatosk.v1.ListKeyEnvelopesRequest
-	3,  // 13: ratatosk.v1.KeyService.PublishDeviceKey:output_type -> ratatosk.v1.PublishDeviceKeyResponse
-	5,  // 14: ratatosk.v1.KeyService.ListDeviceKeys:output_type -> ratatosk.v1.ListDeviceKeysResponse
-	7,  // 15: ratatosk.v1.KeyService.RevokeDeviceKey:output_type -> ratatosk.v1.RevokeDeviceKeyResponse
-	9,  // 16: ratatosk.v1.KeyService.PutKeyEnvelope:output_type -> ratatosk.v1.PutKeyEnvelopeResponse
-	11, // 17: ratatosk.v1.KeyService.ListKeyEnvelopes:output_type -> ratatosk.v1.ListKeyEnvelopesResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	19, // 8: ratatosk.v1.KeyBackup.updated_at:type_name -> google.protobuf.Timestamp
+	12, // 9: ratatosk.v1.PutKeyBackupRequest.backup:type_name -> ratatosk.v1.KeyBackup
+	12, // 10: ratatosk.v1.PutKeyBackupResponse.backup:type_name -> ratatosk.v1.KeyBackup
+	12, // 11: ratatosk.v1.GetKeyBackupResponse.backup:type_name -> ratatosk.v1.KeyBackup
+	2,  // 12: ratatosk.v1.KeyService.PublishDeviceKey:input_type -> ratatosk.v1.PublishDeviceKeyRequest
+	4,  // 13: ratatosk.v1.KeyService.ListDeviceKeys:input_type -> ratatosk.v1.ListDeviceKeysRequest
+	6,  // 14: ratatosk.v1.KeyService.RevokeDeviceKey:input_type -> ratatosk.v1.RevokeDeviceKeyRequest
+	8,  // 15: ratatosk.v1.KeyService.PutKeyEnvelope:input_type -> ratatosk.v1.PutKeyEnvelopeRequest
+	10, // 16: ratatosk.v1.KeyService.ListKeyEnvelopes:input_type -> ratatosk.v1.ListKeyEnvelopesRequest
+	13, // 17: ratatosk.v1.KeyService.PutKeyBackup:input_type -> ratatosk.v1.PutKeyBackupRequest
+	15, // 18: ratatosk.v1.KeyService.GetKeyBackup:input_type -> ratatosk.v1.GetKeyBackupRequest
+	17, // 19: ratatosk.v1.KeyService.DeleteKeyBackup:input_type -> ratatosk.v1.DeleteKeyBackupRequest
+	3,  // 20: ratatosk.v1.KeyService.PublishDeviceKey:output_type -> ratatosk.v1.PublishDeviceKeyResponse
+	5,  // 21: ratatosk.v1.KeyService.ListDeviceKeys:output_type -> ratatosk.v1.ListDeviceKeysResponse
+	7,  // 22: ratatosk.v1.KeyService.RevokeDeviceKey:output_type -> ratatosk.v1.RevokeDeviceKeyResponse
+	9,  // 23: ratatosk.v1.KeyService.PutKeyEnvelope:output_type -> ratatosk.v1.PutKeyEnvelopeResponse
+	11, // 24: ratatosk.v1.KeyService.ListKeyEnvelopes:output_type -> ratatosk.v1.ListKeyEnvelopesResponse
+	14, // 25: ratatosk.v1.KeyService.PutKeyBackup:output_type -> ratatosk.v1.PutKeyBackupResponse
+	16, // 26: ratatosk.v1.KeyService.GetKeyBackup:output_type -> ratatosk.v1.GetKeyBackupResponse
+	18, // 27: ratatosk.v1.KeyService.DeleteKeyBackup:output_type -> ratatosk.v1.DeleteKeyBackupResponse
+	20, // [20:28] is the sub-list for method output_type
+	12, // [12:20] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_ratatosk_v1_keys_proto_init() }
@@ -916,7 +1314,7 @@ func file_ratatosk_v1_keys_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ratatosk_v1_keys_proto_rawDesc), len(file_ratatosk_v1_keys_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

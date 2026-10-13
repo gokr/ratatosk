@@ -1066,6 +1066,481 @@ class ListKeyEnvelopesResponse extends $pb.GeneratedMessage {
   $pb.PbList<KeyEnvelope> get envelopes => $_getList(0);
 }
 
+/// An encrypted key backup. Every field is produced on the device.
+class KeyBackup extends $pb.GeneratedMessage {
+  factory KeyBackup({
+    $core.List<$core.int>? salt,
+    $core.List<$core.int>? nonce,
+    $core.List<$core.int>? blob,
+    $core.String? kdf,
+    $core.int? memoryKib,
+    $core.int? iterations,
+    $core.int? parallelism,
+    $core.String? version,
+    $0.Timestamp? updatedAt,
+  }) {
+    final result = KeyBackup._();
+    if (salt != null) result.salt = salt;
+    if (nonce != null) result.nonce = nonce;
+    if (blob != null) result.blob = blob;
+    if (kdf != null) result.kdf = kdf;
+    if (memoryKib != null) result.memoryKib = memoryKib;
+    if (iterations != null) result.iterations = iterations;
+    if (parallelism != null) result.parallelism = parallelism;
+    if (version != null) result.version = version;
+    if (updatedAt != null) result.updatedAt = updatedAt;
+    return result;
+  }
+
+  KeyBackup._();
+
+  factory KeyBackup.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      KeyBackup()..mergeFromBuffer(data, registry);
+  factory KeyBackup.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      KeyBackup()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'KeyBackup',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: KeyBackup.$_createMessage)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'salt', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'nonce', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'blob', $pb.PbFieldType.OY)
+    ..aOS(4, _omitFieldNames ? '' : 'kdf')
+    ..aI(5, _omitFieldNames ? '' : 'memoryKib')
+    ..aI(6, _omitFieldNames ? '' : 'iterations')
+    ..aI(7, _omitFieldNames ? '' : 'parallelism')
+    ..aOS(8, _omitFieldNames ? '' : 'version')
+    ..aOM<$0.Timestamp>(9, _omitFieldNames ? '' : 'updatedAt',
+        subBuilder: $0.Timestamp.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  KeyBackup clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  KeyBackup copyWith(void Function(KeyBackup) updates) =>
+      super.copyWith((message) => updates(message as KeyBackup)) as KeyBackup;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use KeyBackup() / KeyBackup.new instead')
+  static KeyBackup create() => KeyBackup._();
+  static $pb.GeneratedMessage $_createMessage() => KeyBackup._();
+  @$core.override
+  KeyBackup createEmptyInstance() => KeyBackup._();
+  @$core.pragma('dart2js:noInline')
+  static KeyBackup getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<KeyBackup>(KeyBackup.$_createMessage);
+  static KeyBackup? _defaultInstance;
+
+  /// Argon2id salt the passphrase was stretched with.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get salt => $_getN(0);
+  @$pb.TagNumber(1)
+  set salt($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSalt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSalt() => $_clearField(1);
+
+  /// Nonce of the AEAD that sealed the payload.
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get nonce => $_getN(1);
+  @$pb.TagNumber(2)
+  set nonce($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNonce() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNonce() => $_clearField(2);
+
+  /// The sealed payload: the device's key material.
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get blob => $_getN(2);
+  @$pb.TagNumber(3)
+  set blob($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasBlob() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearBlob() => $_clearField(3);
+
+  /// "argon2id"; named so a future algorithm can be added without guessing.
+  @$pb.TagNumber(4)
+  $core.String get kdf => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set kdf($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasKdf() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearKdf() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.int get memoryKib => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set memoryKib($core.int value) => $_setSignedInt32(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasMemoryKib() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearMemoryKib() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get iterations => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set iterations($core.int value) => $_setSignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasIterations() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearIterations() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get parallelism => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set parallelism($core.int value) => $_setSignedInt32(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasParallelism() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearParallelism() => $_clearField(7);
+
+  /// Payload format version, so an old backup stays restorable.
+  @$pb.TagNumber(8)
+  $core.String get version => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set version($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasVersion() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearVersion() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $0.Timestamp get updatedAt => $_getN(8);
+  @$pb.TagNumber(9)
+  set updatedAt($0.Timestamp value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasUpdatedAt() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearUpdatedAt() => $_clearField(9);
+  @$pb.TagNumber(9)
+  $0.Timestamp ensureUpdatedAt() => $_ensure(8);
+}
+
+class PutKeyBackupRequest extends $pb.GeneratedMessage {
+  factory PutKeyBackupRequest({
+    KeyBackup? backup,
+  }) {
+    final result = PutKeyBackupRequest._();
+    if (backup != null) result.backup = backup;
+    return result;
+  }
+
+  PutKeyBackupRequest._();
+
+  factory PutKeyBackupRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PutKeyBackupRequest()..mergeFromBuffer(data, registry);
+  factory PutKeyBackupRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PutKeyBackupRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PutKeyBackupRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: PutKeyBackupRequest.$_createMessage)
+    ..aOM<KeyBackup>(1, _omitFieldNames ? '' : 'backup',
+        subBuilder: KeyBackup.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PutKeyBackupRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PutKeyBackupRequest copyWith(void Function(PutKeyBackupRequest) updates) =>
+      super.copyWith((message) => updates(message as PutKeyBackupRequest))
+          as PutKeyBackupRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use PutKeyBackupRequest() / PutKeyBackupRequest.new instead')
+  static PutKeyBackupRequest create() => PutKeyBackupRequest._();
+  static $pb.GeneratedMessage $_createMessage() => PutKeyBackupRequest._();
+  @$core.override
+  PutKeyBackupRequest createEmptyInstance() => PutKeyBackupRequest._();
+  @$core.pragma('dart2js:noInline')
+  static PutKeyBackupRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PutKeyBackupRequest>(
+          PutKeyBackupRequest.$_createMessage);
+  static PutKeyBackupRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  KeyBackup get backup => $_getN(0);
+  @$pb.TagNumber(1)
+  set backup(KeyBackup value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasBackup() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearBackup() => $_clearField(1);
+  @$pb.TagNumber(1)
+  KeyBackup ensureBackup() => $_ensure(0);
+}
+
+class PutKeyBackupResponse extends $pb.GeneratedMessage {
+  factory PutKeyBackupResponse({
+    KeyBackup? backup,
+  }) {
+    final result = PutKeyBackupResponse._();
+    if (backup != null) result.backup = backup;
+    return result;
+  }
+
+  PutKeyBackupResponse._();
+
+  factory PutKeyBackupResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PutKeyBackupResponse()..mergeFromBuffer(data, registry);
+  factory PutKeyBackupResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      PutKeyBackupResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PutKeyBackupResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: PutKeyBackupResponse.$_createMessage)
+    ..aOM<KeyBackup>(1, _omitFieldNames ? '' : 'backup',
+        subBuilder: KeyBackup.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PutKeyBackupResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PutKeyBackupResponse copyWith(void Function(PutKeyBackupResponse) updates) =>
+      super.copyWith((message) => updates(message as PutKeyBackupResponse))
+          as PutKeyBackupResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PutKeyBackupResponse() / PutKeyBackupResponse.new instead')
+  static PutKeyBackupResponse create() => PutKeyBackupResponse._();
+  static $pb.GeneratedMessage $_createMessage() => PutKeyBackupResponse._();
+  @$core.override
+  PutKeyBackupResponse createEmptyInstance() => PutKeyBackupResponse._();
+  @$core.pragma('dart2js:noInline')
+  static PutKeyBackupResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PutKeyBackupResponse>(
+          PutKeyBackupResponse.$_createMessage);
+  static PutKeyBackupResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  KeyBackup get backup => $_getN(0);
+  @$pb.TagNumber(1)
+  set backup(KeyBackup value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasBackup() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearBackup() => $_clearField(1);
+  @$pb.TagNumber(1)
+  KeyBackup ensureBackup() => $_ensure(0);
+}
+
+class GetKeyBackupRequest extends $pb.GeneratedMessage {
+  factory GetKeyBackupRequest() => GetKeyBackupRequest._();
+
+  GetKeyBackupRequest._();
+
+  factory GetKeyBackupRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetKeyBackupRequest()..mergeFromBuffer(data, registry);
+  factory GetKeyBackupRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetKeyBackupRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetKeyBackupRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: GetKeyBackupRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetKeyBackupRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetKeyBackupRequest copyWith(void Function(GetKeyBackupRequest) updates) =>
+      super.copyWith((message) => updates(message as GetKeyBackupRequest))
+          as GetKeyBackupRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use GetKeyBackupRequest() / GetKeyBackupRequest.new instead')
+  static GetKeyBackupRequest create() => GetKeyBackupRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GetKeyBackupRequest._();
+  @$core.override
+  GetKeyBackupRequest createEmptyInstance() => GetKeyBackupRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GetKeyBackupRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetKeyBackupRequest>(
+          GetKeyBackupRequest.$_createMessage);
+  static GetKeyBackupRequest? _defaultInstance;
+}
+
+/// Absent when the account has no backup yet, which is the normal state.
+class GetKeyBackupResponse extends $pb.GeneratedMessage {
+  factory GetKeyBackupResponse({
+    KeyBackup? backup,
+  }) {
+    final result = GetKeyBackupResponse._();
+    if (backup != null) result.backup = backup;
+    return result;
+  }
+
+  GetKeyBackupResponse._();
+
+  factory GetKeyBackupResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetKeyBackupResponse()..mergeFromBuffer(data, registry);
+  factory GetKeyBackupResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GetKeyBackupResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GetKeyBackupResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: GetKeyBackupResponse.$_createMessage)
+    ..aOM<KeyBackup>(1, _omitFieldNames ? '' : 'backup',
+        subBuilder: KeyBackup.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetKeyBackupResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GetKeyBackupResponse copyWith(void Function(GetKeyBackupResponse) updates) =>
+      super.copyWith((message) => updates(message as GetKeyBackupResponse))
+          as GetKeyBackupResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GetKeyBackupResponse() / GetKeyBackupResponse.new instead')
+  static GetKeyBackupResponse create() => GetKeyBackupResponse._();
+  static $pb.GeneratedMessage $_createMessage() => GetKeyBackupResponse._();
+  @$core.override
+  GetKeyBackupResponse createEmptyInstance() => GetKeyBackupResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GetKeyBackupResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GetKeyBackupResponse>(
+          GetKeyBackupResponse.$_createMessage);
+  static GetKeyBackupResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  KeyBackup get backup => $_getN(0);
+  @$pb.TagNumber(1)
+  set backup(KeyBackup value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasBackup() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearBackup() => $_clearField(1);
+  @$pb.TagNumber(1)
+  KeyBackup ensureBackup() => $_ensure(0);
+}
+
+class DeleteKeyBackupRequest extends $pb.GeneratedMessage {
+  factory DeleteKeyBackupRequest() => DeleteKeyBackupRequest._();
+
+  DeleteKeyBackupRequest._();
+
+  factory DeleteKeyBackupRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteKeyBackupRequest()..mergeFromBuffer(data, registry);
+  factory DeleteKeyBackupRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteKeyBackupRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DeleteKeyBackupRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: DeleteKeyBackupRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteKeyBackupRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteKeyBackupRequest copyWith(
+          void Function(DeleteKeyBackupRequest) updates) =>
+      super.copyWith((message) => updates(message as DeleteKeyBackupRequest))
+          as DeleteKeyBackupRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeleteKeyBackupRequest() / DeleteKeyBackupRequest.new instead')
+  static DeleteKeyBackupRequest create() => DeleteKeyBackupRequest._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteKeyBackupRequest._();
+  @$core.override
+  DeleteKeyBackupRequest createEmptyInstance() => DeleteKeyBackupRequest._();
+  @$core.pragma('dart2js:noInline')
+  static DeleteKeyBackupRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DeleteKeyBackupRequest>(
+          DeleteKeyBackupRequest.$_createMessage);
+  static DeleteKeyBackupRequest? _defaultInstance;
+}
+
+class DeleteKeyBackupResponse extends $pb.GeneratedMessage {
+  factory DeleteKeyBackupResponse() => DeleteKeyBackupResponse._();
+
+  DeleteKeyBackupResponse._();
+
+  factory DeleteKeyBackupResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteKeyBackupResponse()..mergeFromBuffer(data, registry);
+  factory DeleteKeyBackupResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DeleteKeyBackupResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DeleteKeyBackupResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: DeleteKeyBackupResponse.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteKeyBackupResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DeleteKeyBackupResponse copyWith(
+          void Function(DeleteKeyBackupResponse) updates) =>
+      super.copyWith((message) => updates(message as DeleteKeyBackupResponse))
+          as DeleteKeyBackupResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeleteKeyBackupResponse() / DeleteKeyBackupResponse.new instead')
+  static DeleteKeyBackupResponse create() => DeleteKeyBackupResponse._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteKeyBackupResponse._();
+  @$core.override
+  DeleteKeyBackupResponse createEmptyInstance() => DeleteKeyBackupResponse._();
+  @$core.pragma('dart2js:noInline')
+  static DeleteKeyBackupResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DeleteKeyBackupResponse>(
+          DeleteKeyBackupResponse.$_createMessage);
+  static DeleteKeyBackupResponse? _defaultInstance;
+}
+
 /// The public half of the end-to-end encryption keys, plus the key envelopes
 /// that distribute group sender keys. See docs/E2EE.md for the protocol itself.
 ///
@@ -1111,6 +1586,27 @@ class KeyServiceApi {
           $pb.ClientContext? ctx, ListKeyEnvelopesRequest request) =>
       _client.invoke<ListKeyEnvelopesResponse>(ctx, 'KeyService',
           'ListKeyEnvelopes', request, ListKeyEnvelopesResponse());
+
+  /// The account's encrypted key backup: an opaque blob this server can neither
+  /// read nor usefully alter.
+  ///
+  /// It exists because device private keys live only in that device's keystore, so
+  /// reinstalling the app permanently loses the ability to open old history. The
+  /// blob is sealed on the device with a key derived from a passphrase the user
+  /// chooses; the passphrase is never sent here, so a compromised server yields
+  /// nothing.
+  $async.Future<PutKeyBackupResponse> putKeyBackup(
+          $pb.ClientContext? ctx, PutKeyBackupRequest request) =>
+      _client.invoke<PutKeyBackupResponse>(
+          ctx, 'KeyService', 'PutKeyBackup', request, PutKeyBackupResponse());
+  $async.Future<GetKeyBackupResponse> getKeyBackup(
+          $pb.ClientContext? ctx, GetKeyBackupRequest request) =>
+      _client.invoke<GetKeyBackupResponse>(
+          ctx, 'KeyService', 'GetKeyBackup', request, GetKeyBackupResponse());
+  $async.Future<DeleteKeyBackupResponse> deleteKeyBackup(
+          $pb.ClientContext? ctx, DeleteKeyBackupRequest request) =>
+      _client.invoke<DeleteKeyBackupResponse>(ctx, 'KeyService',
+          'DeleteKeyBackup', request, DeleteKeyBackupResponse());
 }
 
 const $core.bool _omitFieldNames =

@@ -29,6 +29,18 @@ service KeyService {
   // The envelopes addressed to this device, newest first. `since` makes the
   // call cheap to repeat.
   rpc ListKeyEnvelopes(ListKeyEnvelopesRequest) returns (ListKeyEnvelopesResponse) {}
+
+  // The account's encrypted key backup: an opaque blob this server can neither
+  // read nor usefully alter.
+  //
+  // It exists because device private keys live only in that device's keystore, so
+  // reinstalling the app permanently loses the ability to open old history. The
+  // blob is sealed on the device with a key derived from a passphrase the user
+  // chooses; the passphrase is never sent here, so a compromised server yields
+  // nothing.
+  rpc PutKeyBackup(PutKeyBackupRequest) returns (PutKeyBackupResponse) {}
+  rpc GetKeyBackup(GetKeyBackupRequest) returns (GetKeyBackupResponse) {}
+  rpc DeleteKeyBackup(DeleteKeyBackupRequest) returns (DeleteKeyBackupResponse) {}
 }
 
 // One install's public keys. The private halves never leave the device.
@@ -126,3 +138,40 @@ message ListKeyEnvelopesRequest {
 message ListKeyEnvelopesResponse {
   repeated KeyEnvelope envelopes = 1;
 }
+
+// An encrypted key backup. Every field is produced on the device.
+message KeyBackup {
+  // Argon2id salt the passphrase was stretched with.
+  bytes salt = 1;
+  // Nonce of the AEAD that sealed the payload.
+  bytes nonce = 2;
+  // The sealed payload: the device's key material.
+  bytes blob = 3;
+  // "argon2id"; named so a future algorithm can be added without guessing.
+  string kdf = 4;
+  int32 memory_kib = 5;
+  int32 iterations = 6;
+  int32 parallelism = 7;
+  // Payload format version, so an old backup stays restorable.
+  string version = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message PutKeyBackupRequest {
+  KeyBackup backup = 1;
+}
+
+message PutKeyBackupResponse {
+  KeyBackup backup = 1;
+}
+
+message GetKeyBackupRequest {}
+
+// Absent when the account has no backup yet, which is the normal state.
+message GetKeyBackupResponse {
+  KeyBackup backup = 1;
+}
+
+message DeleteKeyBackupRequest {}
+
+message DeleteKeyBackupResponse {}

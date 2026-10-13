@@ -48,6 +48,13 @@ const (
 	// KeyServiceListKeyEnvelopesProcedure is the fully-qualified name of the KeyService's
 	// ListKeyEnvelopes RPC.
 	KeyServiceListKeyEnvelopesProcedure = "/ratatosk.v1.KeyService/ListKeyEnvelopes"
+	// KeyServicePutKeyBackupProcedure is the fully-qualified name of the KeyService's PutKeyBackup RPC.
+	KeyServicePutKeyBackupProcedure = "/ratatosk.v1.KeyService/PutKeyBackup"
+	// KeyServiceGetKeyBackupProcedure is the fully-qualified name of the KeyService's GetKeyBackup RPC.
+	KeyServiceGetKeyBackupProcedure = "/ratatosk.v1.KeyService/GetKeyBackup"
+	// KeyServiceDeleteKeyBackupProcedure is the fully-qualified name of the KeyService's
+	// DeleteKeyBackup RPC.
+	KeyServiceDeleteKeyBackupProcedure = "/ratatosk.v1.KeyService/DeleteKeyBackup"
 )
 
 // KeyServiceClient is a client for the ratatosk.v1.KeyService service.
@@ -67,6 +74,17 @@ type KeyServiceClient interface {
 	// The envelopes addressed to this device, newest first. `since` makes the
 	// call cheap to repeat.
 	ListKeyEnvelopes(context.Context, *connect.Request[v1.ListKeyEnvelopesRequest]) (*connect.Response[v1.ListKeyEnvelopesResponse], error)
+	// The account's encrypted key backup: an opaque blob this server can neither
+	// read nor usefully alter.
+	//
+	// It exists because device private keys live only in that device's keystore, so
+	// reinstalling the app permanently loses the ability to open old history. The
+	// blob is sealed on the device with a key derived from a passphrase the user
+	// chooses; the passphrase is never sent here, so a compromised server yields
+	// nothing.
+	PutKeyBackup(context.Context, *connect.Request[v1.PutKeyBackupRequest]) (*connect.Response[v1.PutKeyBackupResponse], error)
+	GetKeyBackup(context.Context, *connect.Request[v1.GetKeyBackupRequest]) (*connect.Response[v1.GetKeyBackupResponse], error)
+	DeleteKeyBackup(context.Context, *connect.Request[v1.DeleteKeyBackupRequest]) (*connect.Response[v1.DeleteKeyBackupResponse], error)
 }
 
 // NewKeyServiceClient constructs a client for the ratatosk.v1.KeyService service. By default, it
@@ -110,6 +128,24 @@ func NewKeyServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(keyServiceMethods.ByName("ListKeyEnvelopes")),
 			connect.WithClientOptions(opts...),
 		),
+		putKeyBackup: connect.NewClient[v1.PutKeyBackupRequest, v1.PutKeyBackupResponse](
+			httpClient,
+			baseURL+KeyServicePutKeyBackupProcedure,
+			connect.WithSchema(keyServiceMethods.ByName("PutKeyBackup")),
+			connect.WithClientOptions(opts...),
+		),
+		getKeyBackup: connect.NewClient[v1.GetKeyBackupRequest, v1.GetKeyBackupResponse](
+			httpClient,
+			baseURL+KeyServiceGetKeyBackupProcedure,
+			connect.WithSchema(keyServiceMethods.ByName("GetKeyBackup")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteKeyBackup: connect.NewClient[v1.DeleteKeyBackupRequest, v1.DeleteKeyBackupResponse](
+			httpClient,
+			baseURL+KeyServiceDeleteKeyBackupProcedure,
+			connect.WithSchema(keyServiceMethods.ByName("DeleteKeyBackup")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -120,6 +156,9 @@ type keyServiceClient struct {
 	revokeDeviceKey  *connect.Client[v1.RevokeDeviceKeyRequest, v1.RevokeDeviceKeyResponse]
 	putKeyEnvelope   *connect.Client[v1.PutKeyEnvelopeRequest, v1.PutKeyEnvelopeResponse]
 	listKeyEnvelopes *connect.Client[v1.ListKeyEnvelopesRequest, v1.ListKeyEnvelopesResponse]
+	putKeyBackup     *connect.Client[v1.PutKeyBackupRequest, v1.PutKeyBackupResponse]
+	getKeyBackup     *connect.Client[v1.GetKeyBackupRequest, v1.GetKeyBackupResponse]
+	deleteKeyBackup  *connect.Client[v1.DeleteKeyBackupRequest, v1.DeleteKeyBackupResponse]
 }
 
 // PublishDeviceKey calls ratatosk.v1.KeyService.PublishDeviceKey.
@@ -147,6 +186,21 @@ func (c *keyServiceClient) ListKeyEnvelopes(ctx context.Context, req *connect.Re
 	return c.listKeyEnvelopes.CallUnary(ctx, req)
 }
 
+// PutKeyBackup calls ratatosk.v1.KeyService.PutKeyBackup.
+func (c *keyServiceClient) PutKeyBackup(ctx context.Context, req *connect.Request[v1.PutKeyBackupRequest]) (*connect.Response[v1.PutKeyBackupResponse], error) {
+	return c.putKeyBackup.CallUnary(ctx, req)
+}
+
+// GetKeyBackup calls ratatosk.v1.KeyService.GetKeyBackup.
+func (c *keyServiceClient) GetKeyBackup(ctx context.Context, req *connect.Request[v1.GetKeyBackupRequest]) (*connect.Response[v1.GetKeyBackupResponse], error) {
+	return c.getKeyBackup.CallUnary(ctx, req)
+}
+
+// DeleteKeyBackup calls ratatosk.v1.KeyService.DeleteKeyBackup.
+func (c *keyServiceClient) DeleteKeyBackup(ctx context.Context, req *connect.Request[v1.DeleteKeyBackupRequest]) (*connect.Response[v1.DeleteKeyBackupResponse], error) {
+	return c.deleteKeyBackup.CallUnary(ctx, req)
+}
+
 // KeyServiceHandler is an implementation of the ratatosk.v1.KeyService service.
 type KeyServiceHandler interface {
 	// Publish (or update) this device's public keys. Idempotent per key id, so a
@@ -164,6 +218,17 @@ type KeyServiceHandler interface {
 	// The envelopes addressed to this device, newest first. `since` makes the
 	// call cheap to repeat.
 	ListKeyEnvelopes(context.Context, *connect.Request[v1.ListKeyEnvelopesRequest]) (*connect.Response[v1.ListKeyEnvelopesResponse], error)
+	// The account's encrypted key backup: an opaque blob this server can neither
+	// read nor usefully alter.
+	//
+	// It exists because device private keys live only in that device's keystore, so
+	// reinstalling the app permanently loses the ability to open old history. The
+	// blob is sealed on the device with a key derived from a passphrase the user
+	// chooses; the passphrase is never sent here, so a compromised server yields
+	// nothing.
+	PutKeyBackup(context.Context, *connect.Request[v1.PutKeyBackupRequest]) (*connect.Response[v1.PutKeyBackupResponse], error)
+	GetKeyBackup(context.Context, *connect.Request[v1.GetKeyBackupRequest]) (*connect.Response[v1.GetKeyBackupResponse], error)
+	DeleteKeyBackup(context.Context, *connect.Request[v1.DeleteKeyBackupRequest]) (*connect.Response[v1.DeleteKeyBackupResponse], error)
 }
 
 // NewKeyServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -203,6 +268,24 @@ func NewKeyServiceHandler(svc KeyServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(keyServiceMethods.ByName("ListKeyEnvelopes")),
 		connect.WithHandlerOptions(opts...),
 	)
+	keyServicePutKeyBackupHandler := connect.NewUnaryHandler(
+		KeyServicePutKeyBackupProcedure,
+		svc.PutKeyBackup,
+		connect.WithSchema(keyServiceMethods.ByName("PutKeyBackup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	keyServiceGetKeyBackupHandler := connect.NewUnaryHandler(
+		KeyServiceGetKeyBackupProcedure,
+		svc.GetKeyBackup,
+		connect.WithSchema(keyServiceMethods.ByName("GetKeyBackup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	keyServiceDeleteKeyBackupHandler := connect.NewUnaryHandler(
+		KeyServiceDeleteKeyBackupProcedure,
+		svc.DeleteKeyBackup,
+		connect.WithSchema(keyServiceMethods.ByName("DeleteKeyBackup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/ratatosk.v1.KeyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case KeyServicePublishDeviceKeyProcedure:
@@ -215,6 +298,12 @@ func NewKeyServiceHandler(svc KeyServiceHandler, opts ...connect.HandlerOption) 
 			keyServicePutKeyEnvelopeHandler.ServeHTTP(w, r)
 		case KeyServiceListKeyEnvelopesProcedure:
 			keyServiceListKeyEnvelopesHandler.ServeHTTP(w, r)
+		case KeyServicePutKeyBackupProcedure:
+			keyServicePutKeyBackupHandler.ServeHTTP(w, r)
+		case KeyServiceGetKeyBackupProcedure:
+			keyServiceGetKeyBackupHandler.ServeHTTP(w, r)
+		case KeyServiceDeleteKeyBackupProcedure:
+			keyServiceDeleteKeyBackupHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -242,4 +331,16 @@ func (UnimplementedKeyServiceHandler) PutKeyEnvelope(context.Context, *connect.R
 
 func (UnimplementedKeyServiceHandler) ListKeyEnvelopes(context.Context, *connect.Request[v1.ListKeyEnvelopesRequest]) (*connect.Response[v1.ListKeyEnvelopesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.KeyService.ListKeyEnvelopes is not implemented"))
+}
+
+func (UnimplementedKeyServiceHandler) PutKeyBackup(context.Context, *connect.Request[v1.PutKeyBackupRequest]) (*connect.Response[v1.PutKeyBackupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.KeyService.PutKeyBackup is not implemented"))
+}
+
+func (UnimplementedKeyServiceHandler) GetKeyBackup(context.Context, *connect.Request[v1.GetKeyBackupRequest]) (*connect.Response[v1.GetKeyBackupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.KeyService.GetKeyBackup is not implemented"))
+}
+
+func (UnimplementedKeyServiceHandler) DeleteKeyBackup(context.Context, *connect.Request[v1.DeleteKeyBackupRequest]) (*connect.Response[v1.DeleteKeyBackupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.KeyService.DeleteKeyBackup is not implemented"))
 }

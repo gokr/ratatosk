@@ -31,6 +31,12 @@ abstract class KeyServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $1.PutKeyEnvelopeRequest request);
   $async.Future<$1.ListKeyEnvelopesResponse> listKeyEnvelopes(
       $pb.ServerContext ctx, $1.ListKeyEnvelopesRequest request);
+  $async.Future<$1.PutKeyBackupResponse> putKeyBackup(
+      $pb.ServerContext ctx, $1.PutKeyBackupRequest request);
+  $async.Future<$1.GetKeyBackupResponse> getKeyBackup(
+      $pb.ServerContext ctx, $1.GetKeyBackupRequest request);
+  $async.Future<$1.DeleteKeyBackupResponse> deleteKeyBackup(
+      $pb.ServerContext ctx, $1.DeleteKeyBackupRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -44,6 +50,12 @@ abstract class KeyServiceBase extends $pb.GeneratedService {
         return $1.PutKeyEnvelopeRequest();
       case 'ListKeyEnvelopes':
         return $1.ListKeyEnvelopesRequest();
+      case 'PutKeyBackup':
+        return $1.PutKeyBackupRequest();
+      case 'GetKeyBackup':
+        return $1.GetKeyBackupRequest();
+      case 'DeleteKeyBackup':
+        return $1.DeleteKeyBackupRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -62,6 +74,12 @@ abstract class KeyServiceBase extends $pb.GeneratedService {
         return putKeyEnvelope(ctx, request as $1.PutKeyEnvelopeRequest);
       case 'ListKeyEnvelopes':
         return listKeyEnvelopes(ctx, request as $1.ListKeyEnvelopesRequest);
+      case 'PutKeyBackup':
+        return putKeyBackup(ctx, request as $1.PutKeyBackupRequest);
+      case 'GetKeyBackup':
+        return getKeyBackup(ctx, request as $1.GetKeyBackupRequest);
+      case 'DeleteKeyBackup':
+        return deleteKeyBackup(ctx, request as $1.DeleteKeyBackupRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

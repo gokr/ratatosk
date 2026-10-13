@@ -59,4 +59,32 @@ abstract final class KeyService {
     ratatoskv1keys.ListKeyEnvelopesRequest.new,
     ratatoskv1keys.ListKeyEnvelopesResponse.new,
   );
+
+  /// The account's encrypted key backup: an opaque blob this server can neither
+  /// read nor usefully alter.
+  /// It exists because device private keys live only in that device's keystore, so
+  /// reinstalling the app permanently loses the ability to open old history. The
+  /// blob is sealed on the device with a key derived from a passphrase the user
+  /// chooses; the passphrase is never sent here, so a compromised server yields
+  /// nothing.
+  static const putKeyBackup = connect.Spec(
+    '/$name/PutKeyBackup',
+    connect.StreamType.unary,
+    ratatoskv1keys.PutKeyBackupRequest.new,
+    ratatoskv1keys.PutKeyBackupResponse.new,
+  );
+
+  static const getKeyBackup = connect.Spec(
+    '/$name/GetKeyBackup',
+    connect.StreamType.unary,
+    ratatoskv1keys.GetKeyBackupRequest.new,
+    ratatoskv1keys.GetKeyBackupResponse.new,
+  );
+
+  static const deleteKeyBackup = connect.Spec(
+    '/$name/DeleteKeyBackup',
+    connect.StreamType.unary,
+    ratatoskv1keys.DeleteKeyBackupRequest.new,
+    ratatoskv1keys.DeleteKeyBackupResponse.new,
+  );
 }

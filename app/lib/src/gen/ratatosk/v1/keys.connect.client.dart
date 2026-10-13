@@ -107,4 +107,62 @@ extension type KeyServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// The account's encrypted key backup: an opaque blob this server can neither
+  /// read nor usefully alter.
+  /// It exists because device private keys live only in that device's keystore, so
+  /// reinstalling the app permanently loses the ability to open old history. The
+  /// blob is sealed on the device with a key derived from a passphrase the user
+  /// chooses; the passphrase is never sent here, so a compromised server yields
+  /// nothing.
+  Future<ratatoskv1keys.PutKeyBackupResponse> putKeyBackup(
+    ratatoskv1keys.PutKeyBackupRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.KeyService.putKeyBackup,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  Future<ratatoskv1keys.GetKeyBackupResponse> getKeyBackup(
+    ratatoskv1keys.GetKeyBackupRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.KeyService.getKeyBackup,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  Future<ratatoskv1keys.DeleteKeyBackupResponse> deleteKeyBackup(
+    ratatoskv1keys.DeleteKeyBackupRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.KeyService.deleteKeyBackup,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

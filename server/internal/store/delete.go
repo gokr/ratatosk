@@ -80,6 +80,12 @@ func (s *Store) DeleteUser(userID string) (summary DeletionSummary, err error) {
 		if _, err := tx.Exec("DELETE FROM push_subscriptions WHERE owner=?", owner); err != nil {
 			return err
 		}
+		// The encrypted key backup goes with the account. Leaving it behind would
+		// keep a blob of key material that no longer belongs to anyone, and a
+		// reused username must not inherit it.
+		if _, err := tx.Exec("DELETE FROM key_backups WHERE owner=?", owner); err != nil {
+			return err
+		}
 
 		// --- direct conversations: deleted whole ---
 		convs, err := listRows[Conversation](s, tx, "conversations",
