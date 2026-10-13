@@ -31,6 +31,33 @@ class AccountDeletion {
   bool get removedAnything => conversations > 0 || messages > 0 || attachments > 0;
 }
 
+/// An encrypted key backup as it travels to and from the server.
+///
+/// Every field is produced on the device; the server stores them without being able
+/// to open any of it. The KDF parameters travel with it so a backup made under an
+/// older work factor stays restorable.
+class KeyBackupPayload {
+  const KeyBackupPayload({
+    required this.salt,
+    required this.nonce,
+    required this.blob,
+    required this.kdf,
+    required this.memoryKiB,
+    required this.iterations,
+    required this.parallelism,
+    required this.version,
+  });
+
+  final List<int> salt;
+  final List<int> nonce;
+  final List<int> blob;
+  final String kdf;
+  final int memoryKiB;
+  final int iterations;
+  final int parallelism;
+  final String version;
+}
+
 /// Everything the app's UI needs from the server.
 ///
 /// The UI talks to this interface rather than to the generated clients, for two
@@ -88,6 +115,15 @@ abstract interface class ChatBackend {
   Future<AccountDeletion> deleteAccount({required String password});
 
   Future<User> getMe();
+
+  /// Stores (replacing) this account's encrypted key backup.
+  Future<void> putKeyBackup(KeyBackupPayload backup);
+
+  /// The account's backup, or null when it has none.
+  Future<KeyBackupPayload?> getKeyBackup();
+
+  /// Removes the account's backup. The keys on this device are untouched.
+  Future<void> deleteKeyBackup();
 
   Future<User> updateProfile({
     String? displayName,

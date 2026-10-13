@@ -13,6 +13,7 @@ import '../gen/ratatosk/v1/chat.pb.dart' as proto;
 import '../gen/ratatosk/v1/keys.pb.dart';
 import 'crypto.dart';
 import 'identity.dart';
+import 'recovery.dart';
 import 'message_content.dart';
 import 'session.dart';
 
@@ -60,12 +61,19 @@ class DecryptedMessage {
   bool get ok => unreadable == null;
 }
 
+/// The storage slot holding this device's own sender keys.
+///
+/// Top-level rather than private to the store below, because a key backup has to
+/// name it: a backup that missed this slot would restore an identity that could not
+/// open the very messages it was sent.
+const senderKeysSlot = 'ratatosk.senderkeys';
+
 /// A [SenderKeyStore] over the same sealed storage as the identity keys.
 class _StorageSenderKeys implements SenderKeyStore {
   _StorageSenderKeys(this._storage);
 
   final PrivateKeyStorage _storage;
-  static const _slot = 'ratatosk.senderkeys';
+  static const _slot = senderKeysSlot;
 
   @override
   Future<Map<String, List<SenderKey>>> load() async {
@@ -143,6 +151,10 @@ class CryptoManager {
   /// Conversations whose sender keys we have already collected.
   final Set<String> _collected = {};
 
+  /// Key backup and restore, over this device's own storage.
+  late final KeyRecovery recovery =
+      KeyRecovery(backend: backend, storage: _storage, crypto: crypto);
+
   DeviceIdentity? get identity => _identity?.current;
   CryptoSession? get session => _session;
 
@@ -159,6 +171,28 @@ class CryptoManager {
   bool get reregistered => _identity?.reregistered ?? false;
 
   String get ownDeviceKeyId => _identity?.current?.deviceKeyId ?? '';
+
+  /// Replaces this device's keys with the ones in the account's backup, then
+  /// re-initializes so everything downstream uses them.
+  ///
+  /// The re-initialization is the point: loading the restored keys is not enough,
+  /// because the session, the device key id the server knows and the sender keys
+  /// have to be rebuilt around them. Afterwards this device *is* the old device, so
+  /// history it could read before is readable again.
+  Future<List<String>> restoreFromRecovery(
+    String passphrase, {
+    required String userId,
+    String label = '',
+    String platform = '',
+  }) async {
+    final restored = await recovery.restore(passphrase);
+    // Drop the identity built before the restore, or ensureIdentity would keep
+    // using the keys it already loaded in memory.
+    _identity = null;
+    _session = null;
+    await initialize(userId: userId, label: label, platform: platform);
+    return restored;
+  }
 
   /// Creates or loads this install's keys and registers them with the server.
   Future<void> initialize({required String userId, String label = '', String platform = ''}) async {

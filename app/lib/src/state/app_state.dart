@@ -201,6 +201,72 @@ class AppState extends ChangeNotifier {
     _notify();
   }
 
+  /// Whether the account has a key backup, so the UI can offer restore instead of
+  /// setup. False on any failure: an unreachable server must not read as "no
+  /// backup", and the caller shows its own error in that case.
+  Future<bool> hasKeyRecoveryBackup() async {
+    try {
+      return await crypto.recovery.hasBackup();
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return false;
+    }
+  }
+
+  /// Seals this device's keys under [passphrase] and stores the backup.
+  Future<bool> setUpKeyRecovery(String passphrase) async {
+    try {
+      await crypto.recovery.save(passphrase);
+      return true;
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return false;
+    }
+  }
+
+  /// Replaces this device's keys with the account's backup, then reloads so the
+  /// newly readable history appears.
+  ///
+  /// Reloading rather than patching: every message on screen was decrypted with the
+  /// old keys, and the honest way to show what the restored ones can read is to
+  /// open the threads again.
+  Future<bool> restoreKeyRecovery(String passphrase) async {
+    final userId = _me?.id;
+    if (userId == null) return false;
+    try {
+      await crypto.restoreFromRecovery(passphrase, userId: userId);
+      _decryptedKeysChanged();
+      await _loadInitialData();
+      if (_openConversationId != null) await _loadHistory(_openConversationId!);
+      _notify();
+      return true;
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return false;
+    }
+  }
+
+  /// Removes the account's backup. The keys on this device are untouched.
+  Future<bool> removeKeyRecovery() async {
+    try {
+      await crypto.recovery.remove();
+      return true;
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return false;
+    }
+  }
+
+  /// Forgets decrypted bodies, because they were opened with keys this device no
+  /// longer has.
+  void _decryptedKeysChanged() {
+    _localBodies.clear();
+  }
+
   /// Deletes this account, then signs this device out.
   ///
   /// The sign-out is the point: the account is gone, so the token cannot work

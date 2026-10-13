@@ -9,6 +9,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SessionStore {
   static const _tokenKey = 'ratatosk.token';
   static const _baseUrlKey = 'ratatosk.baseUrl';
+  static const _recoveryAskedKey = 'ratatosk.recovery.asked';
+
+  /// Whether the recovery prompt has been shown. The user's answer — set up or
+  /// skip — is respected either way: this is an offer, not a nag.
+  Future<bool> recoveryPromptShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_recoveryAskedKey) ?? false;
+  }
+
+  Future<void> markRecoveryPromptShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_recoveryAskedKey, true);
+  }
 
   Future<String?> readToken() async {
     final prefs = await SharedPreferences.getInstance();

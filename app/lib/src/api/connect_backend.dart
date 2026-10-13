@@ -152,6 +152,44 @@ class ConnectBackend implements ChatBackend {
   }
 
   @override
+  Future<void> putKeyBackup(KeyBackupPayload backup) async {
+    await keys.putKeyBackup(PutKeyBackupRequest(
+      backup: KeyBackup(
+        salt: backup.salt,
+        nonce: backup.nonce,
+        blob: backup.blob,
+        kdf: backup.kdf,
+        memoryKib: backup.memoryKiB,
+        iterations: backup.iterations,
+        parallelism: backup.parallelism,
+        version: backup.version,
+      ),
+    ));
+  }
+
+  @override
+  Future<KeyBackupPayload?> getKeyBackup() async {
+    final response = await keys.getKeyBackup(GetKeyBackupRequest());
+    if (!response.hasBackup()) return null;
+    final b = response.backup;
+    return KeyBackupPayload(
+      salt: b.salt,
+      nonce: b.nonce,
+      blob: b.blob,
+      kdf: b.kdf,
+      memoryKiB: b.memoryKib,
+      iterations: b.iterations,
+      parallelism: b.parallelism,
+      version: b.version,
+    );
+  }
+
+  @override
+  Future<void> deleteKeyBackup() async {
+    await keys.deleteKeyBackup(DeleteKeyBackupRequest());
+  }
+
+  @override
   Future<User> getMe() async {
     final response = await auth.getMe(GetMeRequest());
     return response.user;

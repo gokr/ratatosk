@@ -133,6 +133,12 @@ class SettingsPage extends WatchingWidget {
             subtitle: const Text('Permanently removes your account and your messages'),
             onTap: () => confirmDeleteAccount(context),
           ),
+          ListTile(
+            leading: const Icon(Icons.key_outlined),
+            title: const Text('Key recovery'),
+            subtitle: const Text('Read your messages after reinstalling or a new phone'),
+            onTap: () => showKeyRecoveryDialog(context),
+          ),
           const Center(child: PrivacyPolicyLink()),
           const Divider(),
           ListTile(
@@ -475,6 +481,205 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
           onPressed: _submit,
           child: const Text('Delete everything'),
         ),
+      ],
+    );
+  }
+}
+
+/// Key recovery: the difference between "I got a new phone" and losing history.
+///
+/// The wording is deliberately blunt about the failure mode, because the cost of a
+/// vague promise here is a user discovering it after they needed it. A passphrase
+/// that is lost means the backup is unopenable — by design, since anything that
+/// could reset it could also open it.
+Future<void> showKeyRecoveryDialog(BuildContext context) async {
+  final state = di<AppState>();
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final hasBackup = await state.hasKeyRecoveryBackup();
+  if (!context.mounted) return;
+
+  final choice = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Key recovery'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(hasBackup
+                  ? 'This account has a recovery passphrase. Entering it brings '
+                      'back the ability to read messages received on a previous '
+                      'install.'
+                  : 'Your encryption keys live only on this device. Without a '
+                      'recovery passphrase, reinstalling the app or moving to a new '
+                      'phone means messages you already received stay unreadable '
+                      'for good.'),
+              const SizedBox(height: 12),
+              const Text(
+                'The passphrase encrypts your keys before they are stored on the '
+                'server. The server cannot read them, and nobody — including us — '
+                'can reset the passphrase.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Close'),
+        ),
+        if (hasBackup)
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'remove'),
+            child: const Text('Remove backup'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, 'restore'),
+          child: const Text('Restore'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, hasBackup ? 'change' : 'set'),
+          child: Text(hasBackup ? 'Change passphrase' : 'Set up recovery'),
+        ),
+      ],
+    ),
+  );
+  if (choice == null || !context.mounted) return;
+
+  switch (choice) {
+    case 'remove':
+      if (await state.removeKeyRecovery()) {
+        messenger?.showSnackBar(const SnackBar(
+          content: Text('Backup removed. Your messages on this device are unaffected.'),
+        ));
+      } else {
+        messenger?.showSnackBar(SnackBar(
+            content: Text(state.lastError ?? 'Could not remove the backup.')));
+      }
+    case 'set':
+    case 'change':
+      final passphrase = await _askPassphrase(context, confirm: true);
+      if (passphrase == null || !context.mounted) return;
+      if (await state.setUpKeyRecovery(passphrase)) {
+        messenger?.showSnackBar(const SnackBar(
+          content: Text('Recovery is on. Keep that passphrase somewhere safe.'),
+        ));
+      } else {
+        messenger?.showSnackBar(SnackBar(
+            content: Text(state.lastError ?? 'Could not save the backup.')));
+      }
+    case 'restore':
+      final passphrase = await _askPassphrase(context, confirm: false);
+      if (passphrase == null || !context.mounted) return;
+      if (await state.restoreKeyRecovery(passphrase)) {
+        messenger?.showSnackBar(const SnackBar(
+          content: Text('Keys restored. Messages you could read before should be back.'),
+        ));
+      } else {
+        messenger?.showSnackBar(SnackBar(
+            content: Text(state.lastError ?? 'That passphrase does not open the backup.')));
+      }
+  }
+}
+
+/// Asks for a recovery passphrase, with confirmation when setting one.
+///
+/// A widget so it owns its controllers: disposing them in the caller happens while
+/// the route is still animating out, and the framework rebuilds the fields for those
+/// frames.
+Future<String?> _askPassphrase(BuildContext context, {required bool confirm}) {
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => _PassphraseDialog(confirm: confirm),
+  );
+}
+
+class _PassphraseDialog extends StatefulWidget {
+  const _PassphraseDialog({required this.confirm});
+
+  final bool confirm;
+
+  @override
+  State<_PassphraseDialog> createState() => _PassphraseDialogState();
+}
+
+class _PassphraseDialogState extends State<_PassphraseDialog> {
+  final _passphrase = TextEditingController();
+  final _again = TextEditingController();
+  String? _problem;
+
+  @override
+  void dispose() {
+    _passphrase.dispose();
+    _again.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _passphrase.text;
+    if (value.trim().length < 8) {
+      setState(() => _problem = 'Use at least 8 characters');
+      return;
+    }
+    if (widget.confirm && value != _again.text) {
+      setState(() => _problem = 'The two entries do not match');
+      return;
+    }
+    Navigator.pop(context, value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.confirm ? 'Choose a recovery passphrase' : 'Enter your recovery passphrase'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.confirm)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Write it down and keep it somewhere you will still have it after '
+                  'losing this phone. It cannot be reset.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            TextField(
+              controller: _passphrase,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Passphrase'),
+              onSubmitted: widget.confirm ? null : (_) => _submit(),
+            ),
+            if (widget.confirm) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _again,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Passphrase again'),
+                onSubmitted: (_) => _submit(),
+              ),
+            ],
+            if (_problem != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(_problem!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: _submit, child: const Text('Continue')),
       ],
     );
   }

@@ -219,6 +219,22 @@ class FakeBackend implements ChatBackend {
     return (token: 'fake-token', user: signedInAs.toProto());
   }
 
+  /// The stored key backup, as the real server would hold it.
+  KeyBackupPayload? keyBackup;
+
+  @override
+  Future<void> putKeyBackup(KeyBackupPayload backup) async {
+    keyBackup = backup;
+  }
+
+  @override
+  Future<KeyBackupPayload?> getKeyBackup() async => keyBackup;
+
+  @override
+  Future<void> deleteKeyBackup() async {
+    keyBackup = null;
+  }
+
   /// Accounts this fake has deleted, so a test can assert the call happened.
   final List<String> deletedAccounts = [];
 

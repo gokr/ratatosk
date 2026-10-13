@@ -102,6 +102,13 @@ class IdentityManager {
   static const _signingKeySlot = 'ratatosk.signing.private';
   static const _deviceIdSlot = 'ratatosk.device.id';
 
+  /// The slots that *are* this install's encryption identity, exposed so a key
+  /// backup can name them without repeating the strings. If these ever change,
+  /// recovery changes with them instead of quietly restoring nothing.
+  static const identityKeySlot = _identityKeySlot;
+  static const signingKeySlot = _signingKeySlot;
+  static const deviceIdSlot = _deviceIdSlot;
+
   DeviceIdentity? _current;
   DeviceIdentity? get current => _current;
 

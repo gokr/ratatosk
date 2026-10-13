@@ -3,6 +3,8 @@ import 'package:watch_it/watch_it.dart';
 
 import '../gen/ratatosk/v1/chat.pb.dart';
 import '../state/app_state.dart';
+import '../session_store.dart';
+import 'widgets/recovery_prompt.dart';
 import 'chat_page.dart';
 import 'format.dart';
 import 'invite_sheet.dart';
@@ -13,6 +15,10 @@ import 'widgets/avatar.dart';
 import 'widgets/brand_logo.dart';
 
 /// The list of conversations: the app's home screen.
+/// Guards the one-time recovery offer so a rebuild does not re-schedule it. The
+/// persisted flag in SessionStore is what stops it returning on the next launch.
+bool _recoveryOfferScheduled = false;
+
 class ChatListPage extends WatchingWidget {
   const ChatListPage({super.key, this.selectedConversationId, this.onSelect});
 
@@ -26,6 +32,13 @@ class ChatListPage extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final state = watchIt<AppState>();
+    // Offered once, after the first frame so a dialog is not pushed mid-build.
+    if (!_recoveryOfferScheduled && state.me != null) {
+      _recoveryOfferScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        maybeOfferKeyRecovery(context, state, di<SessionStore>());
+      });
+    }
     final ids = state.conversationIds;
     return Scaffold(
       appBar: AppBar(
