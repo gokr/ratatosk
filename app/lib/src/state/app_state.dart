@@ -1104,13 +1104,20 @@ class AppState extends ChangeNotifier {
     final mine = message.reactions
         .where((reaction) => reaction.emoji == emoji)
         .any((reaction) => reaction.userIds.contains(_me?.id));
+    debugPrint('[reaction] toggling $emoji on ${message.id} '
+        'conv=$conversationId mine=$mine');
     try {
       final stored = mine
           ? await backend.removeReaction(message.id, emoji)
           : await backend.addReaction(message.id, emoji);
+      // What the server returned, which is what the chip is drawn from: a
+      // response without the reaction is the failure the UI cannot see.
+      debugPrint('[reaction] server returned ${stored.reactions.length} '
+          'reaction(s) on ${stored.id}');
       _mergeMessage(conversationId, stored);
       _notify();
     } catch (error) {
+      debugPrint('[reaction] FAILED: $error');
       if (!isAuthFailure(error)) _lastError = describeError(error);
       _notify();
     }

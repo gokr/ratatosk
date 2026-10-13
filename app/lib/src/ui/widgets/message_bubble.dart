@@ -285,6 +285,13 @@ class MessageBubble extends StatelessWidget {
                             // round meant anything that went wrong while popping
                             // was swallowed and the tap looked like it did
                             // nothing at all.
+                            //
+                            // The trace is deliberate and cheap: a reaction that
+                            // goes nowhere is otherwise indistinguishable from a
+                            // tap that never arrived, and this line is what tells
+                            // the two apart from the browser console.
+                            debugPrint('[reaction] picked $emoji '
+                                'handler=${onReact != null}');
                             onReact?.call(emoji);
                             Navigator.pop(sheetContext);
                           },
