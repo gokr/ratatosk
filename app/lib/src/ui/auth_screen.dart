@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../api/backend.dart';
@@ -25,18 +26,18 @@ class AuthScreen extends WatchingWidget {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
+            constraints: BoxConstraints(maxWidth: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const _Brand(),
-                const SizedBox(height: 32),
+                SizedBox(height: 32),
                 if (inviteCode != null) ...[
                   InviteBanner(code: inviteCode, onDismiss: links.clear),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                 ],
                 _AuthForm(
                   busy: state.bootstrapping,
@@ -45,11 +46,11 @@ class AuthScreen extends WatchingWidget {
                   onSignUp: state.signUp,
                   inviteCode: inviteCode,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 const _ServerHint(),
                 // Above the server hint: a policy link is about the service, and
                 // Google's OAuth review looks for it on the page users land on.
-                const Center(child: PrivacyPolicyLink()),
+                Center(child: PrivacyPolicyLink()),
               ],
             ),
           ),
@@ -66,13 +67,13 @@ class _Brand extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const BrandLogo(size: 96),
-        const SizedBox(height: 16),
+        BrandLogo(size: 96),
+        SizedBox(height: 16),
         Text(
           'Ratatosk',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           'Messages, groups and invitations',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -96,7 +97,7 @@ class InviteBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: scheme.primaryContainer,
         borderRadius: BorderRadius.circular(12),
@@ -104,7 +105,7 @@ class InviteBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.mail_outline, color: scheme.onPrimaryContainer),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Text(
               'You have an invitation. Sign in or create an account to accept it.',
@@ -113,7 +114,7 @@ class InviteBanner extends StatelessWidget {
           ),
           IconButton(
             onPressed: onDismiss,
-            icon: const Icon(Icons.close),
+            icon: Icon(Icons.close),
             tooltip: 'Dismiss',
           ),
         ],
@@ -186,30 +187,30 @@ class _AuthFormState extends State<_AuthForm> {
           TextField(
             controller: _displayName,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              hintText: 'Your name (optional)',
+            decoration: InputDecoration(
+              hintText: tr(context, 'Your name (optional)'),
               prefixIcon: Icon(Icons.badge_outlined),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
         ],
         TextField(
           controller: _username,
           autocorrect: false,
           textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(
-            hintText: 'Username',
+          decoration: InputDecoration(
+            hintText: tr(context, 'Username'),
             prefixIcon: Icon(Icons.alternate_email),
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         TextField(
           controller: _password,
           obscureText: _obscure,
           onSubmitted: (_) => _submit(),
           decoration: InputDecoration(
-            hintText: 'Password',
-            prefixIcon: const Icon(Icons.lock_outline),
+            hintText: tr(context, 'Password'),
+            prefixIcon: Icon(Icons.lock_outline),
             suffixIcon: IconButton(
               icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
               onPressed: () => setState(() => _obscure = !_obscure),
@@ -217,22 +218,22 @@ class _AuthFormState extends State<_AuthForm> {
           ),
         ),
         if (error != null) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             error,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ],
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         FilledButton(
           onPressed: widget.busy ? null : _submit,
           style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            padding: EdgeInsets.symmetric(vertical: 16),
+            textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           child: Text(_registering ? 'Create account' : 'Sign in'),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         TextButton(
           onPressed: widget.busy
               ? null
@@ -262,7 +263,7 @@ class _ServerHint extends WatchingWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(Icons.dns_outlined, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Flexible(
           child: Text(
             backend.baseUrl.toString(),
@@ -274,7 +275,7 @@ class _ServerHint extends WatchingWidget {
         ),
         TextButton(
           onPressed: () => showServerDialog(context),
-          child: const Text('Change'),
+          child: Text(tr(context, 'Change')),
         ),
       ],
     );
@@ -290,17 +291,17 @@ Future<void> showServerDialog(BuildContext context) async {
   final result = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Server address'),
+      title: Text('Server address'),
       content: TextField(
         controller: controller,
         autocorrect: false,
-        decoration: const InputDecoration(hintText: 'https://chat.example'),
+        decoration: InputDecoration(hintText: 'https://chat.example'),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr(context, 'Cancel'))),
         FilledButton(
           onPressed: () => Navigator.pop(context, controller.text.trim()),
-          child: const Text('Save'),
+          child: Text(tr(context, 'Save')),
         ),
       ],
     ),
@@ -314,10 +315,10 @@ Future<void> showServerDialog(BuildContext context) async {
   await showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Restart to apply'),
+      title: Text('Restart to apply'),
       content: Text('Ratatosk will use $uri after a restart.'),
       actions: [
-        FilledButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        FilledButton(onPressed: () => Navigator.pop(context), child: Text('OK')),
       ],
     ),
   );

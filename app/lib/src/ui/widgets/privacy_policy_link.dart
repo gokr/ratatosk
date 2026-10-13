@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../language.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../api/backend.dart';
@@ -41,7 +42,7 @@ class PrivacyPolicyLink extends StatelessWidget {
     return TextButton(
       onPressed: () => openPrivacyPolicy(context),
       child: Text(
-        'Privacy policy',
+        tr(context, 'Privacy policy'),
         style: TextStyle(
           fontSize: 12,
           color: Theme.of(context).colorScheme.onSurfaceVariant,

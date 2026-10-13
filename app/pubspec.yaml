@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   # Generated clients and the Connect protocol itself.
   connectrpc: ^2.0.0
   # End-to-end encryption: X25519, Ed25519, HKDF-SHA256, XChaCha20-Poly1305.

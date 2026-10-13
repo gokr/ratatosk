@@ -15,7 +15,7 @@ class ChatFormat {
     final local = when.toLocal();
     final daysAgo = _daysAgo(local);
     if (daysAgo <= 0) return _time(local, use24Hour);
-    if (daysAgo == 1) return 'Yesterday';
+    if (daysAgo == 1) return Intl.getCurrentLocale().startsWith('sv') ? 'Igår' : 'Yesterday';
     if (daysAgo < 7) return DateFormat.E().format(local);
     if (local.year == DateTime.now().year) return DateFormat.MMMd().format(local);
     return DateFormat.yMd().format(local);
@@ -33,8 +33,8 @@ class ChatFormat {
   static String dayLabel(DateTime when) {
     final local = when.toLocal();
     final daysAgo = _daysAgo(local);
-    if (daysAgo <= 0) return 'Today';
-    if (daysAgo == 1) return 'Yesterday';
+    if (daysAgo <= 0) return Intl.getCurrentLocale().startsWith('sv') ? 'Idag' : 'Today';
+    if (daysAgo == 1) return Intl.getCurrentLocale().startsWith('sv') ? 'Igår' : 'Yesterday';
     if (daysAgo < 7) return DateFormat.EEEE().format(local);
     return DateFormat.yMMMMd().format(local);
   }

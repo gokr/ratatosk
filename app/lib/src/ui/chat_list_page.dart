@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../gen/ratatosk/v1/chat.pb.dart';
@@ -44,15 +45,15 @@ class ChatListPage extends WatchingWidget {
       appBar: AppBar(
         title: Row(
           children: [
-            const BrandLogo(size: 32),
-            const SizedBox(width: 10),
-            const Text('Chats', style: TextStyle(fontWeight: FontWeight.w700)),
+            BrandLogo(size: 32),
+            SizedBox(width: 10),
+            Text(tr(context, 'Chats'), style: TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
         actions: [
           if (!state.realtimeConnected)
             Padding(
-              padding: const EdgeInsets.only(right: 4),
+              padding: EdgeInsets.only(right: 4),
               child: Tooltip(
                 message: 'Reconnecting…',
                 child: Icon(
@@ -64,14 +65,14 @@ class ChatListPage extends WatchingWidget {
             ),
           IconButton(
             tooltip: 'Invite someone',
-            icon: const Icon(Icons.person_add_alt),
+            icon: Icon(Icons.person_add_alt),
             onPressed: () => showInviteSheet(context),
           ),
           IconButton(
-            tooltip: 'Settings',
-            icon: const Icon(Icons.settings_outlined),
+            tooltip: tr(context, 'Settings'),
+            icon: Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsPage()),
+              MaterialPageRoute(builder: (_) => SettingsPage()),
             ),
           ),
         ],
@@ -79,7 +80,7 @@ class ChatListPage extends WatchingWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () => showNewChatSheet(context),
         tooltip: 'New conversation',
-        child: const Icon(Icons.edit_outlined),
+        child: Icon(Icons.edit_outlined),
       ),
       body: RefreshIndicator(
         onRefresh: state.refresh,
@@ -87,11 +88,11 @@ class ChatListPage extends WatchingWidget {
             ? _EmptyList(onStart: () => showNewChatSheet(context))
             : ListView.separated(
                 itemCount: ids.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, __) => Divider(height: 1),
                 itemBuilder: (context, index) {
                   final id = ids[index];
                   final conversation = state.conversation(id);
-                  if (conversation == null) return const SizedBox.shrink();
+                  if (conversation == null) return SizedBox.shrink();
                   return _ConversationTile(
                     conversation: conversation,
                     selected: id == selectedConversationId,
@@ -143,7 +144,7 @@ class _ConversationTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
               if (peer != null)
@@ -163,7 +164,7 @@ class _ConversationTile extends StatelessWidget {
                   id: conversation.id,
                   size: 52,
                 ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,7 +173,7 @@ class _ConversationTile extends StatelessWidget {
                       children: [
                         if (conversation.pinned)
                           Padding(
-                            padding: const EdgeInsets.only(right: 4),
+                            padding: EdgeInsets.only(right: 4),
                             child: Icon(Icons.push_pin, size: 13, color: RatatoskTheme.of(context).timestamp),
                           ),
                         Expanded(
@@ -185,7 +186,7 @@ class _ConversationTile extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           ChatFormat.listTimestamp(
                             conversation.hasLastMessage()
@@ -201,12 +202,12 @@ class _ConversationTile extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Row(
                       children: [
                         if (lastMine && conversation.hasLastMessage() && !conversation.lastMessage.deleted)
                           Padding(
-                            padding: const EdgeInsets.only(right: 4),
+                            padding: EdgeInsets.only(right: 4),
                             child: Icon(
                               Icons.done_all,
                               size: 15,
@@ -229,7 +230,7 @@ class _ConversationTile extends StatelessWidget {
                         ),
                         if (conversation.muted)
                           Padding(
-                            padding: const EdgeInsets.only(left: 4),
+                            padding: EdgeInsets.only(left: 4),
                             child: Icon(
                               Icons.notifications_off,
                               size: 14,
@@ -238,9 +239,9 @@ class _ConversationTile extends StatelessWidget {
                           ),
                         if (isUnread)
                           Container(
-                            margin: const EdgeInsets.only(left: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            constraints: const BoxConstraints(minWidth: 20),
+                            margin: EdgeInsets.only(left: 6),
+                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            constraints: BoxConstraints(minWidth: 20),
                             decoration: BoxDecoration(
                               color: scheme.primary,
                               borderRadius: BorderRadius.circular(10),
@@ -248,7 +249,7 @@ class _ConversationTile extends StatelessWidget {
                             child: Text(
                               '$unread',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -277,35 +278,35 @@ class _EmptyList extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: AlwaysScrollableScrollPhysics(),
         child: SizedBox(
           height: constraints.maxHeight,
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(32),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.forum_outlined, size: 56, color: RatatoskTheme.of(context).timestamp),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text('No conversations yet', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'Start a chat with someone, or send them an invitation link.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: RatatoskTheme.of(context).timestamp),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   FilledButton.icon(
                     onPressed: onStart,
-                    icon: const Icon(Icons.add_comment_outlined),
-                    label: const Text('New conversation'),
+                    icon: Icon(Icons.add_comment_outlined),
+                    label: Text('New conversation'),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => showInviteSheet(context),
-                    icon: const Icon(Icons.link),
-                    label: const Text('Create an invitation link'),
+                    icon: Icon(Icons.link),
+                    label: Text('Create an invitation link'),
                   ),
                 ],
               ),

@@ -23,6 +23,18 @@ class SessionStore {
     await prefs.setBool(_recoveryAskedKey, true);
   }
 
+  Future<String?> readLanguage() async =>
+      (await SharedPreferences.getInstance()).getString('ratatosk.language');
+
+  Future<void> writeLanguage(String? value) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (value == null) {
+      await prefs.remove('ratatosk.language');
+    } else {
+      await prefs.setString('ratatosk.language', value);
+    }
+  }
+
   Future<bool?> readClockFormat() async =>
       (await SharedPreferences.getInstance()).getBool('ratatosk.clock24');
 

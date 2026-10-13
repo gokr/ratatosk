@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'profile_photo.dart';
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../api/backend.dart';
@@ -32,16 +33,16 @@ class SettingsPage extends WatchingWidget {
     final contacts = state.contacts;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(tr(context, 'Settings'))),
       body: ListView(
         children: [
           if (me != null)
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Row(
                 children: [
                   Avatar.user(me, size: 64, resolveUrl: state.fileUrl),
-                  const SizedBox(width: 16),
+                  SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,30 +57,47 @@ class SettingsPage extends WatchingWidget {
                         ),
                         if (me.bio.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4),
+                            padding: EdgeInsets.only(top: 4),
                             child: Text(me.bio),
                           ),
                       ],
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Edit profile',
-                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: tr(context, 'Edit profile'),
+                    icon: Icon(Icons.edit_outlined),
                     onPressed: () => _showProfileDialog(context),
                   ),
                 ],
               ),
             ),
-          const Divider(),
+          Divider(),
           ListTile(
-            leading: const Icon(Icons.schedule),
-            title: const Text('Timestamp format'),
+            leading: Icon(Icons.language),
+            title: Text(tr(context, 'Language')),
+            trailing: DropdownButton<String>(
+              value: state.language ?? 'system',
+              items: [
+                DropdownMenuItem(value: 'system', child: Text(tr(context, 'System default'))),
+                DropdownMenuItem(value: 'en', child: Text('English')),
+                DropdownMenuItem(value: 'sv', child: Text('Svenska')),
+              ],
+              onChanged: (value) async {
+                final language = value == 'system' ? null : value;
+                state.setLanguage(language);
+                await di<SessionStore>().writeLanguage(language);
+              },
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.schedule),
+            title: Text(tr(context, 'Timestamp format')),
             trailing: DropdownButton<String>(
               value: state.use24Hour == null ? 'system' : state.use24Hour! ? '24' : '12',
-              items: const [
-                DropdownMenuItem(value: 'system', child: Text('System default')),
-                DropdownMenuItem(value: '12', child: Text('12-hour')),
-                DropdownMenuItem(value: '24', child: Text('24-hour')),
+              items: [
+                DropdownMenuItem(value: 'system', child: Text(tr(context, 'System default'))),
+                DropdownMenuItem(value: '12', child: Text(tr(context, '12-hour'))),
+                DropdownMenuItem(value: '24', child: Text(tr(context, '24-hour'))),
               ],
               onChanged: (value) async {
                 final format = value == 'system' ? null : value == '24';
@@ -89,29 +107,29 @@ class SettingsPage extends WatchingWidget {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.dns_outlined),
-            title: const Text('Server'),
+            leading: Icon(Icons.dns_outlined),
+            title: Text(tr(context, 'Server')),
             subtitle: Text(di<ChatBackend>().baseUrl.toString()),
             onTap: () => showServerDialog(context),
           ),
           ListTile(
             leading: Icon(state.realtimeConnected ? Icons.cloud_done : Icons.cloud_off),
-            title: const Text('Realtime connection'),
+            title: Text(tr(context, 'Realtime connection')),
             subtitle: Text(state.realtimeConnected ? 'Connected' : 'Reconnecting…'),
             trailing: IconButton(
               tooltip: 'Reconnect now',
-              icon: const Icon(Icons.refresh),
+              icon: Icon(Icons.refresh),
               onPressed: state.refresh,
             ),
           ),
-          const Divider(),
+          Divider(),
           ListTile(
-            leading: const Icon(Icons.notifications_outlined),
-            title: const Text('Message notifications'),
+            leading: Icon(Icons.notifications_outlined),
+            title: Text(tr(context, 'Message notifications')),
             subtitle: Text('${push.message}\nRequires HTTPS. On iOS/iPadOS 16.4+, use Share → Add to Home Screen, then open the installed app.'),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: 16),
             child: Wrap(spacing: 12, children: [
               FilledButton(
                 onPressed: push.canEnable ? push.enable : null,
@@ -120,45 +138,45 @@ class SettingsPage extends WatchingWidget {
               if (push.subscribed)
                 OutlinedButton(
                   onPressed: push.busy ? null : push.disable,
-                  child: const Text('Disable notifications'),
+                  child: Text(tr(context, 'Disable notifications')),
                 ),
               TextButton(
                 onPressed: push.busy ? null : push.init,
-                child: const Text('Refresh status'),
+                child: Text(tr(context, 'Refresh status')),
               ),
             ]),
           ),
-          const Divider(),
+          Divider(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text('Contacts (${contacts.length})',
                 style: Theme.of(context).textTheme.titleMedium),
           ),
           if (contacts.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text('No contacts yet. Invite someone to get started.'),
             )
           else
             ...contacts.map((contact) => _ContactTile(contact: contact)),
-          const Divider(),
+          Divider(),
           ListTile(
             leading: Icon(Icons.delete_forever_outlined, color: Theme.of(context).colorScheme.error),
             title: Text(
               'Delete account',
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            subtitle: const Text('Permanently removes your account and your messages'),
+            subtitle: Text('Permanently removes your account and your messages'),
             onTap: () => confirmDeleteAccount(context),
           ),
           ListTile(
-            leading: const Icon(Icons.key_outlined),
-            title: const Text('Key recovery'),
-            subtitle: const Text('Read your messages after reinstalling or a new phone'),
+            leading: Icon(Icons.key_outlined),
+            title: Text(tr(context, 'Key recovery')),
+            subtitle: Text('Read your messages after reinstalling or a new phone'),
             onTap: () => showKeyRecoveryDialog(context),
           ),
-          const Center(child: PrivacyPolicyLink()),
-          const Divider(),
+          Center(child: PrivacyPolicyLink()),
+          Divider(),
           ListTile(
             leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
             title: Text(
@@ -175,11 +193,11 @@ class SettingsPage extends WatchingWidget {
               if (navigator.canPop()) navigator.pop();
             },
           ),
-          const ListTile(
+          ListTile(
             title: Text('Client build'),
             subtitle: SelectableText(String.fromEnvironment('BUILD_ID', defaultValue: 'dev')),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
         ],
       ),
     );
@@ -208,7 +226,7 @@ class _ContactTile extends StatelessWidget {
       subtitle: Text('@${user.username}'),
       trailing: IconButton(
         tooltip: 'Remove contact',
-        icon: const Icon(Icons.person_remove_outlined),
+        icon: Icon(Icons.person_remove_outlined),
         onPressed: () => state.removeContact(user.id),
       ),
     );
@@ -264,7 +282,7 @@ class _ProfileDialogState extends State<_ProfileDialog> {
     final state = di<AppState>();
     final me = state.me;
     return AlertDialog(
-      title: const Text('Edit profile'),
+      title: Text(tr(context, 'Edit profile')),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -274,37 +292,37 @@ class _ProfileDialogState extends State<_ProfileDialog> {
             children: [
               if (me != null)
                 Center(child: Avatar.user(me, size: 72, resolveUrl: state.fileUrl)),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
                 TextButton.icon(
-                  icon: const Icon(Icons.photo),
-                  label: const Text('Upload picture'),
+                  icon: Icon(Icons.photo),
+                  label: Text('Upload picture'),
                   onPressed: () => _chooseProfilePhoto(context),
                 ),
                 TextButton(
                   onPressed: () => _useGravatar(context),
-                  child: const Text('Use Gravatar'),
+                  child: Text('Use Gravatar'),
                 ),
                 TextButton(
                   onPressed: () => state.updateProfile(clearAvatar: true),
-                  child: const Text('Remove picture'),
+                  child: Text('Remove picture'),
                 ),
               ]),
-              const SizedBox(height: 8),
-              const Text(
+              SizedBox(height: 8),
+              Text(
                 'Profile pictures are shared profile data, not encrypted chat attachments.',
                 style: TextStyle(fontSize: 12),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               TextField(
                 controller: _name,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: tr(context, 'Name')),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _bio,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'About'),
+                decoration: InputDecoration(labelText: tr(context, 'About')),
               ),
             ],
           ),
@@ -313,12 +331,12 @@ class _ProfileDialogState extends State<_ProfileDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(tr(context, 'Cancel')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(
               context, (name: _name.text.trim(), bio: _bio.text.trim())),
-          child: const Text('Save'),
+          child: Text(tr(context, 'Save')),
         ),
       ],
     );
@@ -329,7 +347,7 @@ Future<void> _chooseProfilePhoto(BuildContext context) async {
   final state = di<AppState>();
   try {
     final file = await openFile(acceptedTypeGroups: [
-      const XTypeGroup(label: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'webp'],
+      XTypeGroup(label: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'webp'],
           mimeTypes: ['image/png', 'image/jpeg', 'image/webp']),
     ]);
     if (file == null) return;
@@ -353,14 +371,14 @@ Future<void> _useGravatar(BuildContext context) async {
   final state = di<AppState>();
   final controller = TextEditingController();
   final email = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
-    title: const Text('Use Gravatar'),
+    title: Text('Use Gravatar'),
     content: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('This contacts Gravatar with an email hash and your IP address. '
+      Text('This contacts Gravatar with an email hash and your IP address. '
           'The downloaded picture is uploaded to Ratatosk; your email is not saved.'),
-      TextField(controller: controller, decoration: const InputDecoration(labelText: 'Gravatar email')),
+      TextField(controller: controller, decoration: InputDecoration(labelText: 'Gravatar email')),
     ]),
-    actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-      FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('Import'))],
+    actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(tr(context, 'Cancel'))),
+      FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: Text('Import'))],
   ));
   controller.dispose();
   if (email == null) return;
@@ -411,7 +429,7 @@ Future<void> confirmDeleteAccount(BuildContext context) async {
   }
 
   // Signed out by the manager; drop the settings screen with it.
-  messenger?.showSnackBar(const SnackBar(
+  messenger?.showSnackBar(SnackBar(
     content: Text('Your account has been deleted.'),
   ));
   if (navigator.canPop()) navigator.pop();
@@ -444,7 +462,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Delete your account?'),
+      title: Text('Delete your account?'),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -452,33 +470,33 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'This cannot be undone, and there is no way to recover the account '
                 'or its messages afterwards.',
               ),
-              const SizedBox(height: 12),
-              const Text('It removes:'),
-              const SizedBox(height: 4),
-              const Text('\u2022 your account and profile\n'
+              SizedBox(height: 12),
+              Text('It removes:'),
+              SizedBox(height: 4),
+              Text('\u2022 your account and profile\n'
                   '\u2022 every direct conversation you are part of, with its messages\n'
                   '\u2022 your uploaded files\n'
                   '\u2022 your devices and their encryption keys\n'
                   '\u2022 all sessions, so you are signed out everywhere'),
-              const SizedBox(height: 12),
-              const Text(
+              SizedBox(height: 12),
+              Text(
                 // Promising "everything" and then keeping some of it would be a
                 // lie: this store keeps messages gapless, so a group's history
                 // stays for the members who remain.
                 'Messages you sent in a group stay for the other members.',
                 style: TextStyle(fontSize: 12),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               TextField(
                 controller: _controller,
                 obscureText: true,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Your password',
+                decoration: InputDecoration(
+                  labelText: tr(context, 'Your password'),
                   helperText: 'Confirms it is really you',
                 ),
                 onSubmitted: (_) => _submit(),
@@ -490,14 +508,14 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Keep my account'),
+          child: Text(tr(context, 'Keep my account')),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
           onPressed: _submit,
-          child: const Text('Delete everything'),
+          child: Text(tr(context, 'Delete everything')),
         ),
       ],
     );
@@ -519,7 +537,7 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
   final choice = await showDialog<String>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Key recovery'),
+      title: Text(tr(context, 'Key recovery')),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -535,8 +553,8 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
                       'recovery passphrase, reinstalling the app or moving to a new '
                       'phone means messages you already received stay unreadable '
                       'for good.'),
-              const SizedBox(height: 12),
-              const Text(
+              SizedBox(height: 12),
+              Text(
                 'The passphrase encrypts your keys before they are stored on the '
                 'server. The server cannot read them, and nobody — including us — '
                 'can reset the passphrase.',
@@ -549,16 +567,16 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Close'),
+          child: Text(tr(context, 'Close')),
         ),
         if (hasBackup)
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, 'remove'),
-            child: const Text('Remove backup'),
+            child: Text(tr(context, 'Remove backup')),
           ),
         TextButton(
           onPressed: () => Navigator.pop(dialogContext, 'restore'),
-          child: const Text('Restore'),
+          child: Text(tr(context, 'Restore')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext, hasBackup ? 'change' : 'set'),
@@ -572,7 +590,7 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
   switch (choice) {
     case 'remove':
       if (await state.removeKeyRecovery()) {
-        messenger?.showSnackBar(const SnackBar(
+        messenger?.showSnackBar(SnackBar(
           content: Text('Backup removed. Your messages on this device are unaffected.'),
         ));
       } else {
@@ -584,7 +602,7 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
       final passphrase = await _askPassphrase(context, confirm: true);
       if (passphrase == null || !context.mounted) return;
       if (await state.setUpKeyRecovery(passphrase)) {
-        messenger?.showSnackBar(const SnackBar(
+        messenger?.showSnackBar(SnackBar(
           content: Text('Recovery is on. Keep that passphrase somewhere safe.'),
         ));
       } else {
@@ -595,7 +613,7 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
       final passphrase = await _askPassphrase(context, confirm: false);
       if (passphrase == null || !context.mounted) return;
       if (await state.restoreKeyRecovery(passphrase)) {
-        messenger?.showSnackBar(const SnackBar(
+        messenger?.showSnackBar(SnackBar(
           content: Text('Keys restored. Messages you could read before should be back.'),
         ));
       } else {
@@ -662,7 +680,7 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.confirm)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
                   'Write it down and keep it somewhere you will still have it after '
@@ -674,21 +692,21 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
               controller: _passphrase,
               obscureText: true,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Passphrase'),
+              decoration: InputDecoration(labelText: 'Passphrase'),
               onSubmitted: widget.confirm ? null : (_) => _submit(),
             ),
             if (widget.confirm) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _again,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Passphrase again'),
+                decoration: InputDecoration(labelText: 'Passphrase again'),
                 onSubmitted: (_) => _submit(),
               ),
             ],
             if (_problem != null)
               Padding(
-                padding: const EdgeInsets.only(top: 12),
+                padding: EdgeInsets.only(top: 12),
                 child: Text(_problem!,
                     style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
@@ -696,8 +714,8 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: _submit, child: const Text('Continue')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr(context, 'Cancel'))),
+        FilledButton(onPressed: _submit, child: Text(tr(context, 'Continue'))),
       ],
     );
   }

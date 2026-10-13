@@ -110,6 +110,13 @@ class AppState extends ChangeNotifier {
   String? _token;
   void Function(String token) _persistToken = _ignoreToken;
 
+  String? _language;
+  String? get language => _language;
+  void setLanguage(String? value) {
+    _language = value == 'sv' || value == 'en' ? value : null;
+    _notify();
+  }
+
   bool? _use24Hour;
   bool? get use24Hour => _use24Hour;
   void setClockFormat(bool? value) {

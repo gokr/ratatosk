@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../../crypto/manager.dart';
@@ -61,7 +62,7 @@ class MessageBubble extends StatelessWidget {
     // A system note ("Ada added Grace") is a quiet centered line, not a bubble.
     if (message.kind == MessageKind.MESSAGE_KIND_SYSTEM) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 24),
         child: Text(
           message.text,
           textAlign: TextAlign.center,
@@ -76,14 +77,14 @@ class MessageBubble extends StatelessWidget {
 
     final bubble = Container(
       constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.72),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: message.deleted ? bubbleColor.withValues(alpha: 0.6) : bubbleColor,
         borderRadius: BorderRadius.only(
           topLeft: colors.bubbleRadius,
           topRight: colors.bubbleRadius,
-          bottomLeft: isMine ? colors.bubbleRadius : const Radius.circular(4),
-          bottomRight: isMine ? const Radius.circular(4) : colors.bubbleRadius,
+          bottomLeft: isMine ? colors.bubbleRadius : Radius.circular(4),
+          bottomRight: isMine ? Radius.circular(4) : colors.bubbleRadius,
         ),
       ),
       child: Column(
@@ -92,7 +93,7 @@ class MessageBubble extends StatelessWidget {
         children: [
           if (showSender && !isMine && isGroup)
             Padding(
-              padding: const EdgeInsets.only(bottom: 2),
+              padding: EdgeInsets.only(bottom: 2),
               child: Text(
                 sender,
                 style: TextStyle(
@@ -120,7 +121,7 @@ class MessageBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.lock_clock, size: 14, color: textColor.withValues(alpha: 0.8)),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Flexible(
                   child: Text(
                     body.unreadable ?? 'This message cannot be read',
@@ -146,7 +147,7 @@ class MessageBubble extends StatelessWidget {
                 child: Text(body.text, style: TextStyle(color: textColor, fontSize: 15, height: 1.3)),
               ),
           ],
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           _Meta(
             time: ChatFormat.bubbleTime(message.createdAt.toDateTime(), use24Hour: state.use24Hour),
             edited: message.hasEditedAt() && !message.deleted,
@@ -173,7 +174,7 @@ class MessageBubble extends StatelessWidget {
         ),
         if (reactions.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+            padding: EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Wrap(
               spacing: 4,
               children: reactions
@@ -187,20 +188,20 @@ class MessageBubble extends StatelessWidget {
           ),
         if (entry.state == SendState.failed)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: EdgeInsets.only(top: 4),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.error_outline, size: 14, color: scheme.error),
-                const SizedBox(width: 4),
-                Text('Not sent', style: TextStyle(color: scheme.error, fontSize: 12)),
+                SizedBox(width: 4),
+                Text(tr(context, 'Not sent'), style: TextStyle(color: scheme.error, fontSize: 12)),
                 TextButton(
                   onPressed: onRetry,
                   style: TextButton.styleFrom(
-                    minimumSize: const Size(0, 28),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size(0, 28),
+                    padding: EdgeInsets.symmetric(horizontal: 8),
                   ),
-                  child: const Text('Retry'),
+                  child: Text(tr(context, 'Retry')),
                 ),
               ],
             ),
@@ -219,7 +220,7 @@ class MessageBubble extends StatelessWidget {
               width: 36,
               child: showAvatar
                   ? Padding(
-                      padding: const EdgeInsets.only(right: 4, bottom: 2),
+                      padding: EdgeInsets.only(right: 4, bottom: 2),
                       child: Avatar.user(
                         _userOf(message),
                         size: 28,
@@ -250,12 +251,12 @@ class MessageBubble extends StatelessWidget {
   /// A stable colour per sender, so names in a group are easy to tell apart.
   Color _senderColor(ColorScheme scheme, String name) {
     final palette = [
-      const Color(0xFF1DA1F2),
-      const Color(0xFF17BF63),
-      const Color(0xFFF45D22),
-      const Color(0xFF794BC4),
-      const Color(0xFFE0245E),
-      const Color(0xFF00B7C2),
+      Color(0xFF1DA1F2),
+      Color(0xFF17BF63),
+      Color(0xFFF45D22),
+      Color(0xFF794BC4),
+      Color(0xFFE0245E),
+      Color(0xFF00B7C2),
     ];
     return palette[name.hashCode.abs() % palette.length];
   }
@@ -274,7 +275,7 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: emojis
@@ -296,17 +297,17 @@ class MessageBubble extends StatelessWidget {
                             Navigator.pop(sheetContext);
                           },
                           child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                            padding: EdgeInsets.all(8),
+                            child: Text(emoji, style: TextStyle(fontSize: 26)),
                           ),
                         ))
                     .toList(),
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.reply),
-              title: const Text('Reply'),
+              leading: Icon(Icons.reply),
+              title: Text(tr(context, 'Reply')),
               onTap: () {
                 Navigator.pop(sheetContext);
                 onReply?.call();
@@ -314,8 +315,8 @@ class MessageBubble extends StatelessWidget {
             ),
             if (canEdit)
               ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Edit'),
+                leading: Icon(Icons.edit_outlined),
+                title: Text(tr(context, 'Edit')),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   onEdit?.call();
@@ -323,8 +324,8 @@ class MessageBubble extends StatelessWidget {
               ),
             if (isMine && !entry.message.deleted && !entry.isPending)
               ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Delete'),
+                leading: Icon(Icons.delete_outline),
+                title: Text(tr(context, 'Delete')),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   onDelete?.call();
@@ -361,8 +362,8 @@ class _ReplyQuote extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        margin: EdgeInsets.only(bottom: 4),
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
@@ -414,11 +415,11 @@ class _Attachments extends StatelessWidget {
       children: attachments.map((attachment) {
         if (attachment.isImage) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: EdgeInsets.only(bottom: 4),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 260, maxWidth: 260),
+                constraints: BoxConstraints(maxHeight: 260, maxWidth: 260),
                 child: EncryptedImage(
                   attachment: attachment,
                   url: resolveUrl('/files/${attachment.blobId}'),
@@ -447,8 +448,8 @@ class _FileChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      margin: EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
@@ -456,8 +457,8 @@ class _FileChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.insert_drive_file_outlined, size: 20),
-          const SizedBox(width: 8),
+          Icon(Icons.insert_drive_file_outlined, size: 20),
+          SizedBox(width: 8),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,11 +467,11 @@ class _FileChip extends StatelessWidget {
                 Text(
                   attachment.filename,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 ),
                 Text(
                   ChatFormat.fileSize(attachment.size),
-                  style: const TextStyle(fontSize: 11),
+                  style: TextStyle(fontSize: 11),
                 ),
               ],
             ),
@@ -505,11 +506,11 @@ class _Meta extends StatelessWidget {
       children: [
         if (edited) ...[
           Text('edited', style: TextStyle(fontSize: 11, color: color)),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
         ],
         Text(time, style: TextStyle(fontSize: 11, color: color)),
         if (showReceipt) ...[
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Icon(
             seenBy ? Icons.done_all : Icons.done,
             size: 14,
@@ -535,7 +536,7 @@ class _ReactionChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
           color: isMine ? scheme.primaryContainer : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
@@ -547,10 +548,10 @@ class _ReactionChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(reaction.emoji, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 3),
+            Text(reaction.emoji, style: TextStyle(fontSize: 13)),
+            SizedBox(width: 3),
             if (reaction.userIds.length > 1)
-              Text('${reaction.userIds.length}', style: const TextStyle(fontSize: 11)),
+              Text('${reaction.userIds.length}', style: TextStyle(fontSize: 11)),
           ],
         ),
       ),
@@ -567,7 +568,7 @@ class DayDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: EdgeInsets.symmetric(vertical: 12),
       child: Center(
         child: Text(
           label,
@@ -590,7 +591,7 @@ class SeenLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Align(
         alignment: Alignment.centerRight,
         child: Text(

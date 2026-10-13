@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:watch_it/watch_it.dart';
 
 import 'src/api/backend.dart';
@@ -21,6 +24,7 @@ import 'src/state/app_state.dart';
 /// half-built graph.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('sv');
 
   final session = SessionStore();
   final storedBaseUrl = await session.readBaseUrl();
@@ -34,6 +38,7 @@ Future<void> main() async {
   final crypto = CryptoManager(backend: backend, storage: SecureKeyStorage());
   final state = AppState(backend: backend, crypto: crypto);
   state.setClockFormat(await session.readClockFormat());
+  state.setLanguage(await session.readLanguage());
   final links = LinkController();
 
   di.registerSingleton<SessionStore>(session);
@@ -62,8 +67,14 @@ class RatatoskApp extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final state = watchIt<AppState>();
+    final language = state.language ??
+        WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    Intl.defaultLocale = language == 'sv' ? 'sv' : 'en';
     return MaterialApp(
       title: 'Ratatosk',
+      locale: state.language == null ? null : Locale(state.language!),
+      supportedLocales: const [Locale('en'), Locale('sv')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
