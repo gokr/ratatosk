@@ -14,6 +14,8 @@ import 'src/ui/widgets/encrypted_image.dart';
 import 'src/app.dart';
 import 'src/link_controller.dart';
 import 'src/session_store.dart';
+import 'src/ui/google_signin.dart';
+import 'src/ui/web_history_stub.dart';
 import 'src/state/app_state.dart';
 
 /// Wire the app: one instance of each piece, registered with get_it, so any
@@ -41,12 +43,27 @@ Future<void> main() async {
   state.setLanguage(await session.readLanguage());
   final links = LinkController();
 
+  final google = GoogleSignIn(backend: backend);
+
   di.registerSingleton<SessionStore>(session);
+  di.registerSingleton<GoogleSignIn>(google);
   di.registerSingleton<ChatBackend>(backend);
   di.registerSingleton<CryptoManager>(crypto);
   di.registerSingleton<AttachmentCache>(AttachmentCache());
   di.registerSingleton<AppState>(state);
   di.registerSingleton<LinkController>(links);
+
+  // A Google redirect lands here with its result in the query string. Read it
+  // before the first frame so the app opens on the right screen, then strip the
+  // parameters: the pending token is single-use, so leaving it in the address bar
+  // makes a reload look like a failure and parks it in the browser history.
+  await google.load();
+  final callback = readGoogleCallback(Uri.base);
+  if (!callback.isEmpty) {
+    state.handleGoogleResult(callback);
+    // A no-op off the web, where there is no address bar to clean.
+    webHistoryReplace(stripGoogleParams(Uri.base));
+  }
 
   runApp(const RatatoskApp());
 

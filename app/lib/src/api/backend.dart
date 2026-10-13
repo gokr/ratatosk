@@ -31,6 +31,32 @@ class AccountDeletion {
   bool get removedAnything => conversations > 0 || messages > 0 || attachments > 0;
 }
 
+/// Whether this server offers Google sign-in, and where to send the browser.
+class GoogleSignInConfig {
+  const GoogleSignInConfig({
+    required this.enabled,
+    this.clientId = '',
+    this.authorizationEndpoint = '',
+    this.redirectUri = '',
+  });
+
+  final bool enabled;
+  final String clientId;
+  final String authorizationEndpoint;
+  final String redirectUri;
+}
+
+/// How an account can be reached.
+class SignInMethods {
+  const SignInMethods({this.methods = const [], this.googleEmail = ''});
+
+  final List<String> methods;
+  final String googleEmail;
+
+  bool get hasPassword => methods.contains('password');
+  bool get hasGoogle => methods.contains('google');
+}
+
 /// An encrypted key backup as it travels to and from the server.
 ///
 /// Every field is produced on the device; the server stores them without being able
@@ -124,6 +150,22 @@ abstract interface class ChatBackend {
 
   /// Removes the account's backup. The keys on this device are untouched.
   Future<void> deleteKeyBackup();
+
+  /// Whether Google sign-in is offered here. Public: asked before signing in.
+  Future<GoogleSignInConfig> googleSignInConfig();
+
+  /// Completes a Google sign-up: proves the invitation and claims a username.
+  ///
+  /// Returns the session the new account was given.
+  Future<AuthResult> finishGoogleSignUp({
+    required String pendingToken,
+    required String username,
+    required String inviteCode,
+    String displayName,
+  });
+
+  /// The sign-in methods this account has.
+  Future<SignInMethods> signInMethods();
 
   Future<User> updateProfile({
     String? displayName,

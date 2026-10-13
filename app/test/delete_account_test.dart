@@ -10,6 +10,8 @@ import 'package:watch_it/watch_it.dart';
 import 'package:ratatosk/src/crypto/identity.dart';
 import 'package:ratatosk/src/crypto/manager.dart';
 
+import 'package:ratatosk/src/ui/google_signin.dart';
+
 import 'fake_backend.dart';
 
 void main() {
@@ -23,6 +25,7 @@ void main() {
       crypto: CryptoManager(backend: backend, storage: MemoryKeyStorage()),
     );
     di.registerSingleton<ChatBackend>(backend);
+    di.registerSingleton<GoogleSignIn>(GoogleSignIn(backend: backend));
     di.registerSingleton<AppState>(state);
     await state.bootstrap(savedToken: 'fake-token');
   });

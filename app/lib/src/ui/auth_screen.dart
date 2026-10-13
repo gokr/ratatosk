@@ -6,6 +6,7 @@ import '../api/backend.dart';
 import '../link_controller.dart';
 import '../session_store.dart';
 import '../state/app_state.dart';
+import 'google_signin.dart';
 import 'widgets/brand_logo.dart';
 import 'widgets/privacy_policy_link.dart';
 
@@ -21,6 +22,7 @@ class AuthScreen extends WatchingWidget {
   Widget build(BuildContext context) {
     final state = watchIt<AppState>();
     final links = watchIt<LinkController>();
+    watchIt<GoogleSignIn>();
     final inviteCode = links.pendingInviteCode;
 
     return Scaffold(
@@ -38,6 +40,23 @@ class AuthScreen extends WatchingWidget {
                 if (inviteCode != null) ...[
                   InviteBanner(code: inviteCode, onDismiss: links.clear),
                   SizedBox(height: 16),
+                ],
+                // The button appears only when the server says it is configured:
+                // showing it on a server without a client id would be a dead end.
+                if (di<GoogleSignIn>().available) ...[
+                  const GoogleSignInButton(),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(tr(context, 'or'),
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    ),
+                    const Expanded(child: Divider()),
+                  ]),
+                  const SizedBox(height: 16),
                 ],
                 _AuthForm(
                   busy: state.bootstrapping,

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart';
 
 import '../api/backend.dart';
+import '../ui/google_signin.dart';
 import '../crypto/crypto.dart';
 import '../crypto/manager.dart';
 import '../crypto/message_content.dart';
@@ -213,6 +214,82 @@ class AppState extends ChangeNotifier {
     }
     await _forgetSession();
     _notify();
+  }
+
+  /// Where a Google round-trip left the app: a session, a pending registration, or
+  /// a refusal. Held here because the redirect is the app's own navigation, not a
+  /// screen the person chose to visit.
+  GoogleCallbackResult? _googleResult;
+  GoogleCallbackResult? get googleResult => _googleResult;
+
+  /// Records the outcome of a Google round-trip.
+  ///
+  /// A session is adopted straight away — the sign-in already happened, and asking
+  /// for a password afterwards would be absurd. A pending registration waits for the
+  /// sign-up screen to collect a username and an invitation.
+  void handleGoogleResult(GoogleCallbackResult result) {
+    if (result.hasSession) {
+      _adoptToken(result.token!);
+      _googleResult = null;
+    } else {
+      _googleResult = result;
+    }
+    _notify();
+  }
+
+  /// Leaves the Google flow without completing it.
+  void leaveGoogleFlow() {
+    _googleResult = null;
+    _notify();
+  }
+
+  /// Creates an account for a verified Google identity.
+  ///
+  /// The server checks the invitation; this only carries it. A failure keeps the
+  /// pending registration on screen so a mistyped code can be corrected without
+  /// another trip through Google.
+  Future<bool> completeGoogleSignUp({
+    required String pendingToken,
+    required String username,
+    required String inviteCode,
+    String displayName = '',
+  }) async {
+    try {
+      final result = await backend.finishGoogleSignUp(
+        pendingToken: pendingToken,
+        username: username,
+        inviteCode: inviteCode,
+        displayName: displayName,
+      );
+      _googleResult = null;
+      await _adoptToken(result.token);
+      _notify();
+      return true;
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return false;
+    }
+  }
+
+  /// Signs in with a token that came from outside the usual form.
+  Future<void> _adoptToken(String token) async {
+    _token = token;
+    backend.setToken(token);
+    try {
+      _me = await backend.getMe();
+      _signedIn = true;
+      await _setUpEncryption();
+      await _loadInitialData();
+      _startRealtime();
+      _persistToken(token);
+    } catch (error) {
+      if (isAuthFailure(error)) {
+        await _forgetSession();
+      } else {
+        _lastError = describeError(error);
+      }
+    }
   }
 
   /// Whether the account has a key backup, so the UI can offer restore instead of

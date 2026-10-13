@@ -3,6 +3,7 @@ import 'package:watch_it/watch_it.dart';
 
 import 'state/app_state.dart';
 import 'ui/auth_screen.dart';
+import 'ui/google_signup_screen.dart';
 import 'ui/home_shell.dart';
 import 'ui/theme.dart';
 import 'ui/widgets/brand_logo.dart';
@@ -22,6 +23,18 @@ class AppGate extends WatchingWidget {
     final state = watchIt<AppState>();
     if (state.bootstrapping) {
       return const _Splash();
+    }
+    // A Google round-trip that needs finishing takes over the whole screen: it is a
+    // step in signing in, not a place to browse away from.
+    final google = state.googleResult;
+    if (google != null && !state.signedIn) {
+      if (google.hasPending) {
+        return GoogleSignUpScreen(result: google);
+      }
+      if (google.hasError) {
+        return GoogleErrorScreen(message: google.error!);
+      }
+      state.leaveGoogleFlow();
     }
     if (!state.signedIn) {
       return const AuthScreen();

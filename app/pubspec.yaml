@@ -40,6 +40,8 @@ dependencies:
   url_launcher: ^6.3.3
   # QR encoding for invitation links (pure Dart; drawn by our own painter).
   qr: ^4.0.0
+  # The browser's own APIs, behind a conditional import (see url_opener_stub.dart).
+  web: ^1.1.0
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

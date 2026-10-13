@@ -219,6 +219,31 @@ class FakeBackend implements ChatBackend {
     return (token: 'fake-token', user: signedInAs.toProto());
   }
 
+  /// Whether this fake reports Google sign-in as available.
+  bool googleEnabled = false;
+  final List<String> finishedGoogleSignUps = [];
+
+  @override
+  Future<GoogleSignInConfig> googleSignInConfig() async => GoogleSignInConfig(
+        enabled: googleEnabled,
+        authorizationEndpoint: 'https://example.test/auth/google/start',
+      );
+
+  @override
+  Future<AuthResult> finishGoogleSignUp({
+    required String pendingToken,
+    required String username,
+    required String inviteCode,
+    String displayName = '',
+  }) async {
+    finishedGoogleSignUps.add('$pendingToken|$username|$inviteCode');
+    final user = User(id: 'u-goog', username: username, displayName: displayName.isEmpty ? username : displayName);
+    return (token: 'google-token', user: user);
+  }
+
+  @override
+  Future<SignInMethods> signInMethods() async => const SignInMethods(methods: ['password']);
+
   /// The stored key backup, as the real server would hold it.
   KeyBackupPayload? keyBackup;
 

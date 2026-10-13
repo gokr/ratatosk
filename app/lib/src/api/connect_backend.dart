@@ -152,6 +152,42 @@ class ConnectBackend implements ChatBackend {
   }
 
   @override
+  Future<GoogleSignInConfig> googleSignInConfig() async {
+    final response = await auth.googleSignInConfig(GoogleSignInConfigRequest());
+    return GoogleSignInConfig(
+      enabled: response.enabled,
+      clientId: response.clientId,
+      authorizationEndpoint: response.authorizationEndpoint,
+      redirectUri: response.redirectUri,
+    );
+  }
+
+  @override
+  Future<AuthResult> finishGoogleSignUp({
+    required String pendingToken,
+    required String username,
+    required String inviteCode,
+    String displayName = '',
+  }) async {
+    final response = await auth.finishGoogleSignUp(FinishGoogleSignUpRequest(
+      pendingToken: pendingToken,
+      username: username,
+      inviteCode: inviteCode,
+      displayName: displayName,
+    ));
+    return (token: response.token, user: response.user);
+  }
+
+  @override
+  Future<SignInMethods> signInMethods() async {
+    final response = await auth.signInMethods(SignInMethodsRequest());
+    return SignInMethods(
+      methods: response.methods,
+      googleEmail: response.googleEmail,
+    );
+  }
+
+  @override
   Future<void> putKeyBackup(KeyBackupPayload backup) async {
     await keys.putKeyBackup(PutKeyBackupRequest(
       backup: KeyBackup(

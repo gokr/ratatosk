@@ -30,6 +30,8 @@ import 'package:ratatosk/src/ui/widgets/qr_code.dart';
 import 'package:qr/qr.dart';
 import 'package:ratatosk/src/ui/widgets/encrypted_image.dart';
 
+import 'package:ratatosk/src/ui/google_signin.dart';
+
 import 'fake_backend.dart';
 
 /// The other participant, with real keys, so a test can produce messages that
@@ -108,6 +110,7 @@ void main() {
     // The widget tree reaches for these through get_it; registering the fake as
     // the backend is all it takes to run the UI without a network.
     di.registerSingleton<ChatBackend>(backend);
+    di.registerSingleton<GoogleSignIn>(GoogleSignIn(backend: backend));
     di.registerSingleton<CryptoManager>(crypto);
     di.registerSingleton<AttachmentCache>(AttachmentCache());
     di.registerSingleton<AppState>(state);
