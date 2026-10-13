@@ -80,6 +80,24 @@ func (s *Store) OAuthIdentityBySubject(provider, subject string) (*OAuthIdentity
 	return getRow[OAuthIdentity](s, s.sql, "oauth_identities", oauthRowID(provider, subject))
 }
 
+// DeleteOAuthIdentity removes a provider link from an account. An unknown provider is
+// not an error: the caller asked for the link to be gone, and it is.
+func (s *Store) DeleteOAuthIdentity(userID, provider string) error {
+	links := s.OAuthIdentitiesOf(userID)
+	provider = normalizeProvider(provider)
+	for _, link := range links {
+		if link.Provider != provider {
+			continue
+		}
+		if err := s.write(func(tx *sql.Tx) error {
+			return s.remove(tx, "oauth_identities", oauthRowID(link.Provider, link.Subject))
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // OAuthIdentitiesOf lists the sign-in methods an account has.
 func (s *Store) OAuthIdentitiesOf(userID string) []*OAuthIdentity {
 	out, err := listRows[OAuthIdentity](s, s.sql, "oauth_identities", "WHERE owner=?", s.rowID("users", userID))

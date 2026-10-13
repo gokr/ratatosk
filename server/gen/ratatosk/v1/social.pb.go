@@ -106,8 +106,12 @@ type Invite struct {
 	Uses    int32 `protobuf:"varint,6,opt,name=uses,proto3" json:"uses,omitempty"`
 	Revoked bool  `protobuf:"varint,7,opt,name=revoked,proto3" json:"revoked,omitempty"`
 	// Display names of the people who already joined, newest first.
-	RedeemedBy    []string `protobuf:"bytes,8,rep,name=redeemed_by,json=redeemedBy,proto3" json:"redeemed_by,omitempty"`
-	Valid         bool     `protobuf:"varint,9,opt,name=valid,proto3" json:"valid,omitempty"`
+	RedeemedBy []string `protobuf:"bytes,8,rep,name=redeemed_by,json=redeemedBy,proto3" json:"redeemed_by,omitempty"`
+	Valid      bool     `protobuf:"varint,9,opt,name=valid,proto3" json:"valid,omitempty"`
+	// Why it can no longer be used: "revoked", "expired", "exhausted", or empty
+	// while it is still usable. The same vocabulary the invite landing page uses,
+	// so one list and one page cannot disagree about what happened to a link.
+	InvalidReason string `protobuf:"bytes,10,opt,name=invalid_reason,json=invalidReason,proto3" json:"invalid_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -203,6 +207,13 @@ func (x *Invite) GetValid() bool {
 		return x.Valid
 	}
 	return false
+}
+
+func (x *Invite) GetInvalidReason() string {
+	if x != nil {
+		return x.InvalidReason
+	}
+	return ""
 }
 
 type ListContactsRequest struct {
@@ -1053,7 +1064,7 @@ const file_ratatosk_v1_social_proto_rawDesc = "" +
 	"\x04user\x18\x01 \x01(\v2\x11.ratatosk.v1.UserR\x04user\x120\n" +
 	"\x05since\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x12'\n" +
 	"\x0fconversation_id\x18\x03 \x01(\tR\x0econversationId\x12\x18\n" +
-	"\ablocked\x18\x04 \x01(\bR\ablocked\"\xa4\x02\n" +
+	"\ablocked\x18\x04 \x01(\bR\ablocked\"\xcb\x02\n" +
 	"\x06Invite\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x129\n" +
@@ -1066,7 +1077,9 @@ const file_ratatosk_v1_social_proto_rawDesc = "" +
 	"\arevoked\x18\a \x01(\bR\arevoked\x12\x1f\n" +
 	"\vredeemed_by\x18\b \x03(\tR\n" +
 	"redeemedBy\x12\x14\n" +
-	"\x05valid\x18\t \x01(\bR\x05valid\"\x15\n" +
+	"\x05valid\x18\t \x01(\bR\x05valid\x12%\n" +
+	"\x0einvalid_reason\x18\n" +
+	" \x01(\tR\rinvalidReason\"\x15\n" +
 	"\x13ListContactsRequest\"H\n" +
 	"\x14ListContactsResponse\x120\n" +
 	"\bcontacts\x18\x01 \x03(\v2\x14.ratatosk.v1.ContactR\bcontacts\"/\n" +

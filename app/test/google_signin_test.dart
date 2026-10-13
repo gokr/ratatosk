@@ -9,6 +9,7 @@ import 'package:ratatosk/src/state/app_state.dart';
 import 'package:ratatosk/src/ui/google_signin.dart';
 import 'package:ratatosk/src/ui/google_signup_screen.dart';
 import 'package:ratatosk/src/ui/language.dart';
+import 'package:ratatosk/src/ui/signin_methods.dart';
 import 'package:ratatosk/src/ui/theme.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -141,6 +142,37 @@ void main() {
     expect(enabled.available, isTrue);
     expect(enabled.config!.authorizationEndpoint,
         'https://example.test/auth/google/start');
+  });
+
+  testWidgets('an account with a password is offered Google as a second way in',
+      (tester) async {
+    // The exact situation reported: an account made with a password, where signing in
+    // with Google cannot help because nobody had linked the identity. Connecting it is
+    // a distinct action, and this is where it lives.
+    backend.signInMethodsResponse = const SignInMethods(methods: ['password']);
+    await tester.pumpWidget(MaterialApp(
+      theme: RatatoskTheme.light(),
+      home: Scaffold(body: SingleChildScrollView(child: SignInMethodsSection())),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Connect Google'), findsOneWidget);
+    expect(find.text('Disconnect Google'), findsNothing);
+    expect(find.textContaining('second way in'), findsOneWidget);
+  });
+
+  testWidgets('a Google-only account shows it is the only way in', (tester) async {
+    backend.signInMethodsResponse =
+        const SignInMethods(methods: ['google'], googleEmail: 'goran@example.com');
+    await tester.pumpWidget(MaterialApp(
+      theme: RatatoskTheme.light(),
+      home: Scaffold(body: SingleChildScrollView(child: SignInMethodsSection())),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Disconnect Google'), findsOneWidget);
+    expect(find.textContaining('only way'), findsOneWidget);
+    // The connected address is shown, which is how somebody confirms *which* Google
+    // account is attached.
+    expect(find.textContaining('goran@example.com'), findsOneWidget);
   });
 
   testWidgets('Swedish translations cover the Google screens', (tester) async {

@@ -317,3 +317,32 @@ func (s *AuthService) SignInMethods(ctx context.Context, req *connect.Request[ra
 func (s *AuthService) googleRedirectURI() string {
 	return normalPath(s.cfg.PublicURL, oauthCallbackPath)
 }
+
+// GoogleLinkUrl is where to send the browser to connect Google to this account.
+//
+// Requires a bearer token, and the URL it returns is bound to the caller: the
+// callback refuses to attach the identity anywhere else. That binding is what makes
+// this different from the sign-in URL, which anyone may use.
+func (s *AuthService) GoogleLinkUrl(ctx context.Context, req *connect.Request[ratatoskv1.GoogleLinkUrlRequest]) (*connect.Response[ratatoskv1.GoogleLinkUrlResponse], error) {
+	if _, err := s.requireUser(ctx); err != nil {
+		return nil, err
+	}
+	if s.cfg.GoogleClientID == "" {
+		return connect.NewResponse(&ratatoskv1.GoogleLinkUrlResponse{}), nil
+	}
+	return connect.NewResponse(&ratatoskv1.GoogleLinkUrlResponse{
+		Url: normalPath(s.cfg.PublicURL, "/auth/google/link"),
+	}), nil
+}
+
+// UnlinkGoogle removes the connected Google account.
+func (s *AuthService) UnlinkGoogle(ctx context.Context, req *connect.Request[ratatoskv1.UnlinkGoogleRequest]) (*connect.Response[ratatoskv1.UnlinkGoogleResponse], error) {
+	user, err := s.requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.UnlinkGoogleIdentity(ctx, user.ID); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&ratatoskv1.UnlinkGoogleResponse{}), nil
+}

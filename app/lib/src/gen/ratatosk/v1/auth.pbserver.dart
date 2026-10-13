@@ -41,6 +41,10 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $2.GoogleSignInConfigRequest request);
   $async.Future<$2.SignInMethodsResponse> signInMethods(
       $pb.ServerContext ctx, $2.SignInMethodsRequest request);
+  $async.Future<$2.GoogleLinkUrlResponse> googleLinkUrl(
+      $pb.ServerContext ctx, $2.GoogleLinkUrlRequest request);
+  $async.Future<$2.UnlinkGoogleResponse> unlinkGoogle(
+      $pb.ServerContext ctx, $2.UnlinkGoogleRequest request);
 
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
@@ -64,6 +68,10 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
         return $2.GoogleSignInConfigRequest();
       case 'SignInMethods':
         return $2.SignInMethodsRequest();
+      case 'GoogleLinkUrl':
+        return $2.GoogleLinkUrlRequest();
+      case 'UnlinkGoogle':
+        return $2.UnlinkGoogleRequest();
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
@@ -92,6 +100,10 @@ abstract class AuthServiceBase extends $pb.GeneratedService {
         return googleSignInConfig(ctx, request as $2.GoogleSignInConfigRequest);
       case 'SignInMethods':
         return signInMethods(ctx, request as $2.SignInMethodsRequest);
+      case 'GoogleLinkUrl':
+        return googleLinkUrl(ctx, request as $2.GoogleLinkUrlRequest);
+      case 'UnlinkGoogle':
+        return unlinkGoogle(ctx, request as $2.UnlinkGoogleRequest);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }

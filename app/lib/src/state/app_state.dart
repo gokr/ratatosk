@@ -228,6 +228,13 @@ class AppState extends ChangeNotifier {
   /// for a password afterwards would be absurd. A pending registration waits for the
   /// sign-up screen to collect a username and an invitation.
   void handleGoogleResult(GoogleCallbackResult result) {
+    if (result.hasLinkResult) {
+      // Connecting Google to an existing account. The screen that started it shows
+      // the outcome; a session is not involved, because none was issued.
+      _googleResult = result;
+      _notify();
+      return;
+    }
     if (result.hasSession) {
       _adoptToken(result.token!);
       _googleResult = null;
@@ -235,6 +242,26 @@ class AppState extends ChangeNotifier {
       _googleResult = result;
     }
     _notify();
+  }
+
+  /// Where to send the browser to connect Google to this account.
+  Future<String> googleLinkUrl() => backend.googleLinkUrl();
+
+  /// Removes the connected Google account.
+  ///
+  /// Returns false and leaves the message in `lastError` when the server refuses —
+  /// which it does for an account whose only way in is Google, since disconnecting it
+  /// would make the account unreachable.
+  Future<bool> unlinkGoogle() async {
+    try {
+      await backend.unlinkGoogle();
+      _notify();
+      return true;
+    } catch (error) {
+      if (!isAuthFailure(error)) _lastError = describeError(error);
+      _notify();
+      return false;
+    }
   }
 
   /// Leaves the Google flow without completing it.

@@ -167,6 +167,14 @@ abstract interface class ChatBackend {
   /// The sign-in methods this account has.
   Future<SignInMethods> signInMethods();
 
+  /// Where to send the browser to connect Google to this account. Empty when the
+  /// server does not offer Google.
+  Future<String> googleLinkUrl();
+
+  /// Removes the connected Google account. The server refuses when it is the only
+  /// way in, because that would leave the account unreachable.
+  Future<void> unlinkGoogle();
+
   Future<User> updateProfile({
     String? displayName,
     String? bio,

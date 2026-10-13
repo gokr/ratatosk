@@ -373,3 +373,75 @@ func (b *base) CompleteInvite(inv *store.Invite, newUserID string) error {
 	b.broadcastConversationCreated(c, inviter.ID)
 	return nil
 }
+
+// LinkGoogleIdentity attaches a verified Google identity to an existing account.
+//
+// Separate from signing in because the trust is different. Signing in answers "who is
+// this?"; linking has to answer "may this person add this identity to *that*
+// account?" — and the person is already authenticated, so the only new question is
+// whether the identity is spoken for.
+//
+// The one refusal that matters: an identity already linked elsewhere is never moved.
+// Re-pointing it would mean that signing in with Google could take over whichever
+// account happened to be in the URL, so it is an error the person can read instead.
+func (b *base) LinkGoogleIdentity(ctx context.Context, userID string, id *googleid.Identity) error {
+	if id == nil || id.Subject == "" {
+		return errInvalid("that sign-in is missing an identity")
+	}
+	user, err := b.st.UserByID(userID)
+	if err != nil {
+		return errInvalid("this account no longer exists")
+	}
+
+	existing, err := b.st.OAuthIdentityBySubject("google", id.Subject)
+	switch {
+	case err == nil && existing.UserID == user.ID:
+		// Already linked to this very account. Idempotent: connecting twice is not an
+		// error, and saying so beats a message about a conflict that is not one.
+		return nil
+	case err == nil:
+		// Linked to somebody else. Refused, and the message deliberately does not say
+		// whose account it is: that would confirm an account exists to anyone who can
+		// sign in with that Google identity.
+		return errInvalid("that Google account is already connected to a different Ratatosk account")
+	case err != store.ErrNotFound:
+		return err
+	}
+
+	// The identity is free, so attach it.
+	now := now()
+	if err := b.st.PutOAuthIdentity(&store.OAuthIdentity{
+		UserID: user.ID, Provider: "google", Subject: id.Subject,
+		Email: id.Email, EmailVerified: id.EmailVerified, Name: id.Name,
+		CreatedAt: now, LastLogin: now,
+	}); err != nil {
+		return err
+	}
+	b.log.Info("google account connected", "user", user.ID, "username", user.Username)
+	return nil
+}
+
+// UnlinkGoogleIdentity removes a linked Google identity.
+//
+// Refused when it is the account's *only* way in: an account with no password and no
+// linked identity could never be signed into again, and that is a support request
+// nobody can resolve. The check is here rather than in the client because the client
+// is not what makes it true.
+func (b *base) UnlinkGoogleIdentity(ctx context.Context, userID string) error {
+	user, err := b.st.UserByID(userID)
+	if err != nil {
+		return errInvalid("this account no longer exists")
+	}
+	links := b.st.OAuthIdentitiesOf(user.ID)
+	if len(links) == 0 {
+		return errInvalid("no Google account is connected")
+	}
+	if user.PasswordHash == "" {
+		return errInvalid("set a password first: Google is the only way into this account")
+	}
+	if err := b.st.DeleteOAuthIdentity(user.ID, "google"); err != nil {
+		return err
+	}
+	b.log.Info("google account disconnected", "user", user.ID, "username", user.Username)
+	return nil
+}

@@ -8,11 +8,17 @@ import (
 // OAuthState is a one-time value binding a browser to the consent redirect it
 // started, so a callback cannot be forged or replayed.
 type OAuthState struct {
-	State        string    `json:"state"`
-	CodeVerifier string    `json:"codeVerifier"`
-	RedirectURI  string    `json:"redirectUri"`
-	CreatedAt    time.Time `json:"createdAt"`
-	ExpiresAt    time.Time `json:"expiresAt"`
+	State        string `json:"state"`
+	CodeVerifier string `json:"codeVerifier"`
+	RedirectURI  string `json:"redirectUri"`
+	// UserID is set when this attempt is *linking* Google to an existing account
+	// rather than signing in. Its presence is what makes the callback attach the
+	// identity to that account instead of issuing a session for whoever holds the
+	// returned token — the difference between "add a way in to my account" and
+	// "hand somebody else a way in to my account".
+	UserID    string    `json:"userId,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // PutOAuthState stores a pending sign-in attempt.
@@ -27,6 +33,12 @@ func (s *Store) PutOAuthState(st *OAuthState) error {
 	return s.write(func(tx *sql.Tx) error {
 		return s.put(tx, "oauth_states", st.State, st, []string{})
 	})
+}
+
+// OAuthStateByState reads a pending attempt without consuming it. Used while
+// building the consent URL, where consuming it would break the callback.
+func (s *Store) OAuthStateByState(state string) (*OAuthState, error) {
+	return getRow[OAuthState](s, s.sql, "oauth_states", state)
 }
 
 // TakeOAuthState reads and deletes a pending sign-in attempt in one step.

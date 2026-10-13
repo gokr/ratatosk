@@ -101,4 +101,23 @@ abstract final class AuthService {
     ratatoskv1auth.SignInMethodsRequest.new,
     ratatoskv1auth.SignInMethodsResponse.new,
   );
+
+  /// Where to send the browser to connect a Google account to *this* account.
+  /// Distinct from signing in: the attempt is bound to the caller, and its callback
+  /// attaches the identity here rather than issuing a session. An identity already
+  /// connected elsewhere is refused rather than moved.
+  static const googleLinkUrl = connect.Spec(
+    '/$name/GoogleLinkUrl',
+    connect.StreamType.unary,
+    ratatoskv1auth.GoogleLinkUrlRequest.new,
+    ratatoskv1auth.GoogleLinkUrlResponse.new,
+  );
+
+  /// Removes the connected Google account. Refused when it is the only way in.
+  static const unlinkGoogle = connect.Spec(
+    '/$name/UnlinkGoogle',
+    connect.StreamType.unary,
+    ratatoskv1auth.UnlinkGoogleRequest.new,
+    ratatoskv1auth.UnlinkGoogleResponse.new,
+  );
 }

@@ -44,6 +44,14 @@ service AuthService {
   rpc GoogleSignInConfig(GoogleSignInConfigRequest) returns (GoogleSignInConfigResponse) {}
   // The sign-in methods this account has, so Settings can show them.
   rpc SignInMethods(SignInMethodsRequest) returns (SignInMethodsResponse) {}
+  // Where to send the browser to connect a Google account to *this* account.
+  //
+  // Distinct from signing in: the attempt is bound to the caller, and its callback
+  // attaches the identity here rather than issuing a session. An identity already
+  // connected elsewhere is refused rather than moved.
+  rpc GoogleLinkUrl(GoogleLinkUrlRequest) returns (GoogleLinkUrlResponse) {}
+  // Removes the connected Google account. Refused when it is the only way in.
+  rpc UnlinkGoogle(UnlinkGoogleRequest) returns (UnlinkGoogleResponse) {}
 }
 
 message RegisterRequest {
@@ -155,3 +163,14 @@ message SignInMethodsResponse {
   // Set when a Google identity is linked, for display.
   string google_email = 2;
 }
+
+message GoogleLinkUrlRequest {}
+
+message GoogleLinkUrlResponse {
+  // Absolute URL to send the browser to. Empty when Google is not configured here.
+  string url = 1;
+}
+
+message UnlinkGoogleRequest {}
+
+message UnlinkGoogleResponse {}

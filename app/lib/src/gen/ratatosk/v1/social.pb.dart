@@ -134,6 +134,7 @@ class Invite extends $pb.GeneratedMessage {
     $core.bool? revoked,
     $core.Iterable<$core.String>? redeemedBy,
     $core.bool? valid,
+    $core.String? invalidReason,
   }) {
     final result = Invite._();
     if (code != null) result.code = code;
@@ -145,6 +146,7 @@ class Invite extends $pb.GeneratedMessage {
     if (revoked != null) result.revoked = revoked;
     if (redeemedBy != null) result.redeemedBy.addAll(redeemedBy);
     if (valid != null) result.valid = valid;
+    if (invalidReason != null) result.invalidReason = invalidReason;
     return result;
   }
 
@@ -172,6 +174,7 @@ class Invite extends $pb.GeneratedMessage {
     ..aOB(7, _omitFieldNames ? '' : 'revoked')
     ..pPS(8, _omitFieldNames ? '' : 'redeemedBy')
     ..aOB(9, _omitFieldNames ? '' : 'valid')
+    ..aOS(10, _omitFieldNames ? '' : 'invalidReason')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -275,6 +278,18 @@ class Invite extends $pb.GeneratedMessage {
   $core.bool hasValid() => $_has(8);
   @$pb.TagNumber(9)
   void clearValid() => $_clearField(9);
+
+  /// Why it can no longer be used: "revoked", "expired", "exhausted", or empty
+  /// while it is still usable. The same vocabulary the invite landing page uses,
+  /// so one list and one page cannot disagree about what happened to a link.
+  @$pb.TagNumber(10)
+  $core.String get invalidReason => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set invalidReason($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasInvalidReason() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearInvalidReason() => $_clearField(10);
 }
 
 class ListContactsRequest extends $pb.GeneratedMessage {

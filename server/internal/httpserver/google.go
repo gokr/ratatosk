@@ -42,29 +42,82 @@ const googleTokenEndpoint = "https://oauth2.googleapis.com/token"
 // someone to pick an account and consent, short enough to forget an abandoned one.
 const oauthStateLifetime = 10 * time.Minute
 
+// serveGoogleLinkStart begins *linking* Google to the account that started it.
+//
+// Separate from the sign-in start because the two must not be interchangeable: a
+// linking attempt carries the account it belongs to, and its callback attaches the
+// identity there instead of issuing a session. Without that distinction, a linking
+// URL would be a way to sign in as somebody else, or a sign-in URL a way to attach
+// an identity to whoever started it.
+//
+// Requires a bearer token: this is only ever started by a signed-in person.
+func (s *Server) serveGoogleLinkStart(w http.ResponseWriter, r *http.Request) {
+	if !s.google.Available() {
+		s.googleFail(r, w, "Google sign-in is not configured on this server.")
+		return
+	}
+	user, err := s.st.SessionUser(bearerToken(r.Header), time.Now())
+	if err != nil {
+		s.googleFail(r, w, "Sign in before connecting Google.")
+		return
+	}
+	state, err := s.beginGoogle(r, user.ID)
+	if err != nil {
+		s.log.Error("could not store oauth link state", "err", err)
+		s.googleLinkFail(r, w, "Could not start connecting Google. Try again.")
+		return
+	}
+	http.Redirect(w, r, s.googleConsentURL(state), http.StatusFound)
+}
+
 func (s *Server) serveGoogleStart(w http.ResponseWriter, r *http.Request) {
 	if !s.google.Available() {
 		s.googleFail(r, w, "Google sign-in is not configured on this server.")
 		return
 	}
+	state, err := s.beginGoogle(r, "")
+	if err != nil {
+		s.log.Error("could not store oauth state", "err", err)
+		s.googleFail(r, w, "Could not start sign-in. Try again.")
+		return
+	}
+	http.Redirect(w, r, s.googleConsentURL(state), http.StatusFound)
+}
+
+// beginGoogle stores a pending attempt and returns its opaque state.
+//
+// `linkUserID` is empty for signing in and set for linking; it is the single field
+// that decides what the callback does, which is why it is recorded here rather than
+// passed through the browser.
+func (s *Server) beginGoogle(r *http.Request, linkUserID string) (string, error) {
 	// PKCE: the verifier stays here, the challenge goes to Google. Without this a
 	// code intercepted in transit could be exchanged by somebody else.
 	verifier := ids.Token() + ids.Token()
-	sum := sha256.Sum256([]byte(verifier))
-	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
-
 	state := ids.Token()
 	now := time.Now()
 	if err := s.st.PutOAuthState(&store.OAuthState{
 		State:        state,
 		CodeVerifier: verifier,
 		RedirectURI:  s.googleRedirectURI(),
+		UserID:       linkUserID,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(oauthStateLifetime),
 	}); err != nil {
-		s.log.Error("could not store oauth state", "err", err)
-		s.googleFail(r, w, "Could not start sign-in. Try again.")
-		return
+		return "", err
+	}
+	return state, nil
+}
+
+// googleConsentURL is where the browser is sent to ask Google.
+func (s *Server) googleConsentURL(state string) string {
+	// The challenge is recomputed from the stored verifier so the two can never
+	// disagree; a mismatch would fail at the token endpoint with a message that
+	// blames the client.
+	stored, err := s.st.OAuthStateByState(state)
+	challenge := ""
+	if err == nil {
+		sum := sha256.Sum256([]byte(stored.CodeVerifier))
+		challenge = base64.RawURLEncoding.EncodeToString(sum[:])
 	}
 
 	q := url.Values{}
@@ -81,8 +134,7 @@ func (s *Server) serveGoogleStart(w http.ResponseWriter, r *http.Request) {
 	// later, so asking for a refresh token would be collecting a capability we do
 	// not need.
 	q.Set("prompt", "select_account")
-
-	http.Redirect(w, r, s.googleAuthURL()+"?"+q.Encode(), http.StatusFound)
+	return s.googleAuthURL() + "?" + q.Encode()
 }
 
 func (s *Server) serveGoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +170,18 @@ func (s *Server) serveGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if state.UserID != "" {
+		// A linking attempt: attach the identity to the account that started it.
+		// No session is issued and no new account can appear.
+		if err := s.services.Auth.LinkGoogleIdentity(r.Context(), state.UserID, id); err != nil {
+			s.log.Info("google link refused", "user", state.UserID, "err", err)
+			s.googleLinkFail(r, w, err.Error())
+			return
+		}
+		s.googleLinkDone(r, w)
+		return
+	}
+
 	result, err := s.services.Auth.StartGoogleSignIn(r.Context(), id)
 	if err != nil {
 		s.log.Error("google sign-in could not be resolved", "err", err)
@@ -125,6 +189,37 @@ func (s *Server) serveGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.finishGoogle(r, w, result)
+}
+
+// googleLinkDone sends the browser back to the app with a plain success.
+func (s *Server) googleLinkDone(r *http.Request, w http.ResponseWriter) {
+	target, err := url.Parse(s.cfg.PublicURL)
+	if err != nil {
+		http.Error(w, "ok", http.StatusOK)
+		return
+	}
+	q := target.Query()
+	q.Set("google_linked", "1")
+	target.RawQuery = q.Encode()
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, target.String(), http.StatusFound)
+}
+
+// googleLinkFail reports why connecting Google was refused, in the app's own words.
+//
+// The message is one this server chose, never anything a request supplied, and it is
+// passed to the app so the person sees it on the screen they started from.
+func (s *Server) googleLinkFail(r *http.Request, w http.ResponseWriter, message string) {
+	target, err := url.Parse(s.cfg.PublicURL)
+	if err != nil {
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	q := target.Query()
+	q.Set("google_link_error", message)
+	target.RawQuery = q.Encode()
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, target.String(), http.StatusFound)
 }
 
 // exchangeGoogleCode trades the authorization code for the identity it proves.

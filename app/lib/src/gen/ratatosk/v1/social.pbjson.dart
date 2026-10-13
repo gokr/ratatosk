@@ -79,6 +79,7 @@ const Invite$json = {
     {'1': 'revoked', '3': 7, '4': 1, '5': 8, '10': 'revoked'},
     {'1': 'redeemed_by', '3': 8, '4': 3, '5': 9, '10': 'redeemedBy'},
     {'1': 'valid', '3': 9, '4': 1, '5': 8, '10': 'valid'},
+    {'1': 'invalid_reason', '3': 10, '4': 1, '5': 9, '10': 'invalidReason'},
   ],
 };
 
@@ -89,7 +90,7 @@ final $typed_data.Uint8List inviteDescriptor = $convert.base64Decode(
     'cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglleHBpcmVzQXQSGQ'
     'oIbWF4X3VzZXMYBSABKAVSB21heFVzZXMSEgoEdXNlcxgGIAEoBVIEdXNlcxIYCgdyZXZva2Vk'
     'GAcgASgIUgdyZXZva2VkEh8KC3JlZGVlbWVkX2J5GAggAygJUgpyZWRlZW1lZEJ5EhQKBXZhbG'
-    'lkGAkgASgIUgV2YWxpZA==');
+    'lkGAkgASgIUgV2YWxpZBIlCg5pbnZhbGlkX3JlYXNvbhgKIAEoCVINaW52YWxpZFJlYXNvbg==');
 
 @$core.Deprecated('Use listContactsRequestDescriptor instead')
 const ListContactsRequest$json = {

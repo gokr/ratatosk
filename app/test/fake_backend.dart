@@ -242,7 +242,21 @@ class FakeBackend implements ChatBackend {
   }
 
   @override
-  Future<SignInMethods> signInMethods() async => const SignInMethods(methods: ['password']);
+  Future<SignInMethods> signInMethods() async => signInMethodsResponse;
+
+  /// Whether Google is connected to the signed-in account in this fake.
+  bool googleLinked = false;
+
+  /// What SignInMethods reports, so a test can set up an account's ways in.
+  SignInMethods signInMethodsResponse = const SignInMethods(methods: ['password']);
+
+  @override
+  Future<String> googleLinkUrl() async => 'https://example.test/auth/google/link';
+
+  @override
+  Future<void> unlinkGoogle() async {
+    googleLinked = false;
+  }
 
   /// The stored key backup, as the real server would hold it.
   KeyBackupPayload? keyBackup;

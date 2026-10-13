@@ -199,4 +199,43 @@ extension type AuthServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// Where to send the browser to connect a Google account to *this* account.
+  /// Distinct from signing in: the attempt is bound to the caller, and its callback
+  /// attaches the identity here rather than issuing a session. An identity already
+  /// connected elsewhere is refused rather than moved.
+  Future<ratatoskv1auth.GoogleLinkUrlResponse> googleLinkUrl(
+    ratatoskv1auth.GoogleLinkUrlRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.googleLinkUrl,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Removes the connected Google account. Refused when it is the only way in.
+  Future<ratatoskv1auth.UnlinkGoogleResponse> unlinkGoogle(
+    ratatoskv1auth.UnlinkGoogleRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.unlinkGoogle,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

@@ -59,6 +59,12 @@ const (
 	// AuthServiceSignInMethodsProcedure is the fully-qualified name of the AuthService's SignInMethods
 	// RPC.
 	AuthServiceSignInMethodsProcedure = "/ratatosk.v1.AuthService/SignInMethods"
+	// AuthServiceGoogleLinkUrlProcedure is the fully-qualified name of the AuthService's GoogleLinkUrl
+	// RPC.
+	AuthServiceGoogleLinkUrlProcedure = "/ratatosk.v1.AuthService/GoogleLinkUrl"
+	// AuthServiceUnlinkGoogleProcedure is the fully-qualified name of the AuthService's UnlinkGoogle
+	// RPC.
+	AuthServiceUnlinkGoogleProcedure = "/ratatosk.v1.AuthService/UnlinkGoogle"
 )
 
 // AuthServiceClient is a client for the ratatosk.v1.AuthService service.
@@ -93,6 +99,14 @@ type AuthServiceClient interface {
 	GoogleSignInConfig(context.Context, *connect.Request[v1.GoogleSignInConfigRequest]) (*connect.Response[v1.GoogleSignInConfigResponse], error)
 	// The sign-in methods this account has, so Settings can show them.
 	SignInMethods(context.Context, *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error)
+	// Where to send the browser to connect a Google account to *this* account.
+	//
+	// Distinct from signing in: the attempt is bound to the caller, and its callback
+	// attaches the identity here rather than issuing a session. An identity already
+	// connected elsewhere is refused rather than moved.
+	GoogleLinkUrl(context.Context, *connect.Request[v1.GoogleLinkUrlRequest]) (*connect.Response[v1.GoogleLinkUrlResponse], error)
+	// Removes the connected Google account. Refused when it is the only way in.
+	UnlinkGoogle(context.Context, *connect.Request[v1.UnlinkGoogleRequest]) (*connect.Response[v1.UnlinkGoogleResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the ratatosk.v1.AuthService service. By default, it
@@ -166,6 +180,18 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("SignInMethods")),
 			connect.WithClientOptions(opts...),
 		),
+		googleLinkUrl: connect.NewClient[v1.GoogleLinkUrlRequest, v1.GoogleLinkUrlResponse](
+			httpClient,
+			baseURL+AuthServiceGoogleLinkUrlProcedure,
+			connect.WithSchema(authServiceMethods.ByName("GoogleLinkUrl")),
+			connect.WithClientOptions(opts...),
+		),
+		unlinkGoogle: connect.NewClient[v1.UnlinkGoogleRequest, v1.UnlinkGoogleResponse](
+			httpClient,
+			baseURL+AuthServiceUnlinkGoogleProcedure,
+			connect.WithSchema(authServiceMethods.ByName("UnlinkGoogle")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -181,6 +207,8 @@ type authServiceClient struct {
 	finishGoogleSignUp *connect.Client[v1.FinishGoogleSignUpRequest, v1.FinishGoogleSignUpResponse]
 	googleSignInConfig *connect.Client[v1.GoogleSignInConfigRequest, v1.GoogleSignInConfigResponse]
 	signInMethods      *connect.Client[v1.SignInMethodsRequest, v1.SignInMethodsResponse]
+	googleLinkUrl      *connect.Client[v1.GoogleLinkUrlRequest, v1.GoogleLinkUrlResponse]
+	unlinkGoogle       *connect.Client[v1.UnlinkGoogleRequest, v1.UnlinkGoogleResponse]
 }
 
 // Register calls ratatosk.v1.AuthService.Register.
@@ -233,6 +261,16 @@ func (c *authServiceClient) SignInMethods(ctx context.Context, req *connect.Requ
 	return c.signInMethods.CallUnary(ctx, req)
 }
 
+// GoogleLinkUrl calls ratatosk.v1.AuthService.GoogleLinkUrl.
+func (c *authServiceClient) GoogleLinkUrl(ctx context.Context, req *connect.Request[v1.GoogleLinkUrlRequest]) (*connect.Response[v1.GoogleLinkUrlResponse], error) {
+	return c.googleLinkUrl.CallUnary(ctx, req)
+}
+
+// UnlinkGoogle calls ratatosk.v1.AuthService.UnlinkGoogle.
+func (c *authServiceClient) UnlinkGoogle(ctx context.Context, req *connect.Request[v1.UnlinkGoogleRequest]) (*connect.Response[v1.UnlinkGoogleResponse], error) {
+	return c.unlinkGoogle.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the ratatosk.v1.AuthService service.
 type AuthServiceHandler interface {
 	// Create an account and return a session token.
@@ -265,6 +303,14 @@ type AuthServiceHandler interface {
 	GoogleSignInConfig(context.Context, *connect.Request[v1.GoogleSignInConfigRequest]) (*connect.Response[v1.GoogleSignInConfigResponse], error)
 	// The sign-in methods this account has, so Settings can show them.
 	SignInMethods(context.Context, *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error)
+	// Where to send the browser to connect a Google account to *this* account.
+	//
+	// Distinct from signing in: the attempt is bound to the caller, and its callback
+	// attaches the identity here rather than issuing a session. An identity already
+	// connected elsewhere is refused rather than moved.
+	GoogleLinkUrl(context.Context, *connect.Request[v1.GoogleLinkUrlRequest]) (*connect.Response[v1.GoogleLinkUrlResponse], error)
+	// Removes the connected Google account. Refused when it is the only way in.
+	UnlinkGoogle(context.Context, *connect.Request[v1.UnlinkGoogleRequest]) (*connect.Response[v1.UnlinkGoogleResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -334,6 +380,18 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("SignInMethods")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceGoogleLinkUrlHandler := connect.NewUnaryHandler(
+		AuthServiceGoogleLinkUrlProcedure,
+		svc.GoogleLinkUrl,
+		connect.WithSchema(authServiceMethods.ByName("GoogleLinkUrl")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceUnlinkGoogleHandler := connect.NewUnaryHandler(
+		AuthServiceUnlinkGoogleProcedure,
+		svc.UnlinkGoogle,
+		connect.WithSchema(authServiceMethods.ByName("UnlinkGoogle")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/ratatosk.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceRegisterProcedure:
@@ -356,6 +414,10 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceGoogleSignInConfigHandler.ServeHTTP(w, r)
 		case AuthServiceSignInMethodsProcedure:
 			authServiceSignInMethodsHandler.ServeHTTP(w, r)
+		case AuthServiceGoogleLinkUrlProcedure:
+			authServiceGoogleLinkUrlHandler.ServeHTTP(w, r)
+		case AuthServiceUnlinkGoogleProcedure:
+			authServiceUnlinkGoogleHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -403,4 +465,12 @@ func (UnimplementedAuthServiceHandler) GoogleSignInConfig(context.Context, *conn
 
 func (UnimplementedAuthServiceHandler) SignInMethods(context.Context, *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.SignInMethods is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) GoogleLinkUrl(context.Context, *connect.Request[v1.GoogleLinkUrlRequest]) (*connect.Response[v1.GoogleLinkUrlResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.GoogleLinkUrl is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) UnlinkGoogle(context.Context, *connect.Request[v1.UnlinkGoogleRequest]) (*connect.Response[v1.UnlinkGoogleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.UnlinkGoogle is not implemented"))
 }

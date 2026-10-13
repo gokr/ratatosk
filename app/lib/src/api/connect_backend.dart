@@ -188,6 +188,17 @@ class ConnectBackend implements ChatBackend {
   }
 
   @override
+  Future<String> googleLinkUrl() async {
+    final response = await auth.googleLinkUrl(GoogleLinkUrlRequest());
+    return response.url;
+  }
+
+  @override
+  Future<void> unlinkGoogle() async {
+    await auth.unlinkGoogle(UnlinkGoogleRequest());
+  }
+
+  @override
   Future<void> putKeyBackup(KeyBackupPayload backup) async {
     await keys.putKeyBackup(PutKeyBackupRequest(
       backup: KeyBackup(

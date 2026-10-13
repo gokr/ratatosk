@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../notifications/manager.dart';
 import 'auth_screen.dart';
 import 'theme.dart';
+import 'signin_methods.dart';
 import 'widgets/avatar.dart';
 import 'widgets/privacy_policy_link.dart';
 
@@ -178,6 +179,8 @@ class SettingsPage extends WatchingWidget {
             subtitle: Text('Permanently removes your account and your messages'),
             onTap: () => confirmDeleteAccount(context),
           ),
+          const SignInMethodsSection(),
+          Divider(),
           ListTile(
             leading: Icon(Icons.key_outlined),
             title: Text(tr(context, 'Key recovery')),

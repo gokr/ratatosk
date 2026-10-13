@@ -128,6 +128,10 @@ func (s *Server) build() http.Handler {
 	// because the browser is the client, and both are unauthenticated by necessity —
 	// signing in is what they are for.
 	mux.HandleFunc("GET /auth/google/start", s.serveGoogleStart)
+	// Linking is a separate endpoint on purpose: its callback attaches the identity
+	// to the account that started it instead of issuing a session, so the two URLs
+	// must not be interchangeable.
+	mux.HandleFunc("GET /auth/google/link", s.serveGoogleLinkStart)
 	mux.HandleFunc("GET /auth/google/callback", s.serveGoogleCallback)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		stats := s.st.Stats()

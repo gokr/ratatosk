@@ -162,6 +162,21 @@ func (s *Store) deleteSession(q querier, token string) error {
 	}
 	return s.remove(q, "sessions", token)
 }
+
+// SessionUser resolves a bearer token to its account, for the few plain-HTTP
+// handlers that are not behind the Connect interceptor. An expired or unknown token
+// is an error, never an anonymous caller: every caller of this needs to know *who*.
+func (s *Store) SessionUser(token string, now time.Time) (*User, error) {
+	if token == "" {
+		return nil, ErrNotFound
+	}
+	session, err := s.SessionByToken(token, now)
+	if err != nil {
+		return nil, err
+	}
+	return s.UserByID(session.UserID)
+}
+
 func (s *Store) DeleteSession(token string) {
 	must(s.write(func(tx *sql.Tx) error { return s.deleteSession(tx, token) }))
 }

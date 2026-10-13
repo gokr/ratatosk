@@ -311,6 +311,24 @@ class _InviteRow extends StatelessWidget {
   final VoidCallback onCopy;
   final VoidCallback onRevoke;
 
+  /// Why an invite can no longer be used, in the server's own vocabulary.
+  ///
+  /// "No longer usable" told the person nothing, which matters once the list is long:
+  /// the difference between a typo and a link somebody already used up is the
+  /// difference between looking for another code and asking for a new one.
+  static String _invalidLabel(Invite invite) {
+    switch (invite.invalidReason) {
+      case 'revoked':
+        return 'Revoked';
+      case 'expired':
+        return 'Expired';
+      case 'exhausted':
+        return 'Used up';
+      default:
+        return 'No longer usable';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final timestamp = RatatoskTheme.of(context).timestamp;
@@ -329,7 +347,7 @@ class _InviteRow extends StatelessWidget {
       subtitle: Text(
         invite.valid
             ? '${invite.uses} of ${invite.maxUses <= 0 ? '∞' : invite.maxUses} used'
-            : 'No longer usable',
+            : _invalidLabel(invite),
         style: TextStyle(color: timestamp, fontSize: 12),
       ),
       trailing: Row(

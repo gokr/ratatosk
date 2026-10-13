@@ -27,7 +27,7 @@ class AppGate extends WatchingWidget {
     // A Google round-trip that needs finishing takes over the whole screen: it is a
     // step in signing in, not a place to browse away from.
     final google = state.googleResult;
-    if (google != null && !state.signedIn) {
+    if (google != null && !state.signedIn && !google.hasLinkResult) {
       if (google.hasPending) {
         return GoogleSignUpScreen(result: google);
       }

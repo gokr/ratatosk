@@ -1414,6 +1414,192 @@ class SignInMethodsResponse extends $pb.GeneratedMessage {
   void clearGoogleEmail() => $_clearField(2);
 }
 
+class GoogleLinkUrlRequest extends $pb.GeneratedMessage {
+  factory GoogleLinkUrlRequest() => GoogleLinkUrlRequest._();
+
+  GoogleLinkUrlRequest._();
+
+  factory GoogleLinkUrlRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleLinkUrlRequest()..mergeFromBuffer(data, registry);
+  factory GoogleLinkUrlRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleLinkUrlRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GoogleLinkUrlRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: GoogleLinkUrlRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleLinkUrlRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleLinkUrlRequest copyWith(void Function(GoogleLinkUrlRequest) updates) =>
+      super.copyWith((message) => updates(message as GoogleLinkUrlRequest))
+          as GoogleLinkUrlRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GoogleLinkUrlRequest() / GoogleLinkUrlRequest.new instead')
+  static GoogleLinkUrlRequest create() => GoogleLinkUrlRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GoogleLinkUrlRequest._();
+  @$core.override
+  GoogleLinkUrlRequest createEmptyInstance() => GoogleLinkUrlRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GoogleLinkUrlRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GoogleLinkUrlRequest>(
+          GoogleLinkUrlRequest.$_createMessage);
+  static GoogleLinkUrlRequest? _defaultInstance;
+}
+
+class GoogleLinkUrlResponse extends $pb.GeneratedMessage {
+  factory GoogleLinkUrlResponse({
+    $core.String? url,
+  }) {
+    final result = GoogleLinkUrlResponse._();
+    if (url != null) result.url = url;
+    return result;
+  }
+
+  GoogleLinkUrlResponse._();
+
+  factory GoogleLinkUrlResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleLinkUrlResponse()..mergeFromBuffer(data, registry);
+  factory GoogleLinkUrlResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleLinkUrlResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GoogleLinkUrlResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: GoogleLinkUrlResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'url')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleLinkUrlResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleLinkUrlResponse copyWith(
+          void Function(GoogleLinkUrlResponse) updates) =>
+      super.copyWith((message) => updates(message as GoogleLinkUrlResponse))
+          as GoogleLinkUrlResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GoogleLinkUrlResponse() / GoogleLinkUrlResponse.new instead')
+  static GoogleLinkUrlResponse create() => GoogleLinkUrlResponse._();
+  static $pb.GeneratedMessage $_createMessage() => GoogleLinkUrlResponse._();
+  @$core.override
+  GoogleLinkUrlResponse createEmptyInstance() => GoogleLinkUrlResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GoogleLinkUrlResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GoogleLinkUrlResponse>(
+          GoogleLinkUrlResponse.$_createMessage);
+  static GoogleLinkUrlResponse? _defaultInstance;
+
+  /// Absolute URL to send the browser to. Empty when Google is not configured here.
+  @$pb.TagNumber(1)
+  $core.String get url => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set url($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasUrl() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUrl() => $_clearField(1);
+}
+
+class UnlinkGoogleRequest extends $pb.GeneratedMessage {
+  factory UnlinkGoogleRequest() => UnlinkGoogleRequest._();
+
+  UnlinkGoogleRequest._();
+
+  factory UnlinkGoogleRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UnlinkGoogleRequest()..mergeFromBuffer(data, registry);
+  factory UnlinkGoogleRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UnlinkGoogleRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UnlinkGoogleRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: UnlinkGoogleRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UnlinkGoogleRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UnlinkGoogleRequest copyWith(void Function(UnlinkGoogleRequest) updates) =>
+      super.copyWith((message) => updates(message as UnlinkGoogleRequest))
+          as UnlinkGoogleRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use UnlinkGoogleRequest() / UnlinkGoogleRequest.new instead')
+  static UnlinkGoogleRequest create() => UnlinkGoogleRequest._();
+  static $pb.GeneratedMessage $_createMessage() => UnlinkGoogleRequest._();
+  @$core.override
+  UnlinkGoogleRequest createEmptyInstance() => UnlinkGoogleRequest._();
+  @$core.pragma('dart2js:noInline')
+  static UnlinkGoogleRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UnlinkGoogleRequest>(
+          UnlinkGoogleRequest.$_createMessage);
+  static UnlinkGoogleRequest? _defaultInstance;
+}
+
+class UnlinkGoogleResponse extends $pb.GeneratedMessage {
+  factory UnlinkGoogleResponse() => UnlinkGoogleResponse._();
+
+  UnlinkGoogleResponse._();
+
+  factory UnlinkGoogleResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UnlinkGoogleResponse()..mergeFromBuffer(data, registry);
+  factory UnlinkGoogleResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      UnlinkGoogleResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'UnlinkGoogleResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: UnlinkGoogleResponse.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UnlinkGoogleResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  UnlinkGoogleResponse copyWith(void Function(UnlinkGoogleResponse) updates) =>
+      super.copyWith((message) => updates(message as UnlinkGoogleResponse))
+          as UnlinkGoogleResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use UnlinkGoogleResponse() / UnlinkGoogleResponse.new instead')
+  static UnlinkGoogleResponse create() => UnlinkGoogleResponse._();
+  static $pb.GeneratedMessage $_createMessage() => UnlinkGoogleResponse._();
+  @$core.override
+  UnlinkGoogleResponse createEmptyInstance() => UnlinkGoogleResponse._();
+  @$core.pragma('dart2js:noInline')
+  static UnlinkGoogleResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<UnlinkGoogleResponse>(
+          UnlinkGoogleResponse.$_createMessage);
+  static UnlinkGoogleResponse? _defaultInstance;
+}
+
 /// Account creation, sign-in and profile management.
 ///
 /// Register and Login are the only procedures that work without a bearer
@@ -1493,6 +1679,22 @@ class AuthServiceApi {
           $pb.ClientContext? ctx, SignInMethodsRequest request) =>
       _client.invoke<SignInMethodsResponse>(ctx, 'AuthService', 'SignInMethods',
           request, SignInMethodsResponse());
+
+  /// Where to send the browser to connect a Google account to *this* account.
+  ///
+  /// Distinct from signing in: the attempt is bound to the caller, and its callback
+  /// attaches the identity here rather than issuing a session. An identity already
+  /// connected elsewhere is refused rather than moved.
+  $async.Future<GoogleLinkUrlResponse> googleLinkUrl(
+          $pb.ClientContext? ctx, GoogleLinkUrlRequest request) =>
+      _client.invoke<GoogleLinkUrlResponse>(ctx, 'AuthService', 'GoogleLinkUrl',
+          request, GoogleLinkUrlResponse());
+
+  /// Removes the connected Google account. Refused when it is the only way in.
+  $async.Future<UnlinkGoogleResponse> unlinkGoogle(
+          $pb.ClientContext? ctx, UnlinkGoogleRequest request) =>
+      _client.invoke<UnlinkGoogleResponse>(
+          ctx, 'AuthService', 'UnlinkGoogle', request, UnlinkGoogleResponse());
 }
 
 const $core.bool _omitFieldNames =

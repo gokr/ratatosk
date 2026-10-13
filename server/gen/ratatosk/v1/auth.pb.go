@@ -1058,6 +1058,159 @@ func (x *SignInMethodsResponse) GetGoogleEmail() string {
 	return ""
 }
 
+type GoogleLinkUrlRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GoogleLinkUrlRequest) Reset() {
+	*x = GoogleLinkUrlRequest{}
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GoogleLinkUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GoogleLinkUrlRequest) ProtoMessage() {}
+
+func (x *GoogleLinkUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GoogleLinkUrlRequest.ProtoReflect.Descriptor instead.
+func (*GoogleLinkUrlRequest) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{20}
+}
+
+type GoogleLinkUrlResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Absolute URL to send the browser to. Empty when Google is not configured here.
+	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GoogleLinkUrlResponse) Reset() {
+	*x = GoogleLinkUrlResponse{}
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GoogleLinkUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GoogleLinkUrlResponse) ProtoMessage() {}
+
+func (x *GoogleLinkUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GoogleLinkUrlResponse.ProtoReflect.Descriptor instead.
+func (*GoogleLinkUrlResponse) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GoogleLinkUrlResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+type UnlinkGoogleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlinkGoogleRequest) Reset() {
+	*x = UnlinkGoogleRequest{}
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlinkGoogleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlinkGoogleRequest) ProtoMessage() {}
+
+func (x *UnlinkGoogleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlinkGoogleRequest.ProtoReflect.Descriptor instead.
+func (*UnlinkGoogleRequest) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{22}
+}
+
+type UnlinkGoogleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnlinkGoogleResponse) Reset() {
+	*x = UnlinkGoogleResponse{}
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnlinkGoogleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnlinkGoogleResponse) ProtoMessage() {}
+
+func (x *UnlinkGoogleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ratatosk_v1_auth_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnlinkGoogleResponse.ProtoReflect.Descriptor instead.
+func (*UnlinkGoogleResponse) Descriptor() ([]byte, []int) {
+	return file_ratatosk_v1_auth_proto_rawDescGZIP(), []int{23}
+}
+
 var File_ratatosk_v1_auth_proto protoreflect.FileDescriptor
 
 const file_ratatosk_v1_auth_proto_rawDesc = "" +
@@ -1124,7 +1277,12 @@ const file_ratatosk_v1_auth_proto_rawDesc = "" +
 	"\x14SignInMethodsRequest\"T\n" +
 	"\x15SignInMethodsResponse\x12\x18\n" +
 	"\amethods\x18\x01 \x03(\tR\amethods\x12!\n" +
-	"\fgoogle_email\x18\x02 \x01(\tR\vgoogleEmail2\xde\x06\n" +
+	"\fgoogle_email\x18\x02 \x01(\tR\vgoogleEmail\"\x16\n" +
+	"\x14GoogleLinkUrlRequest\")\n" +
+	"\x15GoogleLinkUrlResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"\x15\n" +
+	"\x13UnlinkGoogleRequest\"\x16\n" +
+	"\x14UnlinkGoogleResponse2\x8f\b\n" +
 	"\vAuthService\x12I\n" +
 	"\bRegister\x12\x1c.ratatosk.v1.RegisterRequest\x1a\x1d.ratatosk.v1.RegisterResponse\"\x00\x12@\n" +
 	"\x05Login\x12\x19.ratatosk.v1.LoginRequest\x1a\x1a.ratatosk.v1.LoginResponse\"\x00\x12C\n" +
@@ -1135,7 +1293,9 @@ const file_ratatosk_v1_auth_proto_rawDesc = "" +
 	"\rDeleteAccount\x12!.ratatosk.v1.DeleteAccountRequest\x1a\".ratatosk.v1.DeleteAccountResponse\"\x00\x12g\n" +
 	"\x12FinishGoogleSignUp\x12&.ratatosk.v1.FinishGoogleSignUpRequest\x1a'.ratatosk.v1.FinishGoogleSignUpResponse\"\x00\x12g\n" +
 	"\x12GoogleSignInConfig\x12&.ratatosk.v1.GoogleSignInConfigRequest\x1a'.ratatosk.v1.GoogleSignInConfigResponse\"\x00\x12X\n" +
-	"\rSignInMethods\x12!.ratatosk.v1.SignInMethodsRequest\x1a\".ratatosk.v1.SignInMethodsResponse\"\x00B<Z:github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1b\x06proto3"
+	"\rSignInMethods\x12!.ratatosk.v1.SignInMethodsRequest\x1a\".ratatosk.v1.SignInMethodsResponse\"\x00\x12X\n" +
+	"\rGoogleLinkUrl\x12!.ratatosk.v1.GoogleLinkUrlRequest\x1a\".ratatosk.v1.GoogleLinkUrlResponse\"\x00\x12U\n" +
+	"\fUnlinkGoogle\x12 .ratatosk.v1.UnlinkGoogleRequest\x1a!.ratatosk.v1.UnlinkGoogleResponse\"\x00B<Z:github.com/gokr/ratatosk/server/gen/ratatosk/v1;ratatoskv1b\x06proto3"
 
 var (
 	file_ratatosk_v1_auth_proto_rawDescOnce sync.Once
@@ -1149,7 +1309,7 @@ func file_ratatosk_v1_auth_proto_rawDescGZIP() []byte {
 	return file_ratatosk_v1_auth_proto_rawDescData
 }
 
-var file_ratatosk_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_ratatosk_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_ratatosk_v1_auth_proto_goTypes = []any{
 	(*RegisterRequest)(nil),            // 0: ratatosk.v1.RegisterRequest
 	(*RegisterResponse)(nil),           // 1: ratatosk.v1.RegisterResponse
@@ -1171,18 +1331,22 @@ var file_ratatosk_v1_auth_proto_goTypes = []any{
 	(*GoogleSignInConfigResponse)(nil), // 17: ratatosk.v1.GoogleSignInConfigResponse
 	(*SignInMethodsRequest)(nil),       // 18: ratatosk.v1.SignInMethodsRequest
 	(*SignInMethodsResponse)(nil),      // 19: ratatosk.v1.SignInMethodsResponse
-	(*User)(nil),                       // 20: ratatosk.v1.User
-	(*timestamppb.Timestamp)(nil),      // 21: google.protobuf.Timestamp
+	(*GoogleLinkUrlRequest)(nil),       // 20: ratatosk.v1.GoogleLinkUrlRequest
+	(*GoogleLinkUrlResponse)(nil),      // 21: ratatosk.v1.GoogleLinkUrlResponse
+	(*UnlinkGoogleRequest)(nil),        // 22: ratatosk.v1.UnlinkGoogleRequest
+	(*UnlinkGoogleResponse)(nil),       // 23: ratatosk.v1.UnlinkGoogleResponse
+	(*User)(nil),                       // 24: ratatosk.v1.User
+	(*timestamppb.Timestamp)(nil),      // 25: google.protobuf.Timestamp
 }
 var file_ratatosk_v1_auth_proto_depIdxs = []int32{
-	20, // 0: ratatosk.v1.RegisterResponse.user:type_name -> ratatosk.v1.User
-	21, // 1: ratatosk.v1.RegisterResponse.expires_at:type_name -> google.protobuf.Timestamp
-	20, // 2: ratatosk.v1.LoginResponse.user:type_name -> ratatosk.v1.User
-	21, // 3: ratatosk.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
-	20, // 4: ratatosk.v1.GetMeResponse.user:type_name -> ratatosk.v1.User
-	20, // 5: ratatosk.v1.UpdateProfileResponse.user:type_name -> ratatosk.v1.User
-	20, // 6: ratatosk.v1.FinishGoogleSignUpResponse.user:type_name -> ratatosk.v1.User
-	21, // 7: ratatosk.v1.FinishGoogleSignUpResponse.expires_at:type_name -> google.protobuf.Timestamp
+	24, // 0: ratatosk.v1.RegisterResponse.user:type_name -> ratatosk.v1.User
+	25, // 1: ratatosk.v1.RegisterResponse.expires_at:type_name -> google.protobuf.Timestamp
+	24, // 2: ratatosk.v1.LoginResponse.user:type_name -> ratatosk.v1.User
+	25, // 3: ratatosk.v1.LoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	24, // 4: ratatosk.v1.GetMeResponse.user:type_name -> ratatosk.v1.User
+	24, // 5: ratatosk.v1.UpdateProfileResponse.user:type_name -> ratatosk.v1.User
+	24, // 6: ratatosk.v1.FinishGoogleSignUpResponse.user:type_name -> ratatosk.v1.User
+	25, // 7: ratatosk.v1.FinishGoogleSignUpResponse.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 8: ratatosk.v1.AuthService.Register:input_type -> ratatosk.v1.RegisterRequest
 	2,  // 9: ratatosk.v1.AuthService.Login:input_type -> ratatosk.v1.LoginRequest
 	4,  // 10: ratatosk.v1.AuthService.Logout:input_type -> ratatosk.v1.LogoutRequest
@@ -1193,18 +1357,22 @@ var file_ratatosk_v1_auth_proto_depIdxs = []int32{
 	14, // 15: ratatosk.v1.AuthService.FinishGoogleSignUp:input_type -> ratatosk.v1.FinishGoogleSignUpRequest
 	16, // 16: ratatosk.v1.AuthService.GoogleSignInConfig:input_type -> ratatosk.v1.GoogleSignInConfigRequest
 	18, // 17: ratatosk.v1.AuthService.SignInMethods:input_type -> ratatosk.v1.SignInMethodsRequest
-	1,  // 18: ratatosk.v1.AuthService.Register:output_type -> ratatosk.v1.RegisterResponse
-	3,  // 19: ratatosk.v1.AuthService.Login:output_type -> ratatosk.v1.LoginResponse
-	5,  // 20: ratatosk.v1.AuthService.Logout:output_type -> ratatosk.v1.LogoutResponse
-	7,  // 21: ratatosk.v1.AuthService.GetMe:output_type -> ratatosk.v1.GetMeResponse
-	9,  // 22: ratatosk.v1.AuthService.UpdateProfile:output_type -> ratatosk.v1.UpdateProfileResponse
-	11, // 23: ratatosk.v1.AuthService.ChangePassword:output_type -> ratatosk.v1.ChangePasswordResponse
-	13, // 24: ratatosk.v1.AuthService.DeleteAccount:output_type -> ratatosk.v1.DeleteAccountResponse
-	15, // 25: ratatosk.v1.AuthService.FinishGoogleSignUp:output_type -> ratatosk.v1.FinishGoogleSignUpResponse
-	17, // 26: ratatosk.v1.AuthService.GoogleSignInConfig:output_type -> ratatosk.v1.GoogleSignInConfigResponse
-	19, // 27: ratatosk.v1.AuthService.SignInMethods:output_type -> ratatosk.v1.SignInMethodsResponse
-	18, // [18:28] is the sub-list for method output_type
-	8,  // [8:18] is the sub-list for method input_type
+	20, // 18: ratatosk.v1.AuthService.GoogleLinkUrl:input_type -> ratatosk.v1.GoogleLinkUrlRequest
+	22, // 19: ratatosk.v1.AuthService.UnlinkGoogle:input_type -> ratatosk.v1.UnlinkGoogleRequest
+	1,  // 20: ratatosk.v1.AuthService.Register:output_type -> ratatosk.v1.RegisterResponse
+	3,  // 21: ratatosk.v1.AuthService.Login:output_type -> ratatosk.v1.LoginResponse
+	5,  // 22: ratatosk.v1.AuthService.Logout:output_type -> ratatosk.v1.LogoutResponse
+	7,  // 23: ratatosk.v1.AuthService.GetMe:output_type -> ratatosk.v1.GetMeResponse
+	9,  // 24: ratatosk.v1.AuthService.UpdateProfile:output_type -> ratatosk.v1.UpdateProfileResponse
+	11, // 25: ratatosk.v1.AuthService.ChangePassword:output_type -> ratatosk.v1.ChangePasswordResponse
+	13, // 26: ratatosk.v1.AuthService.DeleteAccount:output_type -> ratatosk.v1.DeleteAccountResponse
+	15, // 27: ratatosk.v1.AuthService.FinishGoogleSignUp:output_type -> ratatosk.v1.FinishGoogleSignUpResponse
+	17, // 28: ratatosk.v1.AuthService.GoogleSignInConfig:output_type -> ratatosk.v1.GoogleSignInConfigResponse
+	19, // 29: ratatosk.v1.AuthService.SignInMethods:output_type -> ratatosk.v1.SignInMethodsResponse
+	21, // 30: ratatosk.v1.AuthService.GoogleLinkUrl:output_type -> ratatosk.v1.GoogleLinkUrlResponse
+	23, // 31: ratatosk.v1.AuthService.UnlinkGoogle:output_type -> ratatosk.v1.UnlinkGoogleResponse
+	20, // [20:32] is the sub-list for method output_type
+	8,  // [8:20] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -1223,7 +1391,7 @@ func file_ratatosk_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ratatosk_v1_auth_proto_rawDesc), len(file_ratatosk_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

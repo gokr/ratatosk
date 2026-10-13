@@ -28,6 +28,8 @@ const googleTokenParam = 'google_token';
 const googleErrorParam = 'google_error';
 const googleSuggestedParam = 'google_suggested_username';
 const googleEmailParam = 'google_email';
+const googleLinkedParam = 'google_linked';
+const googleLinkErrorParam = 'google_link_error';
 
 /// Whether this server offers Google sign-in. Fetched once and remembered, so the
 /// sign-in screen does not ask on every rebuild.
@@ -84,7 +86,14 @@ class GoogleCallbackResult {
     this.error,
     this.suggestedUsername,
     this.email,
+    this.linked = false,
+    this.linkError,
   });
+
+  /// Set when a *linking* attempt finished: "1" means the identity is connected.
+  final bool linked;
+  /// Why connecting Google was refused, in the server's own words.
+  final String? linkError;
 
   final String? pendingToken;
   final String? token;
@@ -95,7 +104,9 @@ class GoogleCallbackResult {
   bool get hasPending => pendingToken != null && pendingToken!.isNotEmpty;
   bool get hasSession => token != null && token!.isNotEmpty;
   bool get hasError => error != null && error!.isNotEmpty;
-  bool get isEmpty => !hasPending && !hasSession && !hasError;
+  bool get hasLinkResult => linked || (linkError != null && linkError!.isNotEmpty);
+  bool get isEmpty =>
+      !hasPending && !hasSession && !hasError && !hasLinkResult;
 }
 
 /// Reads and consumes the callback parameters from a URI.
@@ -111,6 +122,8 @@ GoogleCallbackResult readGoogleCallback(Uri uri) {
     error: q[googleErrorParam],
     suggestedUsername: q[googleSuggestedParam],
     email: q[googleEmailParam],
+    linked: q[googleLinkedParam] == '1',
+    linkError: q[googleLinkErrorParam],
   );
 }
 
@@ -122,7 +135,9 @@ String stripGoogleParams(Uri uri) {
     ..remove(googleTokenParam)
     ..remove(googleErrorParam)
     ..remove(googleSuggestedParam)
-    ..remove(googleEmailParam);
+    ..remove(googleEmailParam)
+    ..remove(googleLinkedParam)
+    ..remove(googleLinkErrorParam);
   return Uri(
     scheme: uri.scheme,
     userInfo: uri.userInfo.isEmpty ? null : uri.userInfo,

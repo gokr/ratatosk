@@ -372,6 +372,45 @@ final $typed_data.Uint8List signInMethodsResponseDescriptor = $convert.base64Dec
     'ChVTaWduSW5NZXRob2RzUmVzcG9uc2USGAoHbWV0aG9kcxgBIAMoCVIHbWV0aG9kcxIhCgxnb2'
     '9nbGVfZW1haWwYAiABKAlSC2dvb2dsZUVtYWls');
 
+@$core.Deprecated('Use googleLinkUrlRequestDescriptor instead')
+const GoogleLinkUrlRequest$json = {
+  '1': 'GoogleLinkUrlRequest',
+};
+
+/// Descriptor for `GoogleLinkUrlRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List googleLinkUrlRequestDescriptor =
+    $convert.base64Decode('ChRHb29nbGVMaW5rVXJsUmVxdWVzdA==');
+
+@$core.Deprecated('Use googleLinkUrlResponseDescriptor instead')
+const GoogleLinkUrlResponse$json = {
+  '1': 'GoogleLinkUrlResponse',
+  '2': [
+    {'1': 'url', '3': 1, '4': 1, '5': 9, '10': 'url'},
+  ],
+};
+
+/// Descriptor for `GoogleLinkUrlResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List googleLinkUrlResponseDescriptor = $convert
+    .base64Decode('ChVHb29nbGVMaW5rVXJsUmVzcG9uc2USEAoDdXJsGAEgASgJUgN1cmw=');
+
+@$core.Deprecated('Use unlinkGoogleRequestDescriptor instead')
+const UnlinkGoogleRequest$json = {
+  '1': 'UnlinkGoogleRequest',
+};
+
+/// Descriptor for `UnlinkGoogleRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List unlinkGoogleRequestDescriptor =
+    $convert.base64Decode('ChNVbmxpbmtHb29nbGVSZXF1ZXN0');
+
+@$core.Deprecated('Use unlinkGoogleResponseDescriptor instead')
+const UnlinkGoogleResponse$json = {
+  '1': 'UnlinkGoogleResponse',
+};
+
+/// Descriptor for `UnlinkGoogleResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List unlinkGoogleResponseDescriptor =
+    $convert.base64Decode('ChRVbmxpbmtHb29nbGVSZXNwb25zZQ==');
+
 const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
   '1': 'AuthService',
   '2': [
@@ -435,6 +474,18 @@ const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
       '3': '.ratatosk.v1.SignInMethodsResponse',
       '4': {}
     },
+    {
+      '1': 'GoogleLinkUrl',
+      '2': '.ratatosk.v1.GoogleLinkUrlRequest',
+      '3': '.ratatosk.v1.GoogleLinkUrlResponse',
+      '4': {}
+    },
+    {
+      '1': 'UnlinkGoogle',
+      '2': '.ratatosk.v1.UnlinkGoogleRequest',
+      '3': '.ratatosk.v1.UnlinkGoogleResponse',
+      '4': {}
+    },
   ],
 };
 
@@ -463,6 +514,10 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.ratatosk.v1.GoogleSignInConfigResponse': GoogleSignInConfigResponse$json,
   '.ratatosk.v1.SignInMethodsRequest': SignInMethodsRequest$json,
   '.ratatosk.v1.SignInMethodsResponse': SignInMethodsResponse$json,
+  '.ratatosk.v1.GoogleLinkUrlRequest': GoogleLinkUrlRequest$json,
+  '.ratatosk.v1.GoogleLinkUrlResponse': GoogleLinkUrlResponse$json,
+  '.ratatosk.v1.UnlinkGoogleRequest': UnlinkGoogleRequest$json,
+  '.ratatosk.v1.UnlinkGoogleResponse': UnlinkGoogleResponse$json,
 };
 
 /// Descriptor for `AuthService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -482,4 +537,7 @@ final $typed_data.Uint8List authServiceDescriptor = $convert.base64Decode(
     'ABJnChJHb29nbGVTaWduSW5Db25maWcSJi5yYXRhdG9zay52MS5Hb29nbGVTaWduSW5Db25maW'
     'dSZXF1ZXN0GicucmF0YXRvc2sudjEuR29vZ2xlU2lnbkluQ29uZmlnUmVzcG9uc2UiABJYCg1T'
     'aWduSW5NZXRob2RzEiEucmF0YXRvc2sudjEuU2lnbkluTWV0aG9kc1JlcXVlc3QaIi5yYXRhdG'
-    '9zay52MS5TaWduSW5NZXRob2RzUmVzcG9uc2UiAA==');
+    '9zay52MS5TaWduSW5NZXRob2RzUmVzcG9uc2UiABJYCg1Hb29nbGVMaW5rVXJsEiEucmF0YXRv'
+    'c2sudjEuR29vZ2xlTGlua1VybFJlcXVlc3QaIi5yYXRhdG9zay52MS5Hb29nbGVMaW5rVXJsUm'
+    'VzcG9uc2UiABJVCgxVbmxpbmtHb29nbGUSIC5yYXRhdG9zay52MS5VbmxpbmtHb29nbGVSZXF1'
+    'ZXN0GiEucmF0YXRvc2sudjEuVW5saW5rR29vZ2xlUmVzcG9uc2UiAA==');

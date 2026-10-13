@@ -360,3 +360,212 @@ func TestGoogleDisabledWhenUnconfigured(t *testing.T) {
 		t.Error("an unconfigured server started a sign-in")
 	}
 }
+
+// Connecting Google to an account that already exists — the case a person with a
+// password account hits, and which signing in alone can never do.
+func TestGoogleLinkToExistingAccount(t *testing.T) {
+	g := newFakeGoogle(t, "test-client-id")
+	g.subject, g.email, g.name = "link-subject", "gokr@example.com", "Göran"
+	h, _ := googleHarness(t, g)
+	ctx := context.Background()
+
+	// An account made the ordinary way, with a password.
+	token, _ := h.register("gokr", "password123", "Göran")
+
+	auth := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL,
+		connect.WithInterceptors(bearerInterceptor{token: token}))
+	link, err := auth.GoogleLinkUrl(ctx, connect.NewRequest(&ratatoskv1.GoogleLinkUrlRequest{}))
+	if err != nil {
+		t.Fatalf("link url: %v", err)
+	}
+	if !strings.HasSuffix(link.Msg.GetUrl(), "/auth/google/link") {
+		t.Fatalf("link url = %q", link.Msg.GetUrl())
+	}
+
+	// Before connecting: password only.
+	before, err := auth.SignInMethods(ctx, connect.NewRequest(&ratatoskv1.SignInMethodsRequest{}))
+	if err != nil {
+		t.Fatalf("methods: %v", err)
+	}
+	if before.Msg.GetMethods()[0] != "password" || len(before.Msg.GetMethods()) != 1 {
+		t.Fatalf("methods before = %v", before.Msg.GetMethods())
+	}
+
+	// The link flow: start (authenticated), then the callback. The returned URL is
+	// absolute (PublicURL), which is not resolvable here, so the handler is reached
+	// on the test server with the same bearer token.
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	startReq, _ := http.NewRequest(http.MethodGet, h.baseURL+"/auth/google/link", nil)
+	startReq.Header.Set("Authorization", "Bearer "+token)
+	startResp, err := client.Do(startReq)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	io.Copy(io.Discard, startResp.Body)
+	startResp.Body.Close()
+	consent, err := url.Parse(startResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("consent url: %v", err)
+	}
+	if consent.Query().Get("google_error") != "" {
+		t.Fatalf("link start refused: %s", consent)
+	}
+	t.Logf("consent host=%s path=%s state=%q challenge=%q", consent.Host, consent.Path, consent.Query().Get("state"), consent.Query().Get("code_challenge"))
+	cbResp, err := client.Get(h.baseURL + "/auth/google/callback?state=" +
+		url.QueryEscape(consent.Query().Get("state")) + "&code=link-code")
+	if err != nil {
+		t.Fatalf("callback: %v", err)
+	}
+	io.Copy(io.Discard, cbResp.Body)
+	cbResp.Body.Close()
+	done, _ := url.Parse(cbResp.Header.Get("Location"))
+	if done.Query().Get("google_linked") != "1" {
+		t.Fatalf("linking did not succeed: %s (err=%q)", done, done.Query().Get("google_link_error"))
+	}
+	// The callback must not have issued a session: linking is not signing in.
+	if done.Query().Get("google_token") != "" || done.Query().Get("google_pending") != "" {
+		t.Fatal("linking produced a session or a registration")
+	}
+
+	// Both ways in, now.
+	after, err := auth.SignInMethods(ctx, connect.NewRequest(&ratatoskv1.SignInMethodsRequest{}))
+	if err != nil {
+		t.Fatalf("methods: %v", err)
+	}
+	if !contains(after.Msg.GetMethods(), "password") || !contains(after.Msg.GetMethods(), "google") {
+		t.Fatalf("methods after = %v", after.Msg.GetMethods())
+	}
+	if after.Msg.GetGoogleEmail() != "gokr@example.com" {
+		t.Errorf("connected email = %q", after.Msg.GetGoogleEmail())
+	}
+
+	// Signing in with Google now reaches *that* account, and asks for no invitation.
+	signedIn := callback(t, h, startFlow(t, h), "code-after-link")
+	if signedIn.Query().Get("google_token") == "" {
+		t.Fatalf("the connected identity did not sign in: %s", signedIn)
+	}
+	linkedAuth := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL,
+		connect.WithInterceptors(bearerInterceptor{token: signedIn.Query().Get("google_token")}))
+	me, err := linkedAuth.GetMe(ctx, connect.NewRequest(&ratatoskv1.GetMeRequest{}))
+	if err != nil {
+		t.Fatalf("getMe: %v", err)
+	}
+	if me.Msg.GetUser().GetUsername() != "gokr" {
+		t.Errorf("signed in as %q, want gokr", me.Msg.GetUser().GetUsername())
+	}
+
+	// Disconnecting is allowed, because the password is still a way in.
+	if _, err := auth.UnlinkGoogle(ctx, connect.NewRequest(&ratatoskv1.UnlinkGoogleRequest{})); err != nil {
+		t.Fatalf("unlink: %v", err)
+	}
+	final, err := auth.SignInMethods(ctx, connect.NewRequest(&ratatoskv1.SignInMethodsRequest{}))
+	if err != nil {
+		t.Fatalf("methods: %v", err)
+	}
+	if contains(final.Msg.GetMethods(), "google") {
+		t.Error("google is still connected after unlinking")
+	}
+}
+
+// The refusal that stops linking from being a takeover: an identity already connected
+// to somebody else is never moved to the caller's account.
+func TestGoogleLinkRefusesAnIdentityInUseElsewhere(t *testing.T) {
+	g := newFakeGoogle(t, "test-client-id")
+	h, _ := googleHarness(t, g)
+	ctx := context.Background()
+
+	// Ada registers an invitation, and a second person signs up with Google using it.
+	adaToken, _ := h.register("ada", "password123", "Ada")
+	_, _, adaSocial := h.authed(adaToken)
+	inv, err := adaSocial.CreateInvite(ctx, connect.NewRequest(&ratatoskv1.CreateInviteRequest{}))
+	if err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	g.subject, g.email, g.name = "shared-identity", "shared@example.com", "Shared"
+	auth := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL)
+	pending := callback(t, h, startFlow(t, h), "code-1").Query().Get("google_pending")
+	if _, err := auth.FinishGoogleSignUp(ctx, connect.NewRequest(&ratatoskv1.FinishGoogleSignUpRequest{
+		PendingToken: pending, Username: "grace", InviteCode: inv.Msg.GetInvite().GetCode(),
+	})); err != nil {
+		t.Fatalf("finish: %v", err)
+	}
+
+	// Now somebody else — a different Ratatosk account — tries to connect the *same*
+	// Google identity to themselves.
+	malloryToken, _ := h.register("mallory", "password123", "Mallory")
+	mallory := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL,
+		connect.WithInterceptors(bearerInterceptor{token: malloryToken}))
+	if _, err := mallory.GoogleLinkUrl(ctx, connect.NewRequest(&ratatoskv1.GoogleLinkUrlRequest{})); err != nil {
+		t.Fatalf("link url: %v", err)
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	startReq, _ := http.NewRequest(http.MethodGet, h.baseURL+"/auth/google/link", nil)
+	startReq.Header.Set("Authorization", "Bearer "+malloryToken)
+	startResp, _ := client.Do(startReq)
+	io.Copy(io.Discard, startResp.Body)
+	startResp.Body.Close()
+	consent, _ := url.Parse(startResp.Header.Get("Location"))
+	cbResp, _ := client.Get(h.baseURL + "/auth/google/callback?state=" +
+		url.QueryEscape(consent.Query().Get("state")) + "&code=stolen")
+	io.Copy(io.Discard, cbResp.Body)
+	cbResp.Body.Close()
+	result, _ := url.Parse(cbResp.Header.Get("Location"))
+	if result.Query().Get("google_linked") == "1" {
+		t.Fatal("an identity already connected elsewhere was moved")
+	}
+	if result.Query().Get("google_link_error") == "" {
+		t.Fatal("the refusal was not explained to the person")
+	}
+
+	// And Mallory still has only a password: nothing was attached.
+	malloryMethods, err := mallory.SignInMethods(ctx, connect.NewRequest(&ratatoskv1.SignInMethodsRequest{}))
+	if err != nil {
+		t.Fatalf("methods: %v", err)
+	}
+	if contains(malloryMethods.Msg.GetMethods(), "google") {
+		t.Error("the identity was attached anyway")
+	}
+}
+
+// An account whose only way in is Google must not be able to disconnect it.
+func TestUnlinkRefusedWhenItIsTheOnlyWayIn(t *testing.T) {
+	g := newFakeGoogle(t, "test-client-id")
+	g.subject, g.email, g.name = "only-way", "only@example.com", "Only"
+	h, _ := googleHarness(t, g)
+	ctx := context.Background()
+
+	adaToken, _ := h.register("ada", "password123", "Ada")
+	_, _, adaSocial := h.authed(adaToken)
+	inv, _ := adaSocial.CreateInvite(ctx, connect.NewRequest(&ratatoskv1.CreateInviteRequest{}))
+	auth := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL)
+	pending := callback(t, h, startFlow(t, h), "code").Query().Get("google_pending")
+	finish, err := auth.FinishGoogleSignUp(ctx, connect.NewRequest(&ratatoskv1.FinishGoogleSignUpRequest{
+		PendingToken: pending, Username: "googleonly", InviteCode: inv.Msg.GetInvite().GetCode(),
+	}))
+	if err != nil {
+		t.Fatalf("finish: %v", err)
+	}
+
+	only := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL,
+		connect.WithInterceptors(bearerInterceptor{token: finish.Msg.GetToken()}))
+	if _, err := only.UnlinkGoogle(ctx, connect.NewRequest(&ratatoskv1.UnlinkGoogleRequest{})); err == nil {
+		t.Fatal("the only way into the account was removed")
+	}
+	// Still connected, and still usable.
+	methods, err := only.SignInMethods(ctx, connect.NewRequest(&ratatoskv1.SignInMethodsRequest{}))
+	if err != nil {
+		t.Fatalf("methods: %v", err)
+	}
+	if !contains(methods.Msg.GetMethods(), "google") {
+		t.Error("the account lost its only sign-in method")
+	}
+}
+
+func contains(list []string, want string) bool {
+	for _, item := range list {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}

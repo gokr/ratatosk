@@ -280,6 +280,10 @@ func (s *SocialService) inviteProto(inv *store.Invite) *ratatoskv1.Invite {
 		Uses:      int32(inv.Uses),
 		Revoked:   inv.Revoked,
 		Valid:     inviteInvalidReason(inv) == "",
+		// The same reason the invite landing page gives, so a person reading the list
+		// and a person opening the link are told the same thing. "No longer usable" on
+		// its own is the difference between "wrong code" and "that one is used up".
+		InvalidReason: inviteInvalidReason(inv),
 	}
 	for _, id := range inv.RedeemedBy {
 		if u, err := s.st.UserByID(id); err == nil {

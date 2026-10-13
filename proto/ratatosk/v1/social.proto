@@ -55,6 +55,10 @@ message Invite {
   // Display names of the people who already joined, newest first.
   repeated string redeemed_by = 8;
   bool valid = 9;
+  // Why it can no longer be used: "revoked", "expired", "exhausted", or empty
+  // while it is still usable. The same vocabulary the invite landing page uses,
+  // so one list and one page cannot disagree about what happened to a link.
+  string invalid_reason = 10;
 }
 
 message ListContactsRequest {}
