@@ -421,6 +421,26 @@ func (b *base) LinkGoogleIdentity(ctx context.Context, userID string, id *google
 	return nil
 }
 
+// IssueOAuthTicket mints a single-use ticket for one redirect on this account's
+// behalf.
+//
+// The equivalent of the app's session, scoped to one navigation: the browser cannot
+// send a bearer token, so this is what identifies the account when it arrives.
+func (b *base) IssueOAuthTicket(userID, purpose string) (string, error) {
+	now := now()
+	ticket := &store.OAuthTicket{
+		Token:     ids.Token() + ids.Token(),
+		UserID:    userID,
+		Purpose:   purpose,
+		CreatedAt: now,
+		ExpiresAt: now.Add(5 * time.Minute),
+	}
+	if err := b.st.PutOAuthTicket(ticket); err != nil {
+		return "", err
+	}
+	return ticket.Token, nil
+}
+
 // UnlinkGoogleIdentity removes a linked Google identity.
 //
 // Refused when it is the account's *only* way in: an account with no password and no

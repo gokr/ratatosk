@@ -3,6 +3,7 @@
 // These cover the behaviour a person would notice: signing in, seeing the
 // conversation list, opening a thread, sending a message and watching it
 // appear, receiving one from someone else, and what a failed send looks like.
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:watch_it/watch_it.dart';
@@ -198,6 +199,67 @@ void main() {
     expect(find.byType(SnackBar), findsOneWidget,
         reason: 'a failed reaction was swallowed with no feedback');
     expect(state.messages('c1').single.message.reactions, isEmpty);
+  });
+
+  testWidgets('a reaction chip shows a count and names who reacted on hover',
+      (tester) async {
+    backend.seedConversation(history: ['react to me']);
+    await signIn();
+    await state.openConversation('c1');
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    await tester.longPress(find.text('react to me'));
+    await settle(tester);
+    await tester.tap(find.text('👍').first);
+    await settle(tester);
+
+    // The count is always visible, including for a single reaction: a chip that
+    // changes width when a second person reacts makes a busy thread twitch.
+    expect(find.text('1'), findsOneWidget,
+        reason: 'the chip shows no count');
+
+    // Hovering names who reacted. "1" and an emoji cannot say whether it was the
+    // person you were talking to.
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('1')));
+    await tester.pump(const Duration(milliseconds: 600));
+    await settle(tester);
+    expect(find.textContaining('reacted'), findsOneWidget,
+        reason: 'no tooltip naming who reacted');
+    await gesture.removePointer();
+  });
+
+  testWidgets('reactions overlap the message instead of sitting below it',
+      (tester) async {
+    // The chips are lifted onto the bubble's edge, so their top must be above the
+    // bubble's bottom — a gap would mean they read as the next item in the list.
+    backend.seedConversation(history: ['react to me']);
+    await signIn();
+    await state.openConversation('c1');
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    await tester.longPress(find.text('react to me'));
+    await settle(tester);
+    await tester.tap(find.text('👍').first);
+    await settle(tester);
+
+    // The bubble, not the text: the bubble also carries a timestamp row below the
+    // text, so the text's bottom is not the edge the chip should overlap.
+    final bubble = tester.getRect(find.ancestor(
+      of: find.text('react to me'),
+      matching: find.byType(GestureDetector),
+    ).first);
+    final chip = tester.getRect(find.byType(Tooltip).first);
+    expect(chip.top, lessThan(bubble.bottom),
+        reason: 'the chip is not overlapping the message it relates to '
+            '(chip top ${chip.top}, bubble bottom ${bubble.bottom})');
   });
 
   testWidgets('profile dialog fits phone width with keyboard inset', (tester) async {

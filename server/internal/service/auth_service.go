@@ -324,14 +324,22 @@ func (s *AuthService) googleRedirectURI() string {
 // callback refuses to attach the identity anywhere else. That binding is what makes
 // this different from the sign-in URL, which anyone may use.
 func (s *AuthService) GoogleLinkUrl(ctx context.Context, req *connect.Request[ratatoskv1.GoogleLinkUrlRequest]) (*connect.Response[ratatoskv1.GoogleLinkUrlResponse], error) {
-	if _, err := s.requireUser(ctx); err != nil {
+	user, err := s.requireUser(ctx)
+	if err != nil {
 		return nil, err
 	}
 	if s.cfg.GoogleClientID == "" {
 		return connect.NewResponse(&ratatoskv1.GoogleLinkUrlResponse{}), nil
 	}
+	// The ticket goes in the URL because the browser cannot carry a header on a
+	// navigation. Without it the link endpoint has no idea who is asking, which is
+	// exactly how connecting Google appeared to do nothing at all.
+	ticket, err := s.IssueOAuthTicket(user.ID, "google-link")
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
 	return connect.NewResponse(&ratatoskv1.GoogleLinkUrlResponse{
-		Url: normalPath(s.cfg.PublicURL, "/auth/google/link"),
+		Url: normalPath(s.cfg.PublicURL, "/auth/google/link") + "?t=" + ticket,
 	}), nil
 }
 

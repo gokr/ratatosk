@@ -42,6 +42,15 @@ const googleTokenEndpoint = "https://oauth2.googleapis.com/token"
 // someone to pick an account and consent, short enough to forget an abandoned one.
 const oauthStateLifetime = 10 * time.Minute
 
+// oauthTicketPurposeLink marks a ticket as belonging to the linking flow, so one
+// obtained for another purpose cannot be spent here.
+const oauthTicketPurposeLink = "google-link"
+
+// oauthTicketLifetime is how long the app has to send the browser to the link
+// endpoint after asking for the URL. Short: it is spent immediately, and a ticket in
+// a URL is the one thing worth keeping brief.
+const oauthTicketLifetime = 5 * time.Minute
+
 // serveGoogleLinkStart begins *linking* Google to the account that started it.
 //
 // Separate from the sign-in start because the two must not be interchangeable: a
@@ -56,12 +65,15 @@ func (s *Server) serveGoogleLinkStart(w http.ResponseWriter, r *http.Request) {
 		s.googleFail(r, w, "Google sign-in is not configured on this server.")
 		return
 	}
-	user, err := s.st.SessionUser(bearerToken(r.Header), time.Now())
+	// A ticket, not a bearer token: this endpoint is reached by the browser
+	// *navigating* here, and a navigation carries no Authorization header. The app
+	// obtained the ticket over an authenticated RPC moments ago.
+	ticket, err := s.st.TakeOAuthTicket(r.URL.Query().Get("t"), oauthTicketPurposeLink, time.Now())
 	if err != nil {
-		s.googleFail(r, w, "Sign in before connecting Google.")
+		s.googleLinkFail(r, w, "That request expired. Try connecting Google again.")
 		return
 	}
-	state, err := s.beginGoogle(r, user.ID)
+	state, err := s.beginGoogle(r, ticket.UserID)
 	if err != nil {
 		s.log.Error("could not store oauth link state", "err", err)
 		s.googleLinkFail(r, w, "Could not start connecting Google. Try again.")

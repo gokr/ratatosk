@@ -37,11 +37,36 @@ class _SignInMethodsSectionState extends State<SignInMethodsSection> {
   SignInMethods? _methods;
   bool _busy = false;
   String? _problem;
+  bool _note = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _consumeLinkResult();
+  }
+
+  /// Reports the outcome of a linking round-trip and refreshes the list.
+  ///
+  /// Without this the screen looked untouched after connecting: the state layer
+  /// recorded the result, nothing displayed it, and the list had already loaded — so
+  /// a success and a refusal were both "nothing happened".
+  void _consumeLinkResult() {
+    final result = di<AppState>().googleResult;
+    if (result == null || !result.hasLinkResult) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        if (result.linked) {
+          _note = true;
+          _problem = null;
+        } else {
+          _problem = result.linkError ?? tr(context, 'Could not connect Google.');
+        }
+      });
+      di<AppState>().leaveGoogleFlow();
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -151,6 +176,14 @@ class _SignInMethodsSectionState extends State<SignInMethodsSection> {
               ),
           ]),
         ),
+        if (_note)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              tr(context, 'Google is connected. You can sign in with it from now on.'),
+              style: TextStyle(color: theme.colorScheme.primary, fontSize: 12),
+            ),
+          ),
         if (_problem != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

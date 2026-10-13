@@ -159,7 +159,27 @@ class MessageBubble extends StatelessWidget {
       ),
     );
 
-    // Reactions sit under the bubble, slightly overlapping it.
+    /// A display name for a user id, for the reaction tooltip.
+    ///
+    /// Falls back to "Someone" rather than an id: a name is what the tooltip is for,
+    /// and an id string is worse than admitting we do not know who it was — somebody
+    /// who left the conversation, or a member list that has not loaded.
+    String reactionName(String userId) {
+      if (userId == state.me?.id) return tr(context, 'You');
+      for (final member in conversation.members) {
+        if (member.user.id == userId) {
+          final name = member.user.displayName;
+          return name.isEmpty ? member.user.username : name;
+        }
+      }
+      if (conversation.hasPeer() && conversation.peer.id == userId) {
+        final peer = conversation.peer;
+        return peer.displayName.isEmpty ? peer.username : peer.displayName;
+      }
+      return tr(context, 'Someone');
+    }
+
+    // Reactions overlap the bubble rather than sitting under it.
     final reactions = message.reactions.where((r) => r.userIds.isNotEmpty).toList();
 
     Widget content = Column(
@@ -173,17 +193,36 @@ class MessageBubble extends StatelessWidget {
           child: bubble,
         ),
         if (reactions.isNotEmpty)
-          Padding(
-            padding: EdgeInsets.only(top: 4, left: 4, right: 4),
-            child: Wrap(
-              spacing: 4,
-              children: reactions
-                  .map((reaction) => _ReactionChip(
-                        reaction: reaction,
-                        isMine: reaction.userIds.contains(state.me?.id),
-                        onTap: () => onReact?.call(reaction.emoji),
-                      ))
-                  .toList(),
+          // Sits *over* the bubble rather than below it, which is what makes a
+          // reaction read as attached to the message instead of as the next item in
+          // the list. A negative margin, not a Transform: translating moves the pixels
+          // but leaves the layout box below the bubble, so the row still occupied its
+          // own slot and the overlap was invisible in the spacing.
+          // `Align(heightFactor:)` reserves *less* height than its child, and
+          // `Alignment.bottomCenter` puts the child's bottom on that reduced box — so
+          // the chips hang upward over the bubble's lower edge while the column still
+          // moves on at the reduced height.
+          //
+          // A negative padding is not allowed, and a Transform only moves pixels: the
+          // layout box would stay below the bubble, so the overlap would be invisible
+          // in the spacing even though the chip looked shifted.
+          Align(
+            alignment: Alignment.bottomLeft,
+            heightFactor: 0.62,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 6, right: 6),
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: reactions
+                    .map((reaction) => _ReactionChip(
+                          reaction: reaction,
+                          isMine: reaction.userIds.contains(state.me?.id),
+                          onTap: () => onReact?.call(reaction.emoji),
+                          resolveName: reactionName,
+                        ))
+                    .toList(),
+              ),
             ),
           ),
         if (entry.state == SendState.failed)
@@ -523,36 +562,79 @@ class _Meta extends StatelessWidget {
 }
 
 class _ReactionChip extends StatelessWidget {
-  const _ReactionChip({required this.reaction, required this.isMine, required this.onTap});
+  const _ReactionChip({
+    required this.reaction,
+    required this.isMine,
+    required this.onTap,
+    required this.resolveName,
+  });
 
   final Reaction reaction;
   final bool isMine;
   final VoidCallback onTap;
 
+  /// Turns a user id into a display name for the tooltip.
+  final String Function(String userId) resolveName;
+
+  /// Who reacted, as a sentence.
+  ///
+  /// The server sends ids, not names, so this reads them out of the conversation the
+  /// bubble already has. Names are the whole point of the tooltip: "3" tells nobody
+  /// anything, and an emoji alone cannot say whether it was the person you were
+  /// talking to.
+  String _whoReacted() {
+    final names = reaction.userIds.map(resolveName).toList();
+    if (names.isEmpty) return '';
+    if (names.length == 1) return names.first;
+    if (names.length <= 3) {
+      return '${names.take(names.length - 1).join(', ')} and ${names.last}';
+    }
+    return '${names.take(2).join(', ')} and ${names.length - 2} others';
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: isMine ? scheme.primaryContainer : Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isMine ? scheme.primary : scheme.outlineVariant,
-            width: 0.5,
+    final count = reaction.userIds.length;
+    final who = _whoReacted();
+    return Tooltip(
+      message: who.isEmpty ? reaction.emoji : '$who reacted ${reaction.emoji}',
+      // Long-press already opens the message actions; a tooltip that swallowed it
+      // would make the gesture stop working on a reacted message.
+      triggerMode: TooltipTriggerMode.tap,
+      waitDuration: const Duration(milliseconds: 400),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            // Opaque on purpose: the row overlaps the bubble, so a translucent chip
+            // would show the message text through it.
+            color: isMine ? scheme.primaryContainer : Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isMine ? scheme.primary : scheme.outlineVariant,
+              width: 0.5,
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(reaction.emoji, style: TextStyle(fontSize: 13)),
-            SizedBox(width: 3),
-            if (reaction.userIds.length > 1)
-              Text('${reaction.userIds.length}', style: TextStyle(fontSize: 11)),
-          ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(reaction.emoji, style: const TextStyle(fontSize: 13)),
+              const SizedBox(width: 4),
+              // Always shown, even for one: a chip that changes width when a second
+              // person reacts makes a busy thread twitch, and "1" is information too.
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isMine ? FontWeight.w600 : FontWeight.normal,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

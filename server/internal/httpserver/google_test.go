@@ -363,6 +363,16 @@ func TestGoogleDisabledWhenUnconfigured(t *testing.T) {
 
 // Connecting Google to an account that already exists — the case a person with a
 // password account hits, and which signing in alone can never do.
+// linkURL rewrites the absolute URL the server returns (built from PublicURL, which
+// does not resolve in a test) onto the test server, keeping its ticket.
+func linkURL(h *harness, absolute string) string {
+	parsed, err := url.Parse(absolute)
+	if err != nil {
+		return absolute
+	}
+	return h.baseURL + parsed.Path + "?" + parsed.RawQuery
+}
+
 func TestGoogleLinkToExistingAccount(t *testing.T) {
 	g := newFakeGoogle(t, "test-client-id")
 	g.subject, g.email, g.name = "link-subject", "gokr@example.com", "Göran"
@@ -378,8 +388,8 @@ func TestGoogleLinkToExistingAccount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("link url: %v", err)
 	}
-	if !strings.HasSuffix(link.Msg.GetUrl(), "/auth/google/link") {
-		t.Fatalf("link url = %q", link.Msg.GetUrl())
+	if !strings.Contains(link.Msg.GetUrl(), "/auth/google/link?t=") {
+		t.Fatalf("link url carries no ticket: %q", link.Msg.GetUrl())
 	}
 
 	// Before connecting: password only.
@@ -395,8 +405,7 @@ func TestGoogleLinkToExistingAccount(t *testing.T) {
 	// absolute (PublicURL), which is not resolvable here, so the handler is reached
 	// on the test server with the same bearer token.
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	startReq, _ := http.NewRequest(http.MethodGet, h.baseURL+"/auth/google/link", nil)
-	startReq.Header.Set("Authorization", "Bearer "+token)
+	startReq, _ := http.NewRequest(http.MethodGet, linkURL(h, link.Msg.GetUrl()), nil)
 	startResp, err := client.Do(startReq)
 	if err != nil {
 		t.Fatalf("start: %v", err)
@@ -481,6 +490,7 @@ func TestGoogleLinkRefusesAnIdentityInUseElsewhere(t *testing.T) {
 	if err != nil {
 		t.Fatalf("invite: %v", err)
 	}
+	linkURLForMallory := ""
 	g.subject, g.email, g.name = "shared-identity", "shared@example.com", "Shared"
 	auth := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL)
 	pending := callback(t, h, startFlow(t, h), "code-1").Query().Get("google_pending")
@@ -495,12 +505,13 @@ func TestGoogleLinkRefusesAnIdentityInUseElsewhere(t *testing.T) {
 	malloryToken, _ := h.register("mallory", "password123", "Mallory")
 	mallory := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL,
 		connect.WithInterceptors(bearerInterceptor{token: malloryToken}))
-	if _, err := mallory.GoogleLinkUrl(ctx, connect.NewRequest(&ratatoskv1.GoogleLinkUrlRequest{})); err != nil {
+	malloryLink, err := mallory.GoogleLinkUrl(ctx, connect.NewRequest(&ratatoskv1.GoogleLinkUrlRequest{}))
+	if err != nil {
 		t.Fatalf("link url: %v", err)
 	}
+	linkURLForMallory = malloryLink.Msg.GetUrl()
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	startReq, _ := http.NewRequest(http.MethodGet, h.baseURL+"/auth/google/link", nil)
-	startReq.Header.Set("Authorization", "Bearer "+malloryToken)
+	startReq, _ := http.NewRequest(http.MethodGet, linkURL(h, linkURLForMallory), nil)
 	startResp, _ := client.Do(startReq)
 	io.Copy(io.Discard, startResp.Body)
 	startResp.Body.Close()
