@@ -50,6 +50,15 @@ const (
 	// AuthServiceDeleteAccountProcedure is the fully-qualified name of the AuthService's DeleteAccount
 	// RPC.
 	AuthServiceDeleteAccountProcedure = "/ratatosk.v1.AuthService/DeleteAccount"
+	// AuthServiceFinishGoogleSignUpProcedure is the fully-qualified name of the AuthService's
+	// FinishGoogleSignUp RPC.
+	AuthServiceFinishGoogleSignUpProcedure = "/ratatosk.v1.AuthService/FinishGoogleSignUp"
+	// AuthServiceGoogleSignInConfigProcedure is the fully-qualified name of the AuthService's
+	// GoogleSignInConfig RPC.
+	AuthServiceGoogleSignInConfigProcedure = "/ratatosk.v1.AuthService/GoogleSignInConfig"
+	// AuthServiceSignInMethodsProcedure is the fully-qualified name of the AuthService's SignInMethods
+	// RPC.
+	AuthServiceSignInMethodsProcedure = "/ratatosk.v1.AuthService/SignInMethods"
 )
 
 // AuthServiceClient is a client for the ratatosk.v1.AuthService service.
@@ -73,6 +82,17 @@ type AuthServiceClient interface {
 	// (a shared laptop, a stolen token). It is the one irreversible thing a user
 	// can ask for, so the same check the operator's --delete-account does applies.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
+	// Turn a verified social sign-in into an account.
+	//
+	// Reached only through the server's own OAuth callback: the browser comes back
+	// with an opaque pending token, and the password (if any) is chosen here. An
+	// invitation is required, because this server is invite-only.
+	FinishGoogleSignUp(context.Context, *connect.Request[v1.FinishGoogleSignUpRequest]) (*connect.Response[v1.FinishGoogleSignUpResponse], error)
+	// Whether this server offers Google sign-in at all, and the client id and
+	// callback the browser needs. Public: it is shown before anybody signs in.
+	GoogleSignInConfig(context.Context, *connect.Request[v1.GoogleSignInConfigRequest]) (*connect.Response[v1.GoogleSignInConfigResponse], error)
+	// The sign-in methods this account has, so Settings can show them.
+	SignInMethods(context.Context, *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the ratatosk.v1.AuthService service. By default, it
@@ -128,18 +148,39 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("DeleteAccount")),
 			connect.WithClientOptions(opts...),
 		),
+		finishGoogleSignUp: connect.NewClient[v1.FinishGoogleSignUpRequest, v1.FinishGoogleSignUpResponse](
+			httpClient,
+			baseURL+AuthServiceFinishGoogleSignUpProcedure,
+			connect.WithSchema(authServiceMethods.ByName("FinishGoogleSignUp")),
+			connect.WithClientOptions(opts...),
+		),
+		googleSignInConfig: connect.NewClient[v1.GoogleSignInConfigRequest, v1.GoogleSignInConfigResponse](
+			httpClient,
+			baseURL+AuthServiceGoogleSignInConfigProcedure,
+			connect.WithSchema(authServiceMethods.ByName("GoogleSignInConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		signInMethods: connect.NewClient[v1.SignInMethodsRequest, v1.SignInMethodsResponse](
+			httpClient,
+			baseURL+AuthServiceSignInMethodsProcedure,
+			connect.WithSchema(authServiceMethods.ByName("SignInMethods")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	register       *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
-	login          *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	logout         *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
-	getMe          *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
-	updateProfile  *connect.Client[v1.UpdateProfileRequest, v1.UpdateProfileResponse]
-	changePassword *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
-	deleteAccount  *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
+	register           *connect.Client[v1.RegisterRequest, v1.RegisterResponse]
+	login              *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	logout             *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	getMe              *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
+	updateProfile      *connect.Client[v1.UpdateProfileRequest, v1.UpdateProfileResponse]
+	changePassword     *connect.Client[v1.ChangePasswordRequest, v1.ChangePasswordResponse]
+	deleteAccount      *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
+	finishGoogleSignUp *connect.Client[v1.FinishGoogleSignUpRequest, v1.FinishGoogleSignUpResponse]
+	googleSignInConfig *connect.Client[v1.GoogleSignInConfigRequest, v1.GoogleSignInConfigResponse]
+	signInMethods      *connect.Client[v1.SignInMethodsRequest, v1.SignInMethodsResponse]
 }
 
 // Register calls ratatosk.v1.AuthService.Register.
@@ -177,6 +218,21 @@ func (c *authServiceClient) DeleteAccount(ctx context.Context, req *connect.Requ
 	return c.deleteAccount.CallUnary(ctx, req)
 }
 
+// FinishGoogleSignUp calls ratatosk.v1.AuthService.FinishGoogleSignUp.
+func (c *authServiceClient) FinishGoogleSignUp(ctx context.Context, req *connect.Request[v1.FinishGoogleSignUpRequest]) (*connect.Response[v1.FinishGoogleSignUpResponse], error) {
+	return c.finishGoogleSignUp.CallUnary(ctx, req)
+}
+
+// GoogleSignInConfig calls ratatosk.v1.AuthService.GoogleSignInConfig.
+func (c *authServiceClient) GoogleSignInConfig(ctx context.Context, req *connect.Request[v1.GoogleSignInConfigRequest]) (*connect.Response[v1.GoogleSignInConfigResponse], error) {
+	return c.googleSignInConfig.CallUnary(ctx, req)
+}
+
+// SignInMethods calls ratatosk.v1.AuthService.SignInMethods.
+func (c *authServiceClient) SignInMethods(ctx context.Context, req *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error) {
+	return c.signInMethods.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the ratatosk.v1.AuthService service.
 type AuthServiceHandler interface {
 	// Create an account and return a session token.
@@ -198,6 +254,17 @@ type AuthServiceHandler interface {
 	// (a shared laptop, a stolen token). It is the one irreversible thing a user
 	// can ask for, so the same check the operator's --delete-account does applies.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
+	// Turn a verified social sign-in into an account.
+	//
+	// Reached only through the server's own OAuth callback: the browser comes back
+	// with an opaque pending token, and the password (if any) is chosen here. An
+	// invitation is required, because this server is invite-only.
+	FinishGoogleSignUp(context.Context, *connect.Request[v1.FinishGoogleSignUpRequest]) (*connect.Response[v1.FinishGoogleSignUpResponse], error)
+	// Whether this server offers Google sign-in at all, and the client id and
+	// callback the browser needs. Public: it is shown before anybody signs in.
+	GoogleSignInConfig(context.Context, *connect.Request[v1.GoogleSignInConfigRequest]) (*connect.Response[v1.GoogleSignInConfigResponse], error)
+	// The sign-in methods this account has, so Settings can show them.
+	SignInMethods(context.Context, *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -249,6 +316,24 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("DeleteAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceFinishGoogleSignUpHandler := connect.NewUnaryHandler(
+		AuthServiceFinishGoogleSignUpProcedure,
+		svc.FinishGoogleSignUp,
+		connect.WithSchema(authServiceMethods.ByName("FinishGoogleSignUp")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceGoogleSignInConfigHandler := connect.NewUnaryHandler(
+		AuthServiceGoogleSignInConfigProcedure,
+		svc.GoogleSignInConfig,
+		connect.WithSchema(authServiceMethods.ByName("GoogleSignInConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceSignInMethodsHandler := connect.NewUnaryHandler(
+		AuthServiceSignInMethodsProcedure,
+		svc.SignInMethods,
+		connect.WithSchema(authServiceMethods.ByName("SignInMethods")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/ratatosk.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceRegisterProcedure:
@@ -265,6 +350,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceChangePasswordHandler.ServeHTTP(w, r)
 		case AuthServiceDeleteAccountProcedure:
 			authServiceDeleteAccountHandler.ServeHTTP(w, r)
+		case AuthServiceFinishGoogleSignUpProcedure:
+			authServiceFinishGoogleSignUpHandler.ServeHTTP(w, r)
+		case AuthServiceGoogleSignInConfigProcedure:
+			authServiceGoogleSignInConfigHandler.ServeHTTP(w, r)
+		case AuthServiceSignInMethodsProcedure:
+			authServiceSignInMethodsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -300,4 +391,16 @@ func (UnimplementedAuthServiceHandler) ChangePassword(context.Context, *connect.
 
 func (UnimplementedAuthServiceHandler) DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.DeleteAccount is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) FinishGoogleSignUp(context.Context, *connect.Request[v1.FinishGoogleSignUpRequest]) (*connect.Response[v1.FinishGoogleSignUpResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.FinishGoogleSignUp is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) GoogleSignInConfig(context.Context, *connect.Request[v1.GoogleSignInConfigRequest]) (*connect.Response[v1.GoogleSignInConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.GoogleSignInConfig is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) SignInMethods(context.Context, *connect.Request[v1.SignInMethodsRequest]) (*connect.Response[v1.SignInMethodsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ratatosk.v1.AuthService.SignInMethods is not implemented"))
 }

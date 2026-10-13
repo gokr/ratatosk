@@ -47,6 +47,7 @@ type options struct {
 	corsOrigins     string
 	deepLinkScheme  string
 	webDir          string
+	googleClientID  string
 	sessionTTL      time.Duration
 	inviteTTL       time.Duration
 	inviteMaxUses   int
@@ -70,6 +71,9 @@ func run() error {
 	flag.IntVar(&o.inviteMaxUses, "invite-max-uses", envInt("RATATOSK_INVITE_MAX_USES", 1), "default number of uses for a new invite link (0 for unlimited)")
 	flag.Int64Var(&o.maxUploadBytes, "max-upload-bytes", int64(envInt("RATATOSK_MAX_UPLOAD_BYTES", 8<<20)), "largest accepted attachment")
 	flag.DurationVar(&o.presenceTimeout, "away-after", envDuration("RATATOSK_AWAY_AFTER", 5*time.Minute), "idle time after which a connected user counts as away")
+	// Google sign-in. A client id alone enables the flow; the secret is optional
+	// because PKCE, not the secret, is what binds the code exchange to this server.
+	flag.StringVar(&o.googleClientID, "google-client-id", env("RATATOSK_GOOGLE_CLIENT_ID", ""), "Google OAuth client id (enables Google sign-in)")
 	flag.StringVar(&o.logLevel, "log-level", env("RATATOSK_LOG_LEVEL", "info"), "debug, info, warn or error")
 	flag.StringVar(&o.logFormat, "log-format", env("RATATOSK_LOG_FORMAT", "text"), "text or json")
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -136,17 +140,21 @@ func run() error {
 	cfg.InviteTTL = o.inviteTTL
 	cfg.InviteMaxUses = o.inviteMaxUses
 	cfg.MaxUploadBytes = o.maxUploadBytes
+	cfg.GoogleClientID = o.googleClientID
+	cfg.GoogleClientSecret = os.Getenv("RATATOSK_GOOGLE_CLIENT_SECRET")
 	services := service.New(st, hub, presence, cfg, log)
 
 	handler := httpserver.New(httpserver.Config{
-		Version:        version,
-		Push:           pushWorker,
-		Addr:           o.addr,
-		PublicURL:      publicURL,
-		CORSOrigins:    splitOrigins(o.corsOrigins),
-		DeepLinkScheme: o.deepLinkScheme,
-		WebDir:         resolveWebDir(o.webDir),
-		Log:            log,
+		Version:            version,
+		Push:               pushWorker,
+		Addr:               o.addr,
+		PublicURL:          publicURL,
+		CORSOrigins:        splitOrigins(o.corsOrigins),
+		DeepLinkScheme:     o.deepLinkScheme,
+		WebDir:             resolveWebDir(o.webDir),
+		GoogleClientID:     o.googleClientID,
+		GoogleClientSecret: os.Getenv("RATATOSK_GOOGLE_CLIENT_SECRET"),
+		Log:                log,
 	}, st, hub, presence, services)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

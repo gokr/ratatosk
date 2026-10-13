@@ -268,6 +268,110 @@ final $typed_data.Uint8List deleteAccountResponseDescriptor = $convert.base64Dec
     'c0RlbGV0ZWQSLwoTYXR0YWNobWVudHNfZGVsZXRlZBgDIAEoBVISYXR0YWNobWVudHNEZWxldG'
     'Vk');
 
+@$core.Deprecated('Use finishGoogleSignUpRequestDescriptor instead')
+const FinishGoogleSignUpRequest$json = {
+  '1': 'FinishGoogleSignUpRequest',
+  '2': [
+    {'1': 'pending_token', '3': 1, '4': 1, '5': 9, '10': 'pendingToken'},
+    {'1': 'username', '3': 2, '4': 1, '5': 9, '10': 'username'},
+    {'1': 'display_name', '3': 3, '4': 1, '5': 9, '10': 'displayName'},
+    {'1': 'invite_code', '3': 4, '4': 1, '5': 9, '10': 'inviteCode'},
+  ],
+};
+
+/// Descriptor for `FinishGoogleSignUpRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List finishGoogleSignUpRequestDescriptor = $convert.base64Decode(
+    'ChlGaW5pc2hHb29nbGVTaWduVXBSZXF1ZXN0EiMKDXBlbmRpbmdfdG9rZW4YASABKAlSDHBlbm'
+    'RpbmdUb2tlbhIaCgh1c2VybmFtZRgCIAEoCVIIdXNlcm5hbWUSIQoMZGlzcGxheV9uYW1lGAMg'
+    'ASgJUgtkaXNwbGF5TmFtZRIfCgtpbnZpdGVfY29kZRgEIAEoCVIKaW52aXRlQ29kZQ==');
+
+@$core.Deprecated('Use finishGoogleSignUpResponseDescriptor instead')
+const FinishGoogleSignUpResponse$json = {
+  '1': 'FinishGoogleSignUpResponse',
+  '2': [
+    {'1': 'token', '3': 1, '4': 1, '5': 9, '10': 'token'},
+    {
+      '1': 'user',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.ratatosk.v1.User',
+      '10': 'user'
+    },
+    {
+      '1': 'expires_at',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'expiresAt'
+    },
+  ],
+};
+
+/// Descriptor for `FinishGoogleSignUpResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List finishGoogleSignUpResponseDescriptor =
+    $convert.base64Decode(
+        'ChpGaW5pc2hHb29nbGVTaWduVXBSZXNwb25zZRIUCgV0b2tlbhgBIAEoCVIFdG9rZW4SJQoEdX'
+        'NlchgCIAEoCzIRLnJhdGF0b3NrLnYxLlVzZXJSBHVzZXISOQoKZXhwaXJlc19hdBgDIAEoCzIa'
+        'Lmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCWV4cGlyZXNBdA==');
+
+@$core.Deprecated('Use googleSignInConfigRequestDescriptor instead')
+const GoogleSignInConfigRequest$json = {
+  '1': 'GoogleSignInConfigRequest',
+};
+
+/// Descriptor for `GoogleSignInConfigRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List googleSignInConfigRequestDescriptor =
+    $convert.base64Decode('ChlHb29nbGVTaWduSW5Db25maWdSZXF1ZXN0');
+
+@$core.Deprecated('Use googleSignInConfigResponseDescriptor instead')
+const GoogleSignInConfigResponse$json = {
+  '1': 'GoogleSignInConfigResponse',
+  '2': [
+    {'1': 'enabled', '3': 1, '4': 1, '5': 8, '10': 'enabled'},
+    {'1': 'client_id', '3': 2, '4': 1, '5': 9, '10': 'clientId'},
+    {
+      '1': 'authorization_endpoint',
+      '3': 3,
+      '4': 1,
+      '5': 9,
+      '10': 'authorizationEndpoint'
+    },
+    {'1': 'redirect_uri', '3': 4, '4': 1, '5': 9, '10': 'redirectUri'},
+  ],
+};
+
+/// Descriptor for `GoogleSignInConfigResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List googleSignInConfigResponseDescriptor = $convert.base64Decode(
+    'ChpHb29nbGVTaWduSW5Db25maWdSZXNwb25zZRIYCgdlbmFibGVkGAEgASgIUgdlbmFibGVkEh'
+    'sKCWNsaWVudF9pZBgCIAEoCVIIY2xpZW50SWQSNQoWYXV0aG9yaXphdGlvbl9lbmRwb2ludBgD'
+    'IAEoCVIVYXV0aG9yaXphdGlvbkVuZHBvaW50EiEKDHJlZGlyZWN0X3VyaRgEIAEoCVILcmVkaX'
+    'JlY3RVcmk=');
+
+@$core.Deprecated('Use signInMethodsRequestDescriptor instead')
+const SignInMethodsRequest$json = {
+  '1': 'SignInMethodsRequest',
+};
+
+/// Descriptor for `SignInMethodsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signInMethodsRequestDescriptor =
+    $convert.base64Decode('ChRTaWduSW5NZXRob2RzUmVxdWVzdA==');
+
+@$core.Deprecated('Use signInMethodsResponseDescriptor instead')
+const SignInMethodsResponse$json = {
+  '1': 'SignInMethodsResponse',
+  '2': [
+    {'1': 'methods', '3': 1, '4': 3, '5': 9, '10': 'methods'},
+    {'1': 'google_email', '3': 2, '4': 1, '5': 9, '10': 'googleEmail'},
+  ],
+};
+
+/// Descriptor for `SignInMethodsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List signInMethodsResponseDescriptor = $convert.base64Decode(
+    'ChVTaWduSW5NZXRob2RzUmVzcG9uc2USGAoHbWV0aG9kcxgBIAMoCVIHbWV0aG9kcxIhCgxnb2'
+    '9nbGVfZW1haWwYAiABKAlSC2dvb2dsZUVtYWls');
+
 const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
   '1': 'AuthService',
   '2': [
@@ -313,6 +417,24 @@ const $core.Map<$core.String, $core.dynamic> AuthServiceBase$json = {
       '3': '.ratatosk.v1.DeleteAccountResponse',
       '4': {}
     },
+    {
+      '1': 'FinishGoogleSignUp',
+      '2': '.ratatosk.v1.FinishGoogleSignUpRequest',
+      '3': '.ratatosk.v1.FinishGoogleSignUpResponse',
+      '4': {}
+    },
+    {
+      '1': 'GoogleSignInConfig',
+      '2': '.ratatosk.v1.GoogleSignInConfigRequest',
+      '3': '.ratatosk.v1.GoogleSignInConfigResponse',
+      '4': {}
+    },
+    {
+      '1': 'SignInMethods',
+      '2': '.ratatosk.v1.SignInMethodsRequest',
+      '3': '.ratatosk.v1.SignInMethodsResponse',
+      '4': {}
+    },
   ],
 };
 
@@ -335,6 +457,12 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.ratatosk.v1.ChangePasswordResponse': ChangePasswordResponse$json,
   '.ratatosk.v1.DeleteAccountRequest': DeleteAccountRequest$json,
   '.ratatosk.v1.DeleteAccountResponse': DeleteAccountResponse$json,
+  '.ratatosk.v1.FinishGoogleSignUpRequest': FinishGoogleSignUpRequest$json,
+  '.ratatosk.v1.FinishGoogleSignUpResponse': FinishGoogleSignUpResponse$json,
+  '.ratatosk.v1.GoogleSignInConfigRequest': GoogleSignInConfigRequest$json,
+  '.ratatosk.v1.GoogleSignInConfigResponse': GoogleSignInConfigResponse$json,
+  '.ratatosk.v1.SignInMethodsRequest': SignInMethodsRequest$json,
+  '.ratatosk.v1.SignInMethodsResponse': SignInMethodsResponse$json,
 };
 
 /// Descriptor for `AuthService`. Decode as a `google.protobuf.ServiceDescriptorProto`.
@@ -349,4 +477,9 @@ final $typed_data.Uint8List authServiceDescriptor = $convert.base64Decode(
     'VQYXNzd29yZBIiLnJhdGF0b3NrLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBojLnJhdGF0b3Nr'
     'LnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiABJYCg1EZWxldGVBY2NvdW50EiEucmF0YXRvc2'
     'sudjEuRGVsZXRlQWNjb3VudFJlcXVlc3QaIi5yYXRhdG9zay52MS5EZWxldGVBY2NvdW50UmVz'
-    'cG9uc2UiAA==');
+    'cG9uc2UiABJnChJGaW5pc2hHb29nbGVTaWduVXASJi5yYXRhdG9zay52MS5GaW5pc2hHb29nbG'
+    'VTaWduVXBSZXF1ZXN0GicucmF0YXRvc2sudjEuRmluaXNoR29vZ2xlU2lnblVwUmVzcG9uc2Ui'
+    'ABJnChJHb29nbGVTaWduSW5Db25maWcSJi5yYXRhdG9zay52MS5Hb29nbGVTaWduSW5Db25maW'
+    'dSZXF1ZXN0GicucmF0YXRvc2sudjEuR29vZ2xlU2lnbkluQ29uZmlnUmVzcG9uc2UiABJYCg1T'
+    'aWduSW5NZXRob2RzEiEucmF0YXRvc2sudjEuU2lnbkluTWV0aG9kc1JlcXVlc3QaIi5yYXRhdG'
+    '9zay52MS5TaWduSW5NZXRob2RzUmVzcG9uc2UiAA==');

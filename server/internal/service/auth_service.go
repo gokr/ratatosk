@@ -231,3 +231,89 @@ func (s *AuthService) DeleteAccount(ctx context.Context, req *connect.Request[ra
 		AttachmentsDeleted:   int32(summary.Attachments),
 	}), nil
 }
+
+// FinishGoogleSignUp creates an account for a verified social identity.
+//
+// Invite-only and username-always, both by request: the account does not exist until
+// an invitation has been proved and a handle chosen. Google established only *who*
+// the person is, which is why this is a separate step rather than a quiet
+// account creation inside the callback.
+//
+// The password is left empty on purpose. Every credential check therefore has to
+// refuse an empty hash rather than compare it, which auth.VerifyPassword enforces —
+// and which is tested, because the failure mode is an account open to any password.
+func (s *AuthService) FinishGoogleSignUp(ctx context.Context, req *connect.Request[ratatoskv1.FinishGoogleSignUpRequest]) (*connect.Response[ratatoskv1.FinishGoogleSignUpResponse], error) {
+	username := auth.NormalizeUsername(req.Msg.GetUsername())
+	if err := auth.ValidateUsername(username); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	displayName := trimSpace(req.Msg.GetDisplayName())
+	if len(displayName) > 64 {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			errInvalid("display name must be at most 64 characters"))
+	}
+
+	user, session, err := s.CompleteGoogleSignUp(ctx,
+		req.Msg.GetPendingToken(), username, displayName, req.Msg.GetInviteCode())
+	switch {
+	case err == store.ErrUsernameTaken:
+		return nil, connect.NewError(connect.CodeAlreadyExists, errInvalid("that username is taken"))
+	case err != nil:
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	// The veiled-identity prompt from the handshake still holds: this flow never
+	// invents a device. A person who never opens an app is a registered account
+	// with no keys, which is a real account in every respect.
+	s.log.Info("google sign-up finished", "user", user.ID, "username", user.Username)
+	return connect.NewResponse(&ratatoskv1.FinishGoogleSignUpResponse{
+		Token:     session.Token,
+		User:      s.userProto(user),
+		ExpiresAt: ts(session.ExpiresAt),
+	}), nil
+}
+
+// GoogleSignInConfig reports whether this server offers Google sign-in.
+//
+// Public, because the sign-in screen has to know before anybody is authenticated.
+// The client id is not a secret: it is sent to Google in a URL by every site that
+// uses it. The client secret is never mentioned here.
+func (s *AuthService) GoogleSignInConfig(ctx context.Context, req *connect.Request[ratatoskv1.GoogleSignInConfigRequest]) (*connect.Response[ratatoskv1.GoogleSignInConfigResponse], error) {
+	if s.cfg.GoogleClientID == "" {
+		return connect.NewResponse(&ratatoskv1.GoogleSignInConfigResponse{Enabled: false}), nil
+	}
+	return connect.NewResponse(&ratatoskv1.GoogleSignInConfigResponse{
+		Enabled:               true,
+		ClientId:              s.cfg.GoogleClientID,
+		AuthorizationEndpoint: normalPath(s.cfg.PublicURL, oauthStartPath),
+		RedirectUri:           s.googleRedirectURI(),
+	}), nil
+}
+
+// SignInMethods lists how an account can be reached.
+//
+// Shown in Settings because "which ways in do I have" is the question somebody asks
+// *before* they need one, and an account whose only method is Google is a thing its
+// owner should know.
+func (s *AuthService) SignInMethods(ctx context.Context, req *connect.Request[ratatoskv1.SignInMethodsRequest]) (*connect.Response[ratatoskv1.SignInMethodsResponse], error) {
+	user, err := s.requireUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := &ratatoskv1.SignInMethodsResponse{}
+	if user.PasswordHash != "" {
+		out.Methods = append(out.Methods, "password")
+	}
+	for _, link := range s.st.OAuthIdentitiesOf(user.ID) {
+		if link.Provider == "google" {
+			out.Methods = append(out.Methods, "google")
+			out.GoogleEmail = link.Email
+		}
+	}
+	return connect.NewResponse(out), nil
+}
+
+// googleRedirectURI is the absolute callback Google sends the browser back to.
+func (s *AuthService) googleRedirectURI() string {
+	return normalPath(s.cfg.PublicURL, oauthCallbackPath)
+}

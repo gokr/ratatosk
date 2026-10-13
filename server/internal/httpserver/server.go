@@ -23,6 +23,7 @@ import (
 
 	"github.com/gokr/ratatosk/server/gen/ratatosk/v1/ratatoskv1connect"
 	"github.com/gokr/ratatosk/server/internal/auth"
+	"github.com/gokr/ratatosk/server/internal/googleid"
 	"github.com/gokr/ratatosk/server/internal/push"
 	"github.com/gokr/ratatosk/server/internal/realtime"
 	"github.com/gokr/ratatosk/server/internal/service"
@@ -48,7 +49,18 @@ type Config struct {
 	// served from /, which makes one url the whole product: the app, its API,
 	// attachment bytes and the invitation landing page all on one origin.
 	WebDir string
-	Log    *slog.Logger
+	// GoogleClientID and GoogleClientSecret enable Google sign-in. Empty client id
+	// means the button is hidden and no token is accepted anywhere.
+	GoogleClientID     string
+	GoogleClientSecret string
+	// GoogleJWKSURL overrides where Google's signing keys are read from. Empty
+	// means Google's own endpoint; set it behind a restrictive network or in tests.
+	GoogleJWKSURL string
+	// GoogleTokenURL and GoogleAuthURL override the two endpoints of the redirect
+	// flow, for the same reasons.
+	GoogleTokenURL string
+	GoogleAuthURL  string
+	Log            *slog.Logger
 }
 
 // Server wires the Connect handlers onto an HTTP mux.
@@ -60,6 +72,9 @@ type Server struct {
 	services *service.Services
 	log      *slog.Logger
 	handler  http.Handler
+	// google verifies ID tokens; unavailable unless a client id is configured.
+	google     *googleid.Verifier
+	httpClient *http.Client
 }
 
 // New builds the server. The returned *Server is an http.Handler.
@@ -70,7 +85,13 @@ func New(cfg Config, st *store.Store, hub *realtime.Hub, presence *realtime.Trac
 	if cfg.DeepLinkScheme == "" {
 		cfg.DeepLinkScheme = "ratatosk"
 	}
-	s := &Server{cfg: cfg, st: st, hub: hub, presence: presence, services: services, log: cfg.Log}
+	s := &Server{
+		cfg: cfg, st: st, hub: hub, presence: presence, services: services, log: cfg.Log,
+		// Timeout rather than the default client: every call here is to Google, and
+		// a hung exchange must not hold a request open indefinitely.
+		httpClient: &http.Client{Timeout: 15 * time.Second},
+		google:     googleid.NewWithJWKSURL(cfg.GoogleClientID, cfg.GoogleJWKSURL, nil),
+	}
 	s.handler = s.build()
 	return s
 }
@@ -103,6 +124,11 @@ func (s *Server) build() http.Handler {
 	// /join/a/b can never be mistaken for an invite code containing a slash.
 	mux.HandleFunc("/join/{code}", s.serveInvitePage)
 	mux.HandleFunc("/invite/{code}", s.serveInviteJSON)
+	// Google sign-in: the redirect out and the callback back. Both are plain HTTP
+	// because the browser is the client, and both are unauthenticated by necessity —
+	// signing in is what they are for.
+	mux.HandleFunc("GET /auth/google/start", s.serveGoogleStart)
+	mux.HandleFunc("GET /auth/google/callback", s.serveGoogleCallback)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		stats := s.st.Stats()
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -205,6 +231,10 @@ var publicProcedures = map[string]bool{
 	ratatoskv1connect.AuthServiceLoginProcedure:           true,
 	ratatoskv1connect.AuthServiceLogoutProcedure:          true,
 	ratatoskv1connect.SocialServicePreviewInviteProcedure: true,
+	// Signing in with Google is done by the browser before it has a token; the
+	// pending token it comes back with is what authorizes finishing the sign-up.
+	ratatoskv1connect.AuthServiceGoogleSignInConfigProcedure: true,
+	ratatoskv1connect.AuthServiceFinishGoogleSignUpProcedure: true,
 }
 
 type authInterceptor struct {

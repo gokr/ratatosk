@@ -141,4 +141,62 @@ extension type AuthServiceClient (connect.Transport _transport) {
       onTrailer: onTrailer,
     );
   }
+
+  /// Turn a verified social sign-in into an account.
+  /// Reached only through the server's own OAuth callback: the browser comes back
+  /// with an opaque pending token, and the password (if any) is chosen here. An
+  /// invitation is required, because this server is invite-only.
+  Future<ratatoskv1auth.FinishGoogleSignUpResponse> finishGoogleSignUp(
+    ratatoskv1auth.FinishGoogleSignUpRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.finishGoogleSignUp,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// Whether this server offers Google sign-in at all, and the client id and
+  /// callback the browser needs. Public: it is shown before anybody signs in.
+  Future<ratatoskv1auth.GoogleSignInConfigResponse> googleSignInConfig(
+    ratatoskv1auth.GoogleSignInConfigRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.googleSignInConfig,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
+
+  /// The sign-in methods this account has, so Settings can show them.
+  Future<ratatoskv1auth.SignInMethodsResponse> signInMethods(
+    ratatoskv1auth.SignInMethodsRequest input, {
+    connect.Headers? headers,
+    connect.AbortSignal? signal,
+    Function(connect.Headers)? onHeader,
+    Function(connect.Headers)? onTrailer,
+  }) {
+    return connect.Client(_transport).unary(
+      specs.AuthService.signInMethods,
+      input,
+      signal: signal,
+      headers: headers,
+      onHeader: onHeader,
+      onTrailer: onTrailer,
+    );
+  }
 }

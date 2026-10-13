@@ -32,6 +32,18 @@ service AuthService {
   // (a shared laptop, a stolen token). It is the one irreversible thing a user
   // can ask for, so the same check the operator's --delete-account does applies.
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse) {}
+
+  // Turn a verified social sign-in into an account.
+  //
+  // Reached only through the server's own OAuth callback: the browser comes back
+  // with an opaque pending token, and the password (if any) is chosen here. An
+  // invitation is required, because this server is invite-only.
+  rpc FinishGoogleSignUp(FinishGoogleSignUpRequest) returns (FinishGoogleSignUpResponse) {}
+  // Whether this server offers Google sign-in at all, and the client id and
+  // callback the browser needs. Public: it is shown before anybody signs in.
+  rpc GoogleSignInConfig(GoogleSignInConfigRequest) returns (GoogleSignInConfigResponse) {}
+  // The sign-in methods this account has, so Settings can show them.
+  rpc SignInMethods(SignInMethodsRequest) returns (SignInMethodsResponse) {}
 }
 
 message RegisterRequest {
@@ -105,4 +117,41 @@ message DeleteAccountResponse {
   int32 conversations_deleted = 1;
   int32 messages_deleted = 2;
   int32 attachments_deleted = 3;
+}
+message FinishGoogleSignUpRequest {
+  // The opaque token the OAuth callback handed the app.
+  string pending_token = 1;
+  // Required: every account has a username, chosen by its owner.
+  string username = 2;
+  // Defaults to what the provider told us.
+  string display_name = 3;
+  // Required: this server is invite-only.
+  string invite_code = 4;
+}
+
+message FinishGoogleSignUpResponse {
+  string token = 1;
+  ratatosk.v1.User user = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message GoogleSignInConfigRequest {}
+
+message GoogleSignInConfigResponse {
+  // False when no client id is configured; the client hides the button.
+  bool enabled = 1;
+  string client_id = 2;
+  // Absolute URL the client sends the browser to.
+  string authorization_endpoint = 3;
+  // Where Google sends the browser back to.
+  string redirect_uri = 4;
+}
+
+message SignInMethodsRequest {}
+
+message SignInMethodsResponse {
+  // "password" and/or "google".
+  repeated string methods = 1;
+  // Set when a Google identity is linked, for display.
+  string google_email = 2;
 }

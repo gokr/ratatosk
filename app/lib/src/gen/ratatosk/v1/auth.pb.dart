@@ -965,6 +965,455 @@ class DeleteAccountResponse extends $pb.GeneratedMessage {
   void clearAttachmentsDeleted() => $_clearField(3);
 }
 
+class FinishGoogleSignUpRequest extends $pb.GeneratedMessage {
+  factory FinishGoogleSignUpRequest({
+    $core.String? pendingToken,
+    $core.String? username,
+    $core.String? displayName,
+    $core.String? inviteCode,
+  }) {
+    final result = FinishGoogleSignUpRequest._();
+    if (pendingToken != null) result.pendingToken = pendingToken;
+    if (username != null) result.username = username;
+    if (displayName != null) result.displayName = displayName;
+    if (inviteCode != null) result.inviteCode = inviteCode;
+    return result;
+  }
+
+  FinishGoogleSignUpRequest._();
+
+  factory FinishGoogleSignUpRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FinishGoogleSignUpRequest()..mergeFromBuffer(data, registry);
+  factory FinishGoogleSignUpRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FinishGoogleSignUpRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FinishGoogleSignUpRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: FinishGoogleSignUpRequest.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'pendingToken')
+    ..aOS(2, _omitFieldNames ? '' : 'username')
+    ..aOS(3, _omitFieldNames ? '' : 'displayName')
+    ..aOS(4, _omitFieldNames ? '' : 'inviteCode')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FinishGoogleSignUpRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FinishGoogleSignUpRequest copyWith(
+          void Function(FinishGoogleSignUpRequest) updates) =>
+      super.copyWith((message) => updates(message as FinishGoogleSignUpRequest))
+          as FinishGoogleSignUpRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use FinishGoogleSignUpRequest() / FinishGoogleSignUpRequest.new instead')
+  static FinishGoogleSignUpRequest create() => FinishGoogleSignUpRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      FinishGoogleSignUpRequest._();
+  @$core.override
+  FinishGoogleSignUpRequest createEmptyInstance() =>
+      FinishGoogleSignUpRequest._();
+  @$core.pragma('dart2js:noInline')
+  static FinishGoogleSignUpRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FinishGoogleSignUpRequest>(
+          FinishGoogleSignUpRequest.$_createMessage);
+  static FinishGoogleSignUpRequest? _defaultInstance;
+
+  /// The opaque token the OAuth callback handed the app.
+  @$pb.TagNumber(1)
+  $core.String get pendingToken => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set pendingToken($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPendingToken() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPendingToken() => $_clearField(1);
+
+  /// Required: every account has a username, chosen by its owner.
+  @$pb.TagNumber(2)
+  $core.String get username => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set username($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUsername() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUsername() => $_clearField(2);
+
+  /// Defaults to what the provider told us.
+  @$pb.TagNumber(3)
+  $core.String get displayName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set displayName($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDisplayName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDisplayName() => $_clearField(3);
+
+  /// Required: this server is invite-only.
+  @$pb.TagNumber(4)
+  $core.String get inviteCode => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set inviteCode($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasInviteCode() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearInviteCode() => $_clearField(4);
+}
+
+class FinishGoogleSignUpResponse extends $pb.GeneratedMessage {
+  factory FinishGoogleSignUpResponse({
+    $core.String? token,
+    $0.User? user,
+    $1.Timestamp? expiresAt,
+  }) {
+    final result = FinishGoogleSignUpResponse._();
+    if (token != null) result.token = token;
+    if (user != null) result.user = user;
+    if (expiresAt != null) result.expiresAt = expiresAt;
+    return result;
+  }
+
+  FinishGoogleSignUpResponse._();
+
+  factory FinishGoogleSignUpResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FinishGoogleSignUpResponse()..mergeFromBuffer(data, registry);
+  factory FinishGoogleSignUpResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FinishGoogleSignUpResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FinishGoogleSignUpResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: FinishGoogleSignUpResponse.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'token')
+    ..aOM<$0.User>(2, _omitFieldNames ? '' : 'user',
+        subBuilder: $0.User.$_createMessage)
+    ..aOM<$1.Timestamp>(3, _omitFieldNames ? '' : 'expiresAt',
+        subBuilder: $1.Timestamp.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FinishGoogleSignUpResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FinishGoogleSignUpResponse copyWith(
+          void Function(FinishGoogleSignUpResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as FinishGoogleSignUpResponse))
+          as FinishGoogleSignUpResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use FinishGoogleSignUpResponse() / FinishGoogleSignUpResponse.new instead')
+  static FinishGoogleSignUpResponse create() => FinishGoogleSignUpResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      FinishGoogleSignUpResponse._();
+  @$core.override
+  FinishGoogleSignUpResponse createEmptyInstance() =>
+      FinishGoogleSignUpResponse._();
+  @$core.pragma('dart2js:noInline')
+  static FinishGoogleSignUpResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FinishGoogleSignUpResponse>(
+          FinishGoogleSignUpResponse.$_createMessage);
+  static FinishGoogleSignUpResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get token => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set token($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasToken() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearToken() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $0.User get user => $_getN(1);
+  @$pb.TagNumber(2)
+  set user($0.User value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUser() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUser() => $_clearField(2);
+  @$pb.TagNumber(2)
+  $0.User ensureUser() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  $1.Timestamp get expiresAt => $_getN(2);
+  @$pb.TagNumber(3)
+  set expiresAt($1.Timestamp value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasExpiresAt() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearExpiresAt() => $_clearField(3);
+  @$pb.TagNumber(3)
+  $1.Timestamp ensureExpiresAt() => $_ensure(2);
+}
+
+class GoogleSignInConfigRequest extends $pb.GeneratedMessage {
+  factory GoogleSignInConfigRequest() => GoogleSignInConfigRequest._();
+
+  GoogleSignInConfigRequest._();
+
+  factory GoogleSignInConfigRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleSignInConfigRequest()..mergeFromBuffer(data, registry);
+  factory GoogleSignInConfigRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleSignInConfigRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GoogleSignInConfigRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: GoogleSignInConfigRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleSignInConfigRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleSignInConfigRequest copyWith(
+          void Function(GoogleSignInConfigRequest) updates) =>
+      super.copyWith((message) => updates(message as GoogleSignInConfigRequest))
+          as GoogleSignInConfigRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GoogleSignInConfigRequest() / GoogleSignInConfigRequest.new instead')
+  static GoogleSignInConfigRequest create() => GoogleSignInConfigRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GoogleSignInConfigRequest._();
+  @$core.override
+  GoogleSignInConfigRequest createEmptyInstance() =>
+      GoogleSignInConfigRequest._();
+  @$core.pragma('dart2js:noInline')
+  static GoogleSignInConfigRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GoogleSignInConfigRequest>(
+          GoogleSignInConfigRequest.$_createMessage);
+  static GoogleSignInConfigRequest? _defaultInstance;
+}
+
+class GoogleSignInConfigResponse extends $pb.GeneratedMessage {
+  factory GoogleSignInConfigResponse({
+    $core.bool? enabled,
+    $core.String? clientId,
+    $core.String? authorizationEndpoint,
+    $core.String? redirectUri,
+  }) {
+    final result = GoogleSignInConfigResponse._();
+    if (enabled != null) result.enabled = enabled;
+    if (clientId != null) result.clientId = clientId;
+    if (authorizationEndpoint != null)
+      result.authorizationEndpoint = authorizationEndpoint;
+    if (redirectUri != null) result.redirectUri = redirectUri;
+    return result;
+  }
+
+  GoogleSignInConfigResponse._();
+
+  factory GoogleSignInConfigResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleSignInConfigResponse()..mergeFromBuffer(data, registry);
+  factory GoogleSignInConfigResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      GoogleSignInConfigResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'GoogleSignInConfigResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: GoogleSignInConfigResponse.$_createMessage)
+    ..aOB(1, _omitFieldNames ? '' : 'enabled')
+    ..aOS(2, _omitFieldNames ? '' : 'clientId')
+    ..aOS(3, _omitFieldNames ? '' : 'authorizationEndpoint')
+    ..aOS(4, _omitFieldNames ? '' : 'redirectUri')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleSignInConfigResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  GoogleSignInConfigResponse copyWith(
+          void Function(GoogleSignInConfigResponse) updates) =>
+      super.copyWith(
+              (message) => updates(message as GoogleSignInConfigResponse))
+          as GoogleSignInConfigResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GoogleSignInConfigResponse() / GoogleSignInConfigResponse.new instead')
+  static GoogleSignInConfigResponse create() => GoogleSignInConfigResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GoogleSignInConfigResponse._();
+  @$core.override
+  GoogleSignInConfigResponse createEmptyInstance() =>
+      GoogleSignInConfigResponse._();
+  @$core.pragma('dart2js:noInline')
+  static GoogleSignInConfigResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<GoogleSignInConfigResponse>(
+          GoogleSignInConfigResponse.$_createMessage);
+  static GoogleSignInConfigResponse? _defaultInstance;
+
+  /// False when no client id is configured; the client hides the button.
+  @$pb.TagNumber(1)
+  $core.bool get enabled => $_getBF(0);
+  @$pb.TagNumber(1)
+  set enabled($core.bool value) => $_setBool(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEnabled() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEnabled() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get clientId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set clientId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasClientId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearClientId() => $_clearField(2);
+
+  /// Absolute URL the client sends the browser to.
+  @$pb.TagNumber(3)
+  $core.String get authorizationEndpoint => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set authorizationEndpoint($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAuthorizationEndpoint() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAuthorizationEndpoint() => $_clearField(3);
+
+  /// Where Google sends the browser back to.
+  @$pb.TagNumber(4)
+  $core.String get redirectUri => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set redirectUri($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRedirectUri() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRedirectUri() => $_clearField(4);
+}
+
+class SignInMethodsRequest extends $pb.GeneratedMessage {
+  factory SignInMethodsRequest() => SignInMethodsRequest._();
+
+  SignInMethodsRequest._();
+
+  factory SignInMethodsRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SignInMethodsRequest()..mergeFromBuffer(data, registry);
+  factory SignInMethodsRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SignInMethodsRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignInMethodsRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: SignInMethodsRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignInMethodsRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignInMethodsRequest copyWith(void Function(SignInMethodsRequest) updates) =>
+      super.copyWith((message) => updates(message as SignInMethodsRequest))
+          as SignInMethodsRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SignInMethodsRequest() / SignInMethodsRequest.new instead')
+  static SignInMethodsRequest create() => SignInMethodsRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SignInMethodsRequest._();
+  @$core.override
+  SignInMethodsRequest createEmptyInstance() => SignInMethodsRequest._();
+  @$core.pragma('dart2js:noInline')
+  static SignInMethodsRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignInMethodsRequest>(
+          SignInMethodsRequest.$_createMessage);
+  static SignInMethodsRequest? _defaultInstance;
+}
+
+class SignInMethodsResponse extends $pb.GeneratedMessage {
+  factory SignInMethodsResponse({
+    $core.Iterable<$core.String>? methods,
+    $core.String? googleEmail,
+  }) {
+    final result = SignInMethodsResponse._();
+    if (methods != null) result.methods.addAll(methods);
+    if (googleEmail != null) result.googleEmail = googleEmail;
+    return result;
+  }
+
+  SignInMethodsResponse._();
+
+  factory SignInMethodsResponse.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SignInMethodsResponse()..mergeFromBuffer(data, registry);
+  factory SignInMethodsResponse.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SignInMethodsResponse()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SignInMethodsResponse',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'ratatosk.v1'),
+      createEmptyInstance: SignInMethodsResponse.$_createMessage)
+    ..pPS(1, _omitFieldNames ? '' : 'methods')
+    ..aOS(2, _omitFieldNames ? '' : 'googleEmail')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignInMethodsResponse clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SignInMethodsResponse copyWith(
+          void Function(SignInMethodsResponse) updates) =>
+      super.copyWith((message) => updates(message as SignInMethodsResponse))
+          as SignInMethodsResponse;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SignInMethodsResponse() / SignInMethodsResponse.new instead')
+  static SignInMethodsResponse create() => SignInMethodsResponse._();
+  static $pb.GeneratedMessage $_createMessage() => SignInMethodsResponse._();
+  @$core.override
+  SignInMethodsResponse createEmptyInstance() => SignInMethodsResponse._();
+  @$core.pragma('dart2js:noInline')
+  static SignInMethodsResponse getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SignInMethodsResponse>(
+          SignInMethodsResponse.$_createMessage);
+  static SignInMethodsResponse? _defaultInstance;
+
+  /// "password" and/or "google".
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.String> get methods => $_getList(0);
+
+  /// Set when a Google identity is linked, for display.
+  @$pb.TagNumber(2)
+  $core.String get googleEmail => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set googleEmail($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasGoogleEmail() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearGoogleEmail() => $_clearField(2);
+}
+
 /// Account creation, sign-in and profile management.
 ///
 /// Register and Login are the only procedures that work without a bearer
@@ -1021,6 +1470,29 @@ class AuthServiceApi {
           $pb.ClientContext? ctx, DeleteAccountRequest request) =>
       _client.invoke<DeleteAccountResponse>(ctx, 'AuthService', 'DeleteAccount',
           request, DeleteAccountResponse());
+
+  /// Turn a verified social sign-in into an account.
+  ///
+  /// Reached only through the server's own OAuth callback: the browser comes back
+  /// with an opaque pending token, and the password (if any) is chosen here. An
+  /// invitation is required, because this server is invite-only.
+  $async.Future<FinishGoogleSignUpResponse> finishGoogleSignUp(
+          $pb.ClientContext? ctx, FinishGoogleSignUpRequest request) =>
+      _client.invoke<FinishGoogleSignUpResponse>(ctx, 'AuthService',
+          'FinishGoogleSignUp', request, FinishGoogleSignUpResponse());
+
+  /// Whether this server offers Google sign-in at all, and the client id and
+  /// callback the browser needs. Public: it is shown before anybody signs in.
+  $async.Future<GoogleSignInConfigResponse> googleSignInConfig(
+          $pb.ClientContext? ctx, GoogleSignInConfigRequest request) =>
+      _client.invoke<GoogleSignInConfigResponse>(ctx, 'AuthService',
+          'GoogleSignInConfig', request, GoogleSignInConfigResponse());
+
+  /// The sign-in methods this account has, so Settings can show them.
+  $async.Future<SignInMethodsResponse> signInMethods(
+          $pb.ClientContext? ctx, SignInMethodsRequest request) =>
+      _client.invoke<SignInMethodsResponse>(ctx, 'AuthService', 'SignInMethods',
+          request, SignInMethodsResponse());
 }
 
 const $core.bool _omitFieldNames =

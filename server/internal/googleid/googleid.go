@@ -83,6 +83,18 @@ func New(clientID string, client *http.Client) *Verifier {
 	return &Verifier{inner: &verifier{clientID: strings.TrimSpace(clientID), client: client}}
 }
 
+// NewWithJWKSURL builds a verifier that reads the key set from somewhere other
+// than Google: a self-hosted mirror, a proxy, or a test. It is a configuration seam
+// rather than a test hook, because a deployment behind a restrictive network needs
+// exactly this to verify tokens at all.
+func NewWithJWKSURL(clientID, jwksURL string, client *http.Client) *Verifier {
+	v := New(clientID, client)
+	if jwksURL != "" {
+		SetJWKSURLForTest(v, jwksURL)
+	}
+	return v
+}
+
 // Available reports whether Google sign-in is configured at all.
 func (v *Verifier) Available() bool { return v != nil && v.inner != nil && v.inner.clientID != "" }
 

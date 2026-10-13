@@ -73,4 +73,32 @@ abstract final class AuthService {
     ratatoskv1auth.DeleteAccountRequest.new,
     ratatoskv1auth.DeleteAccountResponse.new,
   );
+
+  /// Turn a verified social sign-in into an account.
+  /// Reached only through the server's own OAuth callback: the browser comes back
+  /// with an opaque pending token, and the password (if any) is chosen here. An
+  /// invitation is required, because this server is invite-only.
+  static const finishGoogleSignUp = connect.Spec(
+    '/$name/FinishGoogleSignUp',
+    connect.StreamType.unary,
+    ratatoskv1auth.FinishGoogleSignUpRequest.new,
+    ratatoskv1auth.FinishGoogleSignUpResponse.new,
+  );
+
+  /// Whether this server offers Google sign-in at all, and the client id and
+  /// callback the browser needs. Public: it is shown before anybody signs in.
+  static const googleSignInConfig = connect.Spec(
+    '/$name/GoogleSignInConfig',
+    connect.StreamType.unary,
+    ratatoskv1auth.GoogleSignInConfigRequest.new,
+    ratatoskv1auth.GoogleSignInConfigResponse.new,
+  );
+
+  /// The sign-in methods this account has, so Settings can show them.
+  static const signInMethods = connect.Spec(
+    '/$name/SignInMethods',
+    connect.StreamType.unary,
+    ratatoskv1auth.SignInMethodsRequest.new,
+    ratatoskv1auth.SignInMethodsResponse.new,
+  );
 }

@@ -46,6 +46,13 @@ type Config struct {
 	// GroupAccents are the colors assigned to groups by id hash, and the
 	// default accent for a new user.
 	GroupAccents []string
+	// GoogleClientID enables Google sign-in when set. Empty means the button is
+	// hidden and no token is ever accepted: a server with no client id must not be
+	// able to verify anything.
+	GoogleClientID string
+	// GoogleClientSecret is used only in the authorization-code exchange. It never
+	// leaves the server and is never sent to a browser.
+	GoogleClientSecret string
 }
 
 // DefaultConfig returns the shipped defaults.
@@ -64,6 +71,14 @@ func DefaultConfig() Config {
 
 // base is the shared state of the three services. They are separate types for
 // the generated handler interfaces but one object graph.
+// The two plain-HTTP paths the Google flow uses. Constants because the callback URL
+// is registered with Google and must match exactly, and because the service and the
+// router must agree on it or every sign-in fails after the consent screen.
+const (
+	oauthStartPath    = "/auth/google/start"
+	oauthCallbackPath = "/auth/google/callback"
+)
+
 type base struct {
 	st       *store.Store
 	hub      *realtime.Hub
