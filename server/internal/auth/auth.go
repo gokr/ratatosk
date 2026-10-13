@@ -66,6 +66,13 @@ func HashPassword(password string) (hash, salt string, err error) {
 // VerifyPassword compares a candidate password against a stored hash in
 // constant time.
 func VerifyPassword(password, hash, salt string) bool {
+	// An account with no password — one created through a social login — carries an
+	// empty hash. Without this guard `pbkdf2` would be asked for zero bytes, and
+	// `ConstantTimeCompare` of two empty slices returns 1, so the account would
+	// accept *any* password. An empty credential can never verify.
+	if hash == "" || salt == "" {
+		return false
+	}
 	saltRaw, err := hex.DecodeString(salt)
 	if err != nil {
 		return false
