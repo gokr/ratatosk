@@ -85,6 +85,20 @@ func New(cfg Config, st *store.Store, hub *realtime.Hub, presence *realtime.Trac
 	if cfg.DeepLinkScheme == "" {
 		cfg.DeepLinkScheme = "ratatosk"
 	}
+	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret == "" {
+		// Google's *Web application* clients require the secret for the code
+		// exchange — PKCE does not replace it, it only binds the exchange to the
+		// server that started it. So a client id without a secret is a flow that can
+		// never complete: every attempt would reach Google and come back refused,
+		// which is exactly what happened once and cost a debugging session.
+		//
+		// Reported loudly and treated as "not configured", so the button is hidden
+		// rather than sending people into a dead end. Refusing to boot would take the
+		// whole service down for one optional feature.
+		cfg.Log.Error("Google sign-in is disabled: RATATOSK_GOOGLE_CLIENT_SECRET is not set",
+			"detail", "Google requires the client secret for the authorization-code exchange; set it and restart")
+		cfg.GoogleClientID = ""
+	}
 	s := &Server{
 		cfg: cfg, st: st, hub: hub, presence: presence, services: services, log: cfg.Log,
 		// Timeout rather than the default client: every call here is to Google, and

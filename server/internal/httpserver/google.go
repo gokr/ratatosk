@@ -157,10 +157,10 @@ func (s *Server) serveGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		s.googleFail(r, w, "Sign-in was cancelled.")
 		return
 	}
-	if !s.google.Available() {
-		s.googleFail(r, w, "Google sign-in is not configured on this server.")
-		return
-	}
+	// The state is read *before* the availability check, because it is what says
+	// which flow this callback belongs to: reporting a linking failure on the sign-in
+	// channel is a message nobody's screen reads. The state is single-use, and taking
+	// it first also means a replay cannot get as far as a second attempt.
 	state, err := s.st.TakeOAuthState(q.Get("state"), time.Now())
 	if err != nil {
 		// Unknown, already used, or expired. All of them mean "start again": the
@@ -169,15 +169,35 @@ func (s *Server) serveGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		s.googleFail(r, w, "That sign-in took too long or was already used. Try again.")
 		return
 	}
+	if !s.google.Available() {
+		if state.UserID != "" {
+			s.googleLinkFail(r, w, "Google sign-in is not configured on this server.")
+		} else {
+			s.googleFail(r, w, "Google sign-in is not configured on this server.")
+		}
+		return
+	}
 	code := q.Get("code")
 	if code == "" {
-		s.googleFail(r, w, "Google did not return a sign-in code.")
+		if state.UserID != "" {
+			s.googleLinkFail(r, w, "Google did not return a code.")
+		} else {
+			s.googleFail(r, w, "Google did not return a sign-in code.")
+		}
 		return
 	}
 
+	linking := state.UserID != ""
 	id, err := s.exchangeGoogleCode(r.Context(), code, state.CodeVerifier, state.RedirectURI)
 	if err != nil {
-		s.log.Error("google code exchange failed", "err", err)
+		s.log.Error("google code exchange failed", "err", err, "linking", linking)
+		// Reported on whichever channel the screen that started this is watching. A
+		// linking attempt that failed on the sign-in channel left Settings saying
+		// "not connected" with no explanation of why.
+		if linking {
+			s.googleLinkFail(r, w, s.exchangeFailureMessage(err))
+			return
+		}
 		s.googleFail(r, w, "Could not complete sign-in with Google.")
 		return
 	}
@@ -339,6 +359,27 @@ func (s *Server) googleAuthURL() string {
 		return s.cfg.GoogleAuthURL
 	}
 	return googleAuthEndpoint
+}
+
+// exchangeFailureMessage turns a token-endpoint refusal into something actionable.
+//
+// "Could not complete sign-in with Google" was true and useless: this exact failure
+// took a session to diagnose, and the cause was one missing environment variable. The
+// person reading it may be the operator.
+func (s *Server) exchangeFailureMessage(err error) string {
+	if err == nil {
+		return "Could not connect Google."
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "client_secret is missing") {
+		return "This server's Google sign-in is not configured correctly (no client secret). " +
+			"An operator has to fix it; nothing you can do here will help."
+	}
+	if strings.Contains(msg, "redirect_uri_mismatch") {
+		return "Google refused this site as a sign-in redirect. An operator has to add it " +
+			"to the Google client."
+	}
+	return "Could not connect Google. Try again in a moment."
 }
 
 func (s *Server) googleRedirectURI() string {

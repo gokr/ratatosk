@@ -40,6 +40,9 @@ type fakeGoogle struct {
 	subject string
 	email   string
 	name    string
+	// refuseExchange, when set, makes the token endpoint return that error, as Google
+	// does when the client secret is missing or the redirect does not match.
+	refuseExchange string
 	// tamper, when set, mutates the claims before signing.
 	tamper func(jwt.MapClaims)
 	// redirectURISeen and verifierSeen record what the exchange received, so the
@@ -65,6 +68,13 @@ func newFakeGoogle(t *testing.T, clientID string) *fakeGoogle {
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
+		if g.refuseExchange != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": "invalid_request", "error_description": g.refuseExchange,
+			})
+			return
+		}
 		g.verifierSeen = r.PostForm.Get("code_verifier")
 		g.redirectURISeen = r.PostForm.Get("redirect_uri")
 		claims := jwt.MapClaims{
@@ -110,11 +120,15 @@ func googleHarness(t *testing.T, g *fakeGoogle) (*harness, *store.Store) {
 		Addr:           "127.0.0.1:0",
 		PublicURL:      "http://app.test",
 		GoogleClientID: g.clientID,
-		GoogleJWKSURL:  g.server.URL + "/certs",
-		GoogleTokenURL: g.server.URL + "/token",
-		GoogleAuthURL:  g.server.URL + "/auth",
-		WebDir:         "",
-		Log:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+		// A secret too, because Google requires one for a Web client's code exchange
+		// and the server now refuses to advertise a flow that cannot complete. The
+		// harness configures Google the way a working deployment must.
+		GoogleClientSecret: "test-client-secret",
+		GoogleJWKSURL:      g.server.URL + "/certs",
+		GoogleTokenURL:     g.server.URL + "/token",
+		GoogleAuthURL:      g.server.URL + "/auth",
+		WebDir:             "",
+		Log:                slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}, st, hub, presence, services))
 	t.Cleanup(srv.Close)
 
@@ -579,4 +593,43 @@ func contains(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// A linking failure must be reported on the channel the Settings screen reads.
+//
+// It used to report on the sign-in channel, so a failed connection left Settings
+// saying "not connected" with no explanation — which is indistinguishable from the
+// attempt never happening.
+func TestGoogleLinkFailureIsReportedToTheLinkFlow(t *testing.T) {
+	g := newFakeGoogle(t, "test-client-id")
+	h, _ := googleHarness(t, g)
+	ctx := context.Background()
+
+	token, _ := h.register("gokr", "password123", "Göran")
+	auth := ratatoskv1connect.NewAuthServiceClient(h.srv.Client(), h.baseURL,
+		connect.WithInterceptors(bearerInterceptor{token: token}))
+	link, err := auth.GoogleLinkUrl(ctx, connect.NewRequest(&ratatoskv1.GoogleLinkUrlRequest{}))
+	if err != nil {
+		t.Fatalf("link url: %v", err)
+	}
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	startResp, _ := client.Get(linkURL(h, link.Msg.GetUrl()))
+	io.Copy(io.Discard, startResp.Body)
+	startResp.Body.Close()
+	consent, _ := url.Parse(startResp.Header.Get("Location"))
+	cbResp, _ := client.Get(h.baseURL + "/auth/google/callback?state=" +
+		url.QueryEscape(consent.Query().Get("state")) + "&code=x")
+	io.Copy(io.Discard, cbResp.Body)
+	cbResp.Body.Close()
+	result, _ := url.Parse(cbResp.Header.Get("Location"))
+
+	// Whatever happens, the *link* parameter must carry the verdict, because that is
+	// what the screen that started this is watching.
+	if result.Query().Get("google_link_error") == "" && result.Query().Get("google_linked") != "1" {
+		t.Fatalf("a linking attempt produced neither a result nor a link error: %s", result)
+	}
+	if result.Query().Get("google_error") != "" && result.Query().Get("google_link_error") == "" {
+		t.Fatal("the linking failure was reported on the sign-in channel, where nobody is looking")
+	}
 }
