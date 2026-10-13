@@ -191,6 +191,7 @@ class _ConversationTile extends StatelessWidget {
                             conversation.hasLastMessage()
                                 ? conversation.lastMessage.createdAt.toDateTime()
                                 : conversation.createdAt.toDateTime(),
+                            use24Hour: state.use24Hour,
                           ),
                           style: TextStyle(
                             fontSize: 12,

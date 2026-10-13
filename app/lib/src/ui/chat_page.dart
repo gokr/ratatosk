@@ -206,7 +206,7 @@ class _ChatPageState extends State<ChatPage> {
         return 'Away';
       default:
         if (peer.hasLastSeen()) {
-          return 'Last seen ${ChatFormat.listTimestamp(peer.lastSeen.toDateTime())}';
+          return 'Last seen ${ChatFormat.listTimestamp(peer.lastSeen.toDateTime(), use24Hour: di<AppState>().use24Hour)}';
         }
         return '';
     }

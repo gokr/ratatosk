@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../api/backend.dart';
+import '../session_store.dart';
 import '../gen/ratatosk/v1/social.pb.dart';
 import '../state/app_state.dart';
 import '../notifications/manager.dart';
@@ -70,6 +71,23 @@ class SettingsPage extends WatchingWidget {
               ),
             ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.schedule),
+            title: const Text('Timestamp format'),
+            trailing: DropdownButton<String>(
+              value: state.use24Hour == null ? 'system' : state.use24Hour! ? '24' : '12',
+              items: const [
+                DropdownMenuItem(value: 'system', child: Text('System default')),
+                DropdownMenuItem(value: '12', child: Text('12-hour')),
+                DropdownMenuItem(value: '24', child: Text('24-hour')),
+              ],
+              onChanged: (value) async {
+                final format = value == 'system' ? null : value == '24';
+                state.setClockFormat(format);
+                await di<SessionStore>().writeClockFormat(format);
+              },
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.dns_outlined),
             title: const Text('Server'),

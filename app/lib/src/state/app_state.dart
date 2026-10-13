@@ -110,6 +110,13 @@ class AppState extends ChangeNotifier {
   String? _token;
   void Function(String token) _persistToken = _ignoreToken;
 
+  bool? _use24Hour;
+  bool? get use24Hour => _use24Hour;
+  void setClockFormat(bool? value) {
+    _use24Hour = value;
+    _notify();
+  }
+
   bool get bootstrapping => _bootstrapping;
   bool get signedIn => _signedIn;
   User? get me => _me;

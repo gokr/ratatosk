@@ -213,6 +213,21 @@ func (b *base) messageProto(m *store.Message) *ratatoskv1.Message {
 	if m.Deleted {
 		return out
 	}
+	// Reactions are message metadata, independent of whether the body is sealed.
+	// Copy them before the encrypted-body early return too.
+	if len(m.Reactions) > 0 {
+		emojis := make([]string, 0, len(m.Reactions))
+		for emoji := range m.Reactions {
+			emojis = append(emojis, emoji)
+		}
+		sort.Strings(emojis)
+		for _, emoji := range emojis {
+			out.Reactions = append(out.Reactions, &ratatoskv1.Reaction{
+				Emoji:   emoji,
+				UserIds: append([]string(nil), m.Reactions[emoji]...),
+			})
+		}
+	}
 	// An encrypted message crosses the wire as its seal plus the coordinates of
 	// the key that opens it; the plaintext fields stay empty. The server could
 	// not fill them if it wanted to.
@@ -236,19 +251,6 @@ func (b *base) messageProto(m *store.Message) *ratatoskv1.Message {
 	if len(m.Attachments) > 0 {
 		for _, a := range b.st.AttachmentsByIDs(m.Attachments) {
 			out.Attachments = append(out.Attachments, b.attachmentProto(a))
-		}
-	}
-	if len(m.Reactions) > 0 {
-		emojis := make([]string, 0, len(m.Reactions))
-		for emoji := range m.Reactions {
-			emojis = append(emojis, emoji)
-		}
-		sort.Strings(emojis)
-		for _, emoji := range emojis {
-			out.Reactions = append(out.Reactions, &ratatoskv1.Reaction{
-				Emoji:   emoji,
-				UserIds: append([]string(nil), m.Reactions[emoji]...),
-			})
 		}
 	}
 	if m.ReplyToID != "" {

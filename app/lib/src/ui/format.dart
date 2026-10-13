@@ -10,11 +10,11 @@ class ChatFormat {
   const ChatFormat._();
 
   /// A short stamp for a conversation list row.
-  static String listTimestamp(DateTime? when) {
+  static String listTimestamp(DateTime? when, {bool? use24Hour}) {
     if (when == null) return '';
     final local = when.toLocal();
     final daysAgo = _daysAgo(local);
-    if (daysAgo <= 0) return DateFormat.jm().format(local);
+    if (daysAgo <= 0) return _time(local, use24Hour);
     if (daysAgo == 1) return 'Yesterday';
     if (daysAgo < 7) return DateFormat.E().format(local);
     if (local.year == DateTime.now().year) return DateFormat.MMMd().format(local);
@@ -22,8 +22,12 @@ class ChatFormat {
   }
 
   /// The time shown inside a bubble.
-  static String bubbleTime(DateTime? when) =>
-      when == null ? '' : DateFormat.jm().format(when.toLocal());
+  static String bubbleTime(DateTime? when, {bool? use24Hour}) =>
+      when == null ? '' : _time(when.toLocal(), use24Hour);
+
+  static String _time(DateTime when, bool? use24Hour) =>
+      (use24Hour == null ? DateFormat.jm() :
+          use24Hour ? DateFormat.Hm() : DateFormat('h:mm a')).format(when);
 
   /// A day separator above the first message of a day.
   static String dayLabel(DateTime when) {

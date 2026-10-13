@@ -33,6 +33,7 @@ Future<void> main() async {
   // SecureKeyStorage, which falls back when the platform cannot provide one).
   final crypto = CryptoManager(backend: backend, storage: SecureKeyStorage());
   final state = AppState(backend: backend, crypto: crypto);
+  state.setClockFormat(await session.readClockFormat());
   final links = LinkController();
 
   di.registerSingleton<SessionStore>(session);

@@ -148,7 +148,7 @@ class MessageBubble extends StatelessWidget {
           ],
           const SizedBox(height: 2),
           _Meta(
-            time: ChatFormat.bubbleTime(message.createdAt.toDateTime()),
+            time: ChatFormat.bubbleTime(message.createdAt.toDateTime(), use24Hour: state.use24Hour),
             edited: message.hasEditedAt() && !message.deleted,
             color: textColor.withValues(alpha: 0.7),
             showReceipt: isMine && isLastMine && !entry.isPending,

@@ -23,6 +23,18 @@ class SessionStore {
     await prefs.setBool(_recoveryAskedKey, true);
   }
 
+  Future<bool?> readClockFormat() async =>
+      (await SharedPreferences.getInstance()).getBool('ratatosk.clock24');
+
+  Future<void> writeClockFormat(bool? value) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (value == null) {
+      await prefs.remove('ratatosk.clock24');
+    } else {
+      await prefs.setBool('ratatosk.clock24', value);
+    }
+  }
+
   Future<String?> readToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);

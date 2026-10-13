@@ -119,6 +119,26 @@ func TestEncryptedMessagePathNeverSeesPlaintext(t *testing.T) {
 		t.Fatal("the sealed message did not round-trip")
 	}
 
+	// Reactions must cross the encrypted-body branch too. The old serializer
+	// returned before copying them, making successful writes invisible on reload.
+	reacted, err := graceChat.AddReaction(ctx, connect.NewRequest(&ratatoskv1.AddReactionRequest{
+		MessageId: msg.GetId(), Emoji: "👍",
+	}))
+	if err != nil {
+		t.Fatalf("react to sealed message: %v", err)
+	}
+	if got := reacted.Msg.GetMessage().GetReactions(); len(got) != 1 || got[0].GetEmoji() != "👍" {
+		t.Fatalf("reaction absent from encrypted response: %v", got)
+	}
+	page, err = adaChat.ListMessages(ctx, connect.NewRequest(&ratatoskv1.ListMessagesRequest{ConversationId: convID}))
+	if err != nil || len(page.Msg.GetMessages()[0].GetReactions()) != 1 {
+		t.Fatalf("reaction absent on reload: page=%v err=%v", page, err)
+	}
+	removed, err := graceChat.RemoveReaction(ctx, connect.NewRequest(&ratatoskv1.RemoveReactionRequest{MessageId: msg.GetId(), Emoji: "👍"}))
+	if err != nil || len(removed.Msg.GetMessage().GetReactions()) != 0 {
+		t.Fatalf("remove reaction: response=%v err=%v", removed, err)
+	}
+
 	// Sending both plaintext and ciphertext is refused: whichever the server
 	// kept, one of the two would be a surprise to somebody.
 	if _, err := adaChat.SendMessage(ctx, connect.NewRequest(&ratatoskv1.SendMessageRequest{

@@ -298,7 +298,7 @@ class _InviteLinkCard extends StatelessWidget {
   static String _describeUses(Invite invite) {
     final uses = invite.maxUses <= 0 ? 'Unlimited uses' : '${invite.maxUses} use(s)';
     final expiry = invite.hasExpiresAt()
-        ? 'expires ${ChatFormat.listTimestamp(invite.expiresAt.toDateTime())}'
+        ? 'expires ${ChatFormat.listTimestamp(invite.expiresAt.toDateTime(), use24Hour: di<AppState>().use24Hour)}'
         : 'never expires';
     return '$uses · $expiry';
   }
