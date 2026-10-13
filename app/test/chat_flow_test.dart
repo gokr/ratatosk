@@ -216,16 +216,15 @@ void main() {
     await tester.tap(find.text('👍').first);
     await settle(tester);
 
-    // The count is always visible, including for a single reaction: a chip that
-    // changes width when a second person reacts makes a busy thread twitch.
-    expect(find.text('1'), findsOneWidget,
-        reason: 'the chip shows no count');
+    // No number for a single reaction: it would only restate the emoji beside it.
+    expect(find.text('1'), findsNothing,
+        reason: 'a lone reaction is showing a count of 1');
 
-    // Hovering names who reacted. "1" and an emoji cannot say whether it was the
-    // person you were talking to.
+    // Hovering names who reacted, which is what the tooltip is for — an emoji alone
+    // cannot say whether it was the person you were talking to.
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer();
-    await gesture.moveTo(tester.getCenter(find.text('1')));
+    await gesture.moveTo(tester.getCenter(find.byType(Tooltip).first));
     await tester.pump(const Duration(milliseconds: 600));
     await settle(tester);
     expect(find.textContaining('reacted'), findsOneWidget,
@@ -260,6 +259,68 @@ void main() {
     expect(chip.top, lessThan(bubble.bottom),
         reason: 'the chip is not overlapping the message it relates to '
             '(chip top ${chip.top}, bubble bottom ${bubble.bottom})');
+  });
+
+  testWidgets('a reaction sits on the side its message is on', (tester) async {
+    // Reported: every reaction was on the left, because the row was aligned
+    // bottomLeft for everybody. A reaction belongs on the side of the message it
+    // relates to, so my own must be on the right.
+    backend.seedConversation(history: ['theirs']);
+    // A message from me, seeded rather than sent: sending needs the peer to have
+    // encryption keys, which is a real rule and not what this test is about.
+    backend.seedOwnMessage('c1', 'mine');
+    await signIn();
+    await state.openConversation('c1');
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    // React to the message *I* sent, which must land on the right.
+    await tester.longPress(find.text('mine'));
+    await settle(tester);
+    await tester.tap(find.text('👍').first);
+    await settle(tester);
+
+    // Measured by the emoji itself: the page also carries tooltips on its icon
+    // buttons, so `find.byType(Tooltip)` is not specific to reaction chips.
+    final screenWidth = tester.getSize(find.byType(MaterialApp)).width;
+    final myChip = tester.getRect(find.text('👍'));
+    expect(myChip.center.dx, greaterThan(screenWidth / 2),
+        reason: 'a reaction on my own message is not on the right side '
+            '(center ${myChip.center.dx}, half-width ${screenWidth / 2})');
+
+    // And a reaction to the other person's message stays on the left.
+    await tester.longPress(find.text('theirs'));
+    await settle(tester);
+    await tester.tap(find.text('❤️').first);
+    await settle(tester);
+
+    final theirChip = tester.getRect(find.text('❤️'));
+    expect(theirChip.center.dx, lessThan(screenWidth / 2),
+        reason: 'a reaction on their message is not on the left side '
+            '(center ${theirChip.center.dx}, half-width ${screenWidth / 2})');
+  });
+
+  testWidgets('a second reaction to the same message shows a count', (tester) async {
+    backend.seedConversation(history: ['react to me']);
+    await signIn();
+    await state.openConversation('c1');
+    await tester.pumpWidget(
+      MaterialApp(theme: RatatoskTheme.light(), home: const ChatPage(conversationId: 'c1')),
+    );
+    await settle(tester);
+
+    // Somebody else reacts first, then I add the same emoji: the number now says how
+    // many people, which is the only time it carries information.
+    final message = state.messages('c1').single;
+    await state.toggleReaction('c1', message.message, '👍');
+    backend.seedReactionFrom('u-peer', message.message.id, '👍');
+    await state.refresh();
+    await settle(tester);
+
+    expect(find.text('2'), findsOneWidget,
+        reason: 'two people reacted but no count is shown');
   });
 
   testWidgets('profile dialog fits phone width with keyboard inset', (tester) async {

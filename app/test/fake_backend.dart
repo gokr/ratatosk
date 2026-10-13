@@ -143,6 +143,25 @@ class FakeBackend implements ChatBackend {
     return conversation;
   }
 
+  /// Seeds a message sent by the signed-in user.
+  ///
+  /// A fixture rather than a send: sending to a peer without encryption keys is
+  /// refused by design, so a test that needs "my own message" cannot get there by
+  /// sending. It exists so the left/right placement can be asserted for both sides.
+  Message seedOwnMessage(String conversationId, String text) {
+    final list = messages.putIfAbsent(conversationId, () => []);
+    final message = _message(
+      id: '$conversationId-mine${list.length + 1}',
+      conversationId: conversationId,
+      senderId: signedInAs.id,
+      text: text,
+      seq: list.length + 1,
+    );
+    list.add(message);
+    conversations[conversationId]?.lastMessage = message;
+    return message;
+  }
+
   /// Pushes an event to anyone listening, as the server would.
   void emit(Event event) => _events.add(event);
 
@@ -444,6 +463,17 @@ class FakeBackend implements ChatBackend {
 
   /// When true the next reaction call fails, standing in for a server refusal.
   bool failNextReaction = false;
+
+  /// Adds a reaction from somebody else, as a delivered message update would.
+  void seedReactionFrom(String userId, String messageId, String emoji) {
+    final message = _find(messageId);
+    final existing = message.reactions.where((r) => r.emoji == emoji);
+    if (existing.isEmpty) {
+      message.reactions.add(Reaction(emoji: emoji, userIds: [userId]));
+    } else if (!existing.first.userIds.contains(userId)) {
+      existing.first.userIds.add(userId);
+    }
+  }
 
   @override
   Future<Message> addReaction(String messageId, String emoji) async {

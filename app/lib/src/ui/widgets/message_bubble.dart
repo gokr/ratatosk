@@ -198,19 +198,24 @@ class MessageBubble extends StatelessWidget {
           // the list. A negative margin, not a Transform: translating moves the pixels
           // but leaves the layout box below the bubble, so the row still occupied its
           // own slot and the overlap was invisible in the spacing.
-          // `Align(heightFactor:)` reserves *less* height than its child, and
-          // `Alignment.bottomCenter` puts the child's bottom on that reduced box — so
-          // the chips hang upward over the bubble's lower edge while the column still
-          // moves on at the reduced height.
+          // `Align(heightFactor:)` reserves *less* height than its child, and the
+          // alignment puts the child's bottom on that reduced box — so the chips hang
+          // upward over the bubble's lower edge while the column still moves on at the
+          // reduced height.
           //
           // A negative padding is not allowed, and a Transform only moves pixels: the
           // layout box would stay below the bubble, so the overlap would be invisible
           // in the spacing even though the chip looked shifted.
+          //
+          // The alignment follows the bubble: a reaction belongs on the side its
+          // message is on, so my own reactions sit right and the other person's sit
+          // left. `bottomLeft` for everybody put every reaction on the left, which
+          // reads as belonging to whoever spoke first.
           Align(
-            alignment: Alignment.bottomLeft,
+            alignment: isMine ? Alignment.bottomRight : Alignment.bottomLeft,
             heightFactor: 0.62,
             child: Padding(
-              padding: const EdgeInsets.only(left: 6, right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Wrap(
                 spacing: 4,
                 runSpacing: 4,
@@ -622,17 +627,20 @@ class _ReactionChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(reaction.emoji, style: const TextStyle(fontSize: 13)),
-              const SizedBox(width: 4),
-              // Always shown, even for one: a chip that changes width when a second
-              // person reacts makes a busy thread twitch, and "1" is information too.
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isMine ? FontWeight.w600 : FontWeight.normal,
-                  color: scheme.onSurfaceVariant,
+              // The number appears once it counts *people* rather than restating the
+              // emoji: "1" beside a 👍 says nothing the emoji did not, and it made the
+              // commonest case the widest one.
+              if (count > 1) ...[
+                const SizedBox(width: 4),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isMine ? FontWeight.w600 : FontWeight.normal,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
