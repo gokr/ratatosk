@@ -14,6 +14,15 @@ import 'theme.dart';
 import 'widgets/avatar.dart';
 import 'widgets/privacy_policy_link.dart';
 
+/// The build identifier the release was stamped with, from
+/// `--dart-define=BUILD_ID=…` (see the Dockerfile).
+///
+/// A top-level const is the only place this may be read. `String.fromEnvironment`
+/// has to be a constant expression: as a runtime call dart2js rejects it outright,
+/// and the failure surfaces as an unhandled exception during build, leaving the
+/// screen grey. The VM accepts it, so tests do not catch it — hence the comment.
+const String clientBuildId = String.fromEnvironment('BUILD_ID', defaultValue: 'dev');
+
 /// Profile, contacts and the way out.
 class SettingsPage extends WatchingWidget {
   const SettingsPage({super.key});
@@ -194,8 +203,12 @@ class SettingsPage extends WatchingWidget {
             },
           ),
           ListTile(
-            title: Text('Client build'),
-            subtitle: SelectableText(String.fromEnvironment('BUILD_ID', defaultValue: 'dev')),
+            title: Text(tr(context, 'Client build')),
+            // A const, not an inline call: `String.fromEnvironment` is only valid in
+            // a constant expression, and using it as a runtime one throws under
+            // dart2js — which is why this rendered a blank screen in a release web
+            // build while passing every test on the VM.
+            subtitle: SelectableText(clientBuildId),
           ),
           SizedBox(height: 24),
         ],

@@ -8,6 +8,7 @@ String tr(BuildContext context, String english) =>
 
 const swedish = <String, String>{
   'Settings': 'Inställningar',
+  'Client build': 'Klientbygge',
   'Chats': 'Chattar',
   'Sign in': 'Logga in',
   'Create account': 'Skapa konto',
