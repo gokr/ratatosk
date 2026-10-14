@@ -178,11 +178,18 @@ class AppState extends ChangeNotifier {
   Future<void> signIn(String username, String password) =>
       _authenticate(() => backend.login(username: username, password: password));
 
-  Future<void> signUp(String username, String password, String displayName) =>
+  /// Creates an account, consuming [inviteCode] if one was presented.
+  ///
+  /// The invitation goes with registration rather than through a separate redemption
+  /// afterwards: on a one-use link the separate call always found the link exhausted,
+  /// because signing up had already spent it.
+  Future<void> signUp(String username, String password, String displayName,
+          {String inviteCode = ''}) =>
       _authenticate(() => backend.register(
             username: username,
             password: password,
             displayName: displayName,
+            inviteCode: inviteCode,
           ));
 
   Future<void> _authenticate(Future<AuthResult> Function() call) async {

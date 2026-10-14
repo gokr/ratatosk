@@ -50,19 +50,47 @@ func (s *AuthService) Register(ctx context.Context, req *connect.Request[ratatos
 		s.log.Error("password hashing failed", "err", err)
 		return nil, connect.NewError(connect.CodeInternal, errInvalid("could not create the account"))
 	}
+	// An invitation, when one was presented, is consumed by *this* call.
+	//
+	// Reserving before the account exists is deliberate: two people joining at once
+	// must not both take the last use of a one-use link. Every failure below gives the
+	// use back.
+	var reserved *store.Invite
+	if code := trimSpace(req.Msg.GetInviteCode()); code != "" {
+		inv, err := s.ReserveInvite(code, "")
+		if err != nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+		}
+		reserved = inv
+	}
+
 	now := now()
 	user, err := s.st.CreateUser(username, displayName, hash, salt, s.accentFor(username), now)
 	if err == store.ErrUsernameTaken {
+		if reserved != nil {
+			s.ReleaseInvite(reserved.Code, "")
+		}
 		return nil, connect.NewError(connect.CodeAlreadyExists, errInvalid("that username is taken"))
 	}
 	if err != nil {
+		if reserved != nil {
+			s.ReleaseInvite(reserved.Code, "")
+		}
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	// The contact the invitation promised, created with the account rather than by a
+	// second call the client might never make.
+	if reserved != nil {
+		if err := s.CompleteInvite(reserved, user.ID); err != nil {
+			s.log.Error("could not finish the invitation", "err", err, "user", user.ID)
+		}
 	}
 	session, err := s.st.CreateSession(user.ID, s.cfg.SessionTTL, now)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	s.log.Info("user registered", "user", user.ID, "username", user.Username)
+	s.log.Info("user registered", "user", user.ID, "username", user.Username,
+		"invited", reserved != nil)
 	return connect.NewResponse(&ratatoskv1.RegisterResponse{
 		Token:     session.Token,
 		User:      s.userProto(user),

@@ -28,7 +28,14 @@ type RegisterRequest struct {
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	// Defaults to the username when empty.
-	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// The invitation this account is being created with, if any.
+	//
+	// Sent at registration rather than left for a separate call, because a one-use
+	// invitation was consumed by the *separate* redemption afterwards — so a new person
+	// arriving on a one-use link used it up admitting themselves and was then told it
+	// was exhausted. An invitation belongs to the act of joining, which is this call.
+	InviteCode    string `protobuf:"bytes,4,opt,name=invite_code,json=inviteCode,proto3" json:"invite_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -80,6 +87,13 @@ func (x *RegisterRequest) GetPassword() string {
 func (x *RegisterRequest) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *RegisterRequest) GetInviteCode() string {
+	if x != nil {
+		return x.InviteCode
 	}
 	return ""
 }
@@ -1215,11 +1229,13 @@ var File_ratatosk_v1_auth_proto protoreflect.FileDescriptor
 
 const file_ratatosk_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x16ratatosk/v1/auth.proto\x12\vratatosk.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18ratatosk/v1/common.proto\"l\n" +
+	"\x16ratatosk/v1/auth.proto\x12\vratatosk.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x18ratatosk/v1/common.proto\"\x8d\x01\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"\x8a\x01\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x1f\n" +
+	"\vinvite_code\x18\x04 \x01(\tR\n" +
+	"inviteCode\"\x8a\x01\n" +
 	"\x10RegisterResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12%\n" +
 	"\x04user\x18\x02 \x01(\v2\x11.ratatosk.v1.UserR\x04user\x129\n" +

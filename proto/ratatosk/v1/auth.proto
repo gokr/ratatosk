@@ -60,6 +60,13 @@ message RegisterRequest {
   string password = 2;
   // Defaults to the username when empty.
   string display_name = 3;
+  // The invitation this account is being created with, if any.
+  //
+  // Sent at registration rather than left for a separate call, because a one-use
+  // invitation was consumed by the *separate* redemption afterwards — so a new person
+  // arriving on a one-use link used it up admitting themselves and was then told it
+  // was exhausted. An invitation belongs to the act of joining, which is this call.
+  string invite_code = 4;
 }
 
 message RegisterResponse {

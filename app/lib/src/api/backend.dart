@@ -123,6 +123,10 @@ abstract interface class ChatBackend {
     required String username,
     required String password,
     String displayName,
+    /// The invitation this account is created with, if one was presented. Consumed by
+    /// registration itself, so a new person does not spend a one-use link admitting
+    /// themselves and then find it exhausted.
+    String inviteCode,
   });
 
   Future<AuthResult> login({required String username, required String password});

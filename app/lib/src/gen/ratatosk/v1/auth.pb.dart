@@ -26,11 +26,13 @@ class RegisterRequest extends $pb.GeneratedMessage {
     $core.String? username,
     $core.String? password,
     $core.String? displayName,
+    $core.String? inviteCode,
   }) {
     final result = RegisterRequest._();
     if (username != null) result.username = username;
     if (password != null) result.password = password;
     if (displayName != null) result.displayName = displayName;
+    if (inviteCode != null) result.inviteCode = inviteCode;
     return result;
   }
 
@@ -50,6 +52,7 @@ class RegisterRequest extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'username')
     ..aOS(2, _omitFieldNames ? '' : 'password')
     ..aOS(3, _omitFieldNames ? '' : 'displayName')
+    ..aOS(4, _omitFieldNames ? '' : 'inviteCode')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -102,6 +105,21 @@ class RegisterRequest extends $pb.GeneratedMessage {
   $core.bool hasDisplayName() => $_has(2);
   @$pb.TagNumber(3)
   void clearDisplayName() => $_clearField(3);
+
+  /// The invitation this account is being created with, if any.
+  ///
+  /// Sent at registration rather than left for a separate call, because a one-use
+  /// invitation was consumed by the *separate* redemption afterwards — so a new person
+  /// arriving on a one-use link used it up admitting themselves and was then told it
+  /// was exhausted. An invitation belongs to the act of joining, which is this call.
+  @$pb.TagNumber(4)
+  $core.String get inviteCode => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set inviteCode($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasInviteCode() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearInviteCode() => $_clearField(4);
 }
 
 class RegisterResponse extends $pb.GeneratedMessage {

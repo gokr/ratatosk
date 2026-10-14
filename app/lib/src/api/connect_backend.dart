@@ -121,11 +121,13 @@ class ConnectBackend implements ChatBackend {
     required String username,
     required String password,
     String displayName = '',
+    String inviteCode = '',
   }) async {
     final response = await auth.register(RegisterRequest(
       username: username,
       password: password,
       displayName: displayName,
+      inviteCode: inviteCode,
     ));
     return (token: response.token, user: response.user);
   }

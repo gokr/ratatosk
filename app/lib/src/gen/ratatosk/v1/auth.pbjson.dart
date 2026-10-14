@@ -27,13 +27,15 @@ const RegisterRequest$json = {
     {'1': 'username', '3': 1, '4': 1, '5': 9, '10': 'username'},
     {'1': 'password', '3': 2, '4': 1, '5': 9, '10': 'password'},
     {'1': 'display_name', '3': 3, '4': 1, '5': 9, '10': 'displayName'},
+    {'1': 'invite_code', '3': 4, '4': 1, '5': 9, '10': 'inviteCode'},
   ],
 };
 
 /// Descriptor for `RegisterRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List registerRequestDescriptor = $convert.base64Decode(
     'Cg9SZWdpc3RlclJlcXVlc3QSGgoIdXNlcm5hbWUYASABKAlSCHVzZXJuYW1lEhoKCHBhc3N3b3'
-    'JkGAIgASgJUghwYXNzd29yZBIhCgxkaXNwbGF5X25hbWUYAyABKAlSC2Rpc3BsYXlOYW1l');
+    'JkGAIgASgJUghwYXNzd29yZBIhCgxkaXNwbGF5X25hbWUYAyABKAlSC2Rpc3BsYXlOYW1lEh8K'
+    'C2ludml0ZV9jb2RlGAQgASgJUgppbnZpdGVDb2Rl');
 
 @$core.Deprecated('Use registerResponseDescriptor instead')
 const RegisterResponse$json = {

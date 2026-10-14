@@ -155,7 +155,8 @@ class _AuthForm extends StatefulWidget {
   final String? error;
   final String? inviteCode;
   final Future<void> Function(String username, String password) onSignIn;
-  final Future<void> Function(String username, String password, String displayName) onSignUp;
+  final Future<void> Function(String username, String password, String displayName,
+      {String inviteCode}) onSignUp;
 
   @override
   State<_AuthForm> createState() => _AuthFormState();
@@ -190,7 +191,10 @@ class _AuthFormState extends State<_AuthForm> {
     }
     setState(() => _localError = null);
     if (_registering) {
-      await widget.onSignUp(username, password, _displayName.text.trim());
+      // The code the screen was handed, finally used: signing up with an invitation
+      // *is* how it is redeemed.
+      await widget.onSignUp(username, password, _displayName.text.trim(),
+          inviteCode: widget.inviteCode ?? '');
     } else {
       await widget.onSignIn(username, password);
     }

@@ -31,6 +31,7 @@ import 'package:ratatosk/src/ui/widgets/qr_code.dart';
 import 'package:qr/qr.dart';
 import 'package:ratatosk/src/ui/widgets/encrypted_image.dart';
 
+import 'package:ratatosk/src/ui/auth_screen.dart';
 import 'package:ratatosk/src/ui/google_signin.dart';
 
 import 'fake_backend.dart';
@@ -88,6 +89,7 @@ class Peer {
 void main() {
   late FakeBackend backend;
   late AppState state;
+  late LinkController links;
   late Peer peer;
 
   /// A clock the test advances by hand: typing indicators and other expiries
@@ -115,7 +117,8 @@ void main() {
     di.registerSingleton<CryptoManager>(crypto);
     di.registerSingleton<AttachmentCache>(AttachmentCache());
     di.registerSingleton<AppState>(state);
-    di.registerSingleton<LinkController>(LinkController());
+    links = LinkController();
+    di.registerSingleton<LinkController>(links);
     di.registerSingleton<SessionStore>(SessionStore());
   });
 
@@ -321,6 +324,40 @@ void main() {
 
     expect(find.text('2'), findsOneWidget,
         reason: 'two people reacted but no count is shown');
+  });
+
+  testWidgets('signing up with an invitation sends the code', (tester) async {
+    // The bug behind "invites were expired": the code was handed to this screen and
+    // never used, so sign-up created the account without it and a *separate* redemption
+    // spent the single use — leaving a one-use link exhausted by the person who was
+    // meant to be joining.
+    await signIn();
+    await tester.pumpWidget(MaterialApp(
+      theme: RatatoskTheme.light(),
+      home: const AuthScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    links.submitCode('joinme1');
+    await tester.pumpAndSettle();
+
+    // Switch to registration, fill it in, submit.
+    await tester.tap(find.text('Create a new account'));
+    await tester.pumpAndSettle();
+    // Registration adds a name field, so three means the form switched. Asserted
+    // because the rest of the test is meaningless if it did not.
+    final fields = find.byType(TextField);
+    expect(fields, findsNWidgets(3),
+        reason: 'the form did not switch to registration');
+    await tester.enterText(fields.at(1), 'newcomer');
+    await tester.enterText(fields.at(2), 'a good password');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+
+    expect(backend.registeredInvites, isNotEmpty,
+        reason: 'registration did not carry the invitation at all');
+    expect(backend.registeredInvites.last, 'joinme1',
+        reason: 'registration dropped the invitation code');
   });
 
   testWidgets('profile dialog fits phone width with keyboard inset', (tester) async {

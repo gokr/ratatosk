@@ -224,7 +224,10 @@ class FakeBackend implements ChatBackend {
     required String username,
     required String password,
     String displayName = '',
+    String inviteCode = '',
   }) async {
+    /// Invitations this fake was asked to consume at registration.
+    registeredInvites.add(inviteCode);
     signedInAs = FakeUser('u1', username, displayName.isEmpty ? username : displayName);
     return (token: 'fake-token', user: signedInAs.toProto());
   }
@@ -237,6 +240,10 @@ class FakeBackend implements ChatBackend {
     signedInAs = FakeUser('u1', username, 'Ada Lovelace');
     return (token: 'fake-token', user: signedInAs.toProto());
   }
+
+  /// Invitations presented at registration, so a test can assert the code is carried
+  /// rather than silently dropped.
+  final List<String> registeredInvites = [];
 
   /// Whether this fake reports Google sign-in as available.
   bool googleEnabled = false;
