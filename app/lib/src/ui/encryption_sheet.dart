@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:flutter/services.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -103,14 +104,14 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Encryption',
+                tr(context, 'Encryption'),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Messages are sealed on this device. The server stores ciphertext it cannot read.',
+            tr(context, 'Messages are sealed on this device. The server stores ciphertext it cannot read.'),
             style: TextStyle(color: RatatoskTheme.of(context).timestamp),
           ),
           const SizedBox(height: 16),
@@ -148,7 +149,7 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
                     'encrypted to their first device only, so the others will not be able to '
                     'read it yet (docs/E2EE.md §1).',
               ),
-            Text('Keys in this conversation',
+            Text(tr(context, 'Keys in this conversation'),
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             ..._keys.map((key) => _KeyRow(
@@ -157,11 +158,10 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
                   deviceLabel: key.revoked ? 'revoked' : '',
                 )),
             const SizedBox(height: 16),
-            Text('Safety number', style: Theme.of(context).textTheme.titleMedium),
+            Text(tr(context, 'Safety number'), style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              'Compare this with the other person over a call or in person. If it matches on both '
-              'sides, no one is between you — including the server.',
+              tr(context, 'Compare this with the other person over a call or in person. If it matches on both sides, no one is between you — including the server.'),
               style: TextStyle(color: RatatoskTheme.of(context).timestamp, fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -171,7 +171,7 @@ class _EncryptionSheetState extends State<EncryptionSheet> {
           ],
           const SizedBox(height: 24),
           Text(
-            'Read what this does and does not protect: docs/E2EE.md',
+            tr(context, 'Read what this does and does not protect: docs/E2EE.md'),
             style: TextStyle(fontSize: 11, color: RatatoskTheme.of(context).timestamp),
           ),
         ],
@@ -246,11 +246,11 @@ class _SafetyNumbersState extends State<_SafetyNumbers> {
                       await Clipboard.setData(ClipboardData(text: entry.value));
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Safety number copied')),
+                        SnackBar(content: Text(tr(context, 'Safety number copied'))),
                       );
                     },
                     icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Copy'),
+                    label: Text(tr(context, 'Copy')),
                   ),
                 ],
               ),

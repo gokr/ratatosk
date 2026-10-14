@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../api/backend.dart';
@@ -81,10 +82,10 @@ class _JoinScreenState extends State<JoinScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
-          tooltip: 'Not now',
+          tooltip: tr(context, 'Not now'),
           onPressed: _decline,
         ),
-        title: const Text('Invitation'),
+        title: Text(tr(context, 'Invitation')),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -100,7 +101,7 @@ class _JoinScreenState extends State<JoinScreen> {
                         Avatar.user(preview!.inviter!, size: 96, resolveUrl: di<AppState>().fileUrl),
                         const SizedBox(height: 16),
                         Text(
-                          '${preview.inviter!.displayName} invited you',
+                          trp(context, '{0} invited you', [preview.inviter!.displayName]),
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
@@ -123,10 +124,10 @@ class _JoinScreenState extends State<JoinScreen> {
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                         const SizedBox(height: 20),
-                        FilledButton(onPressed: _decline, child: const Text('Close')),
+                        FilledButton(onPressed: _decline, child: Text(tr(context, 'Close'))),
                       ] else ...[
                         Text(
-                          'Accepting makes the two of you contacts and opens a private conversation.',
+                          tr(context, 'Accepting makes the two of you contacts and opens a private conversation.'),
                           textAlign: TextAlign.center,
                           style: TextStyle(color: RatatoskTheme.of(context).timestamp),
                         ),
@@ -150,14 +151,14 @@ class _JoinScreenState extends State<JoinScreen> {
                                   height: 20,
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Text('Accept invitation'),
+                              : Text(tr(context, 'Accept invitation')),
                         ),
                         const SizedBox(height: 8),
-                        TextButton(onPressed: _decline, child: const Text('Not now')),
+                        TextButton(onPressed: _decline, child: Text(tr(context, 'Not now'))),
                       ],
                       const SizedBox(height: 24),
                       Text(
-                        'Invite code ${widget.code}',
+                        trp(context, 'Invite code {0}', [widget.code]),
                         style: TextStyle(fontSize: 12, color: RatatoskTheme.of(context).timestamp),
                       ),
                     ],

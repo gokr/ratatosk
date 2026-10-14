@@ -89,12 +89,12 @@ class _Brand extends StatelessWidget {
         BrandLogo(size: 96),
         SizedBox(height: 16),
         Text(
-          'Ratatosk',
+          tr(context, 'Ratatosk'),
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         SizedBox(height: 4),
         Text(
-          'Messages, groups and invitations',
+          tr(context, 'Messages, groups and invitations'),
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -127,14 +127,14 @@ class InviteBanner extends StatelessWidget {
           SizedBox(width: 12),
           Expanded(
             child: Text(
-              'You have an invitation. Sign in or create an account to accept it.',
+              tr(context, 'You have an invitation. Sign in or create an account to accept it.'),
               style: TextStyle(color: scheme.onPrimaryContainer),
             ),
           ),
           IconButton(
             onPressed: onDismiss,
             icon: Icon(Icons.close),
-            tooltip: 'Dismiss',
+            tooltip: tr(context, 'Dismiss'),
           ),
         ],
       ),
@@ -182,11 +182,11 @@ class _AuthFormState extends State<_AuthForm> {
     final username = _username.text.trim();
     final password = _password.text;
     if (username.isEmpty || password.isEmpty) {
-      setState(() => _localError = 'Enter a username and password.');
+      setState(() => _localError = tr(context, 'Enter a username and password.'));
       return;
     }
     if (_registering && password.length < 8) {
-      setState(() => _localError = 'Passwords need at least 8 characters.');
+      setState(() => _localError = tr(context, 'Passwords need at least 8 characters.'));
       return;
     }
     setState(() => _localError = null);
@@ -254,7 +254,7 @@ class _AuthFormState extends State<_AuthForm> {
             padding: EdgeInsets.symmetric(vertical: 16),
             textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
-          child: Text(_registering ? 'Create account' : 'Sign in'),
+          child: Text(tr(context, _registering ? 'Create account' : 'Sign in')),
         ),
         SizedBox(height: 8),
         TextButton(
@@ -265,7 +265,7 @@ class _AuthFormState extends State<_AuthForm> {
                     _localError = null;
                   }),
           child: Text(
-            _registering ? 'I already have an account' : 'Create a new account',
+            tr(context, _registering ? 'I already have an account' : 'Create a new account'),
           ),
         ),
       ],
@@ -314,7 +314,7 @@ Future<void> showServerDialog(BuildContext context) async {
   final result = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text('Server address'),
+      title: Text(tr(context, 'Server address')),
       content: TextField(
         controller: controller,
         autocorrect: false,
@@ -338,8 +338,8 @@ Future<void> showServerDialog(BuildContext context) async {
   await showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text('Restart to apply'),
-      content: Text('Ratatosk will use $uri after a restart.'),
+      title: Text(tr(context, 'Restart to apply')),
+      content: Text(trp(context, 'Ratatosk will use {0} after a restart.', [uri])),
       actions: [
         FilledButton(onPressed: () => Navigator.pop(context), child: Text('OK')),
       ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../language.dart';
 
 import '../../session_store.dart';
 import '../../state/app_state.dart';
@@ -22,23 +23,21 @@ Future<void> maybeOfferKeyRecovery(BuildContext context, AppState state, Session
   final wants = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Protect your messages across devices?'),
-      content: const SizedBox(
+      title: Text(tr(context, 'Protect your messages across devices?')),
+      content: SizedBox(
         width: 360,
         child: Text(
-          'Your encryption keys live only on this device. With a recovery '
-          'passphrase, a new phone or a reinstall can still read your history.\n\n'
-          'The passphrase is never sent to the server, and it cannot be reset.',
+          tr(context, 'Your encryption keys live only on this device. With a recovery passphrase, a new phone or a reinstall can still read your history.\n\nThe passphrase is never sent to the server, and it cannot be reset.'),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext, false),
-          child: const Text('Not now'),
+          child: Text(tr(context, 'Not now')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext, true),
-          child: const Text('Set up recovery'),
+          child: Text(tr(context, 'Set up recovery')),
         ),
       ],
     ),
@@ -55,24 +54,21 @@ Future<void> maybeOfferKeyRecovery(BuildContext context, AppState state, Session
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Continue without recovery?'),
-        content: const SizedBox(
+        title: Text(tr(context, 'Continue without recovery?')),
+        content: SizedBox(
           width: 360,
           child: Text(
-            'If you reinstall the app or move to a new phone, messages you have '
-            'already received will not be readable there. They are not lost from '
-            'the server — but nothing can open them without the keys on this '
-            'device.\n\nYou can set this up later in Settings.',
+            tr(context, 'If you reinstall the app or move to a new phone, messages you have already received will not be readable there. They are not lost from the server — but nothing can open them without the keys on this device.\n\nYou can set this up later in Settings.'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Set up recovery'),
+            child: Text(tr(context, 'Set up recovery')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Continue without it'),
+            child: Text(tr(context, 'Continue without it')),
           ),
         ],
       ),
@@ -83,8 +79,8 @@ Future<void> maybeOfferKeyRecovery(BuildContext context, AppState state, Session
   }
   await session.markRecoveryPromptShown();
   if (context.mounted && wants == null) {
-    messenger?.showSnackBar(const SnackBar(
-      content: Text('You can set up key recovery any time in Settings.'),
+    messenger?.showSnackBar(SnackBar(
+      content: Text(tr(context, 'You can set up key recovery any time in Settings.')),
     ));
   }
 }

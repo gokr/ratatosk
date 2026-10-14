@@ -112,7 +112,7 @@ class MessageBubble extends StatelessWidget {
             ),
           if (message.deleted)
             Text(
-              'You deleted this message',
+              tr(context, 'You deleted this message'),
               style: TextStyle(color: textColor.withValues(alpha: 0.85), fontStyle: FontStyle.italic),
             )
           else if (!body.ok) ...[
@@ -549,7 +549,7 @@ class _Meta extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (edited) ...[
-          Text('edited', style: TextStyle(fontSize: 11, color: color)),
+          Text(tr(context, 'edited'), style: TextStyle(fontSize: 11, color: color)),
           SizedBox(width: 4),
         ],
         Text(time, style: TextStyle(fontSize: 11, color: color)),

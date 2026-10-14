@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../language.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
@@ -135,7 +136,7 @@ class _ComposerState extends State<Composer> {
   void _showPickerError(int generation, String message, Object error) {
     if (!mounted || generation != _draftGeneration) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$message: ${describeError(error)}')),
+      SnackBar(content: Text(trp(context, '{0}: {1}', [message, describeError(error)]))),
     );
   }
 
@@ -270,7 +271,7 @@ class _ComposerState extends State<Composer> {
             if (widget.editing != null)
               _ContextBanner(
                 icon: Icons.edit_outlined,
-                title: 'Editing message',
+                title: tr(context, 'Editing message'),
                 body: widget.editing!.text,
                 onCancel: () {
                   widget.onCancelEdit();
@@ -280,7 +281,7 @@ class _ComposerState extends State<Composer> {
             else if (widget.replyTo != null)
               _ContextBanner(
                 icon: Icons.reply,
-                title: 'Replying to',
+                title: tr(context, 'Replying to'),
                 body:
                     widget.replyTo!.deleted
                         ? 'Deleted message'
@@ -342,7 +343,7 @@ class _ComposerState extends State<Composer> {
                             child: IconButton(
                               iconSize: 18,
                               visualDensity: VisualDensity.compact,
-                              tooltip: 'Remove',
+                              tooltip: tr(context, 'Remove'),
                               onPressed:
                                   () =>
                                       setState(() => _pending.removeAt(index)),
@@ -368,7 +369,7 @@ class _ComposerState extends State<Composer> {
               children: [
                 IconButton(
                   onPressed: _uploading ? null : _pickAttachments,
-                  tooltip: 'Attach a file',
+                  tooltip: tr(context, 'Attach a file'),
                   icon:
                       _uploading
                           ? const SizedBox(
@@ -381,7 +382,7 @@ class _ComposerState extends State<Composer> {
                 if (_cameraSupported && widget.editing == null)
                   IconButton(
                     onPressed: _uploading ? null : _takePhoto,
-                    tooltip: 'Take a photo',
+                    tooltip: tr(context, 'Take a photo'),
                     icon: const Icon(Icons.camera_alt_outlined),
                   ),
                 Expanded(
@@ -422,7 +423,7 @@ class _ComposerState extends State<Composer> {
               Padding(
                 padding: const EdgeInsets.only(top: 2, bottom: 2),
                 child: Text(
-                  'Enter to send · Shift+Enter for a newline',
+                  tr(context, 'Enter to send · Shift+Enter for a newline'),
                   style: TextStyle(fontSize: 10, color: colors.timestamp),
                 ),
               ),
@@ -486,7 +487,7 @@ class _ContextBanner extends StatelessWidget {
           IconButton(
             onPressed: onCancel,
             icon: const Icon(Icons.close, size: 18),
-            tooltip: 'Cancel',
+            tooltip: tr(context, 'Cancel'),
           ),
         ],
       ),

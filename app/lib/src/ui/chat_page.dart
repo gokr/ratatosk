@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../crypto/manager.dart';
@@ -332,7 +333,7 @@ class _EmptyThread extends StatelessWidget {
             Icon(Icons.chat_bubble_outline, size: 48, color: RatatoskTheme.of(context).timestamp),
             const SizedBox(height: 12),
             Text(
-              'No messages yet',
+              tr(context, 'No messages yet'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),

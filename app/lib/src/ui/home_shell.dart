@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../link_controller.dart';
@@ -118,7 +119,7 @@ class _NoSelection extends StatelessWidget {
             color: Theme.of(context).colorScheme.outline,
           ),
           const SizedBox(height: 16),
-          Text('Pick a conversation', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr(context, 'Pick a conversation'), style: Theme.of(context).textTheme.titleMedium),
         ],
       ),
     );

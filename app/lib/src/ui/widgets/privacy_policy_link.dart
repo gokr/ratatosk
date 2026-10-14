@@ -27,8 +27,9 @@ Future<void> openPrivacyPolicy(BuildContext context) async {
     final launched = await launchUrl(url, mode: LaunchMode.externalApplication);
     if (!launched) throw StateError('no browser accepted the URL');
   } catch (error) {
+    if (!context.mounted) return;
     messenger?.showSnackBar(
-      SnackBar(content: Text('Could not open the privacy policy. It is at $url')),
+      SnackBar(content: Text(trp(context, 'Could not open the privacy policy. It is at {0}', [url]))),
     );
   }
 }

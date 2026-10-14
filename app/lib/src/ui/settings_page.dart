@@ -89,8 +89,8 @@ class SettingsPage extends WatchingWidget {
               value: state.language ?? 'system',
               items: [
                 DropdownMenuItem(value: 'system', child: Text(tr(context, 'System default'))),
-                DropdownMenuItem(value: 'en', child: Text('English')),
-                DropdownMenuItem(value: 'sv', child: Text('Svenska')),
+                DropdownMenuItem(value: 'en', child: Text(tr(context, 'English'))),
+                DropdownMenuItem(value: 'sv', child: Text(tr(context, 'Svenska'))),
               ],
               onChanged: (value) async {
                 final language = value == 'system' ? null : value;
@@ -125,9 +125,9 @@ class SettingsPage extends WatchingWidget {
           ListTile(
             leading: Icon(state.realtimeConnected ? Icons.cloud_done : Icons.cloud_off),
             title: Text(tr(context, 'Realtime connection')),
-            subtitle: Text(state.realtimeConnected ? 'Connected' : 'Reconnecting…'),
+            subtitle: Text(tr(context, state.realtimeConnected ? 'Connected' : 'Reconnecting…')),
             trailing: IconButton(
-              tooltip: 'Reconnect now',
+              tooltip: tr(context, 'Reconnect now'),
               icon: Icon(Icons.refresh),
               onPressed: state.refresh,
             ),
@@ -136,14 +136,14 @@ class SettingsPage extends WatchingWidget {
           ListTile(
             leading: Icon(Icons.notifications_outlined),
             title: Text(tr(context, 'Message notifications')),
-            subtitle: Text('${push.message}\nRequires HTTPS. On iOS/iPadOS 16.4+, use Share → Add to Home Screen, then open the installed app.'),
+            subtitle: Text(trp(context, '{0}\nRequires HTTPS. On iOS/iPadOS 16.4+, use Share → Add to Home Screen, then open the installed app.', [push.message])),
           ),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Wrap(spacing: 12, children: [
               FilledButton(
                 onPressed: push.canEnable ? push.enable : null,
-                child: Text(push.busy ? 'Please wait…' : 'Enable notifications'),
+                child: Text(tr(context, push.busy ? 'Please wait…' : 'Enable notifications')),
               ),
               if (push.subscribed)
                 OutlinedButton(
@@ -159,13 +159,13 @@ class SettingsPage extends WatchingWidget {
           Divider(),
           Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Text('Contacts (${contacts.length})',
+            child: Text(trp(context, 'Contacts ({0})', [contacts.length]),
                 style: Theme.of(context).textTheme.titleMedium),
           ),
           if (contacts.isEmpty)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text('No contacts yet. Invite someone to get started.'),
+              child: Text(tr(context, 'No contacts yet. Invite someone to get started.')),
             )
           else
             ...contacts.map((contact) => _ContactTile(contact: contact)),
@@ -173,10 +173,10 @@ class SettingsPage extends WatchingWidget {
           ListTile(
             leading: Icon(Icons.delete_forever_outlined, color: Theme.of(context).colorScheme.error),
             title: Text(
-              'Delete account',
+              tr(context, 'Delete account'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            subtitle: Text('Permanently removes your account and your messages'),
+            subtitle: Text(tr(context, 'Permanently removes your account and your messages')),
             onTap: () => confirmDeleteAccount(context),
           ),
           const SignInMethodsSection(),
@@ -184,7 +184,7 @@ class SettingsPage extends WatchingWidget {
           ListTile(
             leading: Icon(Icons.key_outlined),
             title: Text(tr(context, 'Key recovery')),
-            subtitle: Text('Read your messages after reinstalling or a new phone'),
+            subtitle: Text(tr(context, 'Read your messages after reinstalling or a new phone')),
             onTap: () => showKeyRecoveryDialog(context),
           ),
           Center(child: PrivacyPolicyLink()),
@@ -192,7 +192,7 @@ class SettingsPage extends WatchingWidget {
           ListTile(
             leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
             title: Text(
-              'Sign out',
+              tr(context, 'Sign out'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             onTap: () async {
@@ -241,7 +241,7 @@ class _ContactTile extends StatelessWidget {
       title: Text(user.displayName),
       subtitle: Text('@${user.username}'),
       trailing: IconButton(
-        tooltip: 'Remove contact',
+        tooltip: tr(context, 'Remove contact'),
         icon: Icon(Icons.person_remove_outlined),
         onPressed: () => state.removeContact(user.id),
       ),
@@ -312,21 +312,21 @@ class _ProfileDialogState extends State<_ProfileDialog> {
               Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
                 TextButton.icon(
                   icon: Icon(Icons.photo),
-                  label: Text('Upload picture'),
+                  label: Text(tr(context, 'Upload picture')),
                   onPressed: () => _chooseProfilePhoto(context),
                 ),
                 TextButton(
                   onPressed: () => _useGravatar(context),
-                  child: Text('Use Gravatar'),
+                  child: Text(tr(context, 'Use Gravatar')),
                 ),
                 TextButton(
                   onPressed: () => state.updateProfile(clearAvatar: true),
-                  child: Text('Remove picture'),
+                  child: Text(tr(context, 'Remove picture')),
                 ),
               ]),
               SizedBox(height: 8),
               Text(
-                'Profile pictures are shared profile data, not encrypted chat attachments.',
+                tr(context, 'Profile pictures are shared profile data, not encrypted chat attachments.'),
                 style: TextStyle(fontSize: 12),
               ),
               SizedBox(height: 16),
@@ -378,7 +378,7 @@ Future<void> _chooseProfilePhoto(BuildContext context) async {
   } catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update picture: $error')));
+          SnackBar(content: Text(trp(context, 'Could not update picture: {0}', [error]))));
     }
   }
 }
@@ -387,14 +387,13 @@ Future<void> _useGravatar(BuildContext context) async {
   final state = di<AppState>();
   final controller = TextEditingController();
   final email = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
-    title: Text('Use Gravatar'),
+    title: Text(tr(context, 'Use Gravatar')),
     content: Column(mainAxisSize: MainAxisSize.min, children: [
-      Text('This contacts Gravatar with an email hash and your IP address. '
-          'The downloaded picture is uploaded to Ratatosk; your email is not saved.'),
-      TextField(controller: controller, decoration: InputDecoration(labelText: 'Gravatar email')),
+      Text(tr(context, 'This contacts Gravatar with an email hash and your IP address. The downloaded picture is uploaded to Ratatosk; your email is not saved.')),
+      TextField(controller: controller, decoration: InputDecoration(labelText: tr(context, 'Gravatar email'))),
     ]),
     actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(tr(context, 'Cancel'))),
-      FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: Text('Import'))],
+      FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: Text(tr(context, 'Import')))],
   ));
   controller.dispose();
   if (email == null) return;
@@ -406,7 +405,7 @@ Future<void> _useGravatar(BuildContext context) async {
   } catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not import Gravatar: $error')));
+          SnackBar(content: Text(trp(context, 'Could not import Gravatar: {0}', [error]))));
     }
   }
 }
@@ -444,9 +443,10 @@ Future<void> confirmDeleteAccount(BuildContext context) async {
     return;
   }
 
+  if (!context.mounted) return;
   // Signed out by the manager; drop the settings screen with it.
   messenger?.showSnackBar(SnackBar(
-    content: Text('Your account has been deleted.'),
+    content: Text(tr(context, 'Your account has been deleted.')),
   ));
   if (navigator.canPop()) navigator.pop();
 }
@@ -478,7 +478,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Delete your account?'),
+      title: Text(tr(context, 'Delete your account?')),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -487,17 +487,12 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'This cannot be undone, and there is no way to recover the account '
-                'or its messages afterwards.',
+                tr(context, 'This cannot be undone, and there is no way to recover the account or its messages afterwards.'),
               ),
               SizedBox(height: 12),
-              Text('It removes:'),
+              Text(tr(context, 'It removes:')),
               SizedBox(height: 4),
-              Text('\u2022 your account and profile\n'
-                  '\u2022 every direct conversation you are part of, with its messages\n'
-                  '\u2022 your uploaded files\n'
-                  '\u2022 your devices and their encryption keys\n'
-                  '\u2022 all sessions, so you are signed out everywhere'),
+              Text(tr(context, '\u2022 your account and profile\n\u2022 every direct conversation you are part of, with its messages\n\u2022 your uploaded files\n\u2022 your devices and their encryption keys\n\u2022 all sessions, so you are signed out everywhere')),
               SizedBox(height: 12),
               Text(
                 // Promising "everything" and then keeping some of it would be a
@@ -513,7 +508,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
                 autofocus: true,
                 decoration: InputDecoration(
                   labelText: tr(context, 'Your password'),
-                  helperText: 'Confirms it is really you',
+                  helperText: tr(context, 'Confirms it is really you'),
                 ),
                 onSubmitted: (_) => _submit(),
               ),
@@ -571,9 +566,7 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
                       'for good.'),
               SizedBox(height: 12),
               Text(
-                'The passphrase encrypts your keys before they are stored on the '
-                'server. The server cannot read them, and nobody — including us — '
-                'can reset the passphrase.',
+                tr(context, 'The passphrase encrypts your keys before they are stored on the server. The server cannot read them, and nobody — including us — can reset the passphrase.'),
                 style: TextStyle(fontSize: 12),
               ),
             ],
@@ -596,7 +589,7 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
         ),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext, hasBackup ? 'change' : 'set'),
-          child: Text(hasBackup ? 'Change passphrase' : 'Set up recovery'),
+          child: Text(tr(context, hasBackup ? 'Change passphrase' : 'Set up recovery')),
         ),
       ],
     ),
@@ -606,8 +599,9 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
   switch (choice) {
     case 'remove':
       if (await state.removeKeyRecovery()) {
+        if (!context.mounted) return;
         messenger?.showSnackBar(SnackBar(
-          content: Text('Backup removed. Your messages on this device are unaffected.'),
+          content: Text(tr(context, 'Backup removed. Your messages on this device are unaffected.')),
         ));
       } else {
         messenger?.showSnackBar(SnackBar(
@@ -618,8 +612,9 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
       final passphrase = await _askPassphrase(context, confirm: true);
       if (passphrase == null || !context.mounted) return;
       if (await state.setUpKeyRecovery(passphrase)) {
+        if (!context.mounted) return;
         messenger?.showSnackBar(SnackBar(
-          content: Text('Recovery is on. Keep that passphrase somewhere safe.'),
+          content: Text(tr(context, 'Recovery is on. Keep that passphrase somewhere safe.')),
         ));
       } else {
         messenger?.showSnackBar(SnackBar(
@@ -629,8 +624,9 @@ Future<void> showKeyRecoveryDialog(BuildContext context) async {
       final passphrase = await _askPassphrase(context, confirm: false);
       if (passphrase == null || !context.mounted) return;
       if (await state.restoreKeyRecovery(passphrase)) {
+        if (!context.mounted) return;
         messenger?.showSnackBar(SnackBar(
-          content: Text('Keys restored. Messages you could read before should be back.'),
+          content: Text(tr(context, 'Keys restored. Messages you could read before should be back.')),
         ));
       } else {
         messenger?.showSnackBar(SnackBar(
@@ -675,11 +671,11 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
   void _submit() {
     final value = _passphrase.text;
     if (value.trim().length < 8) {
-      setState(() => _problem = 'Use at least 8 characters');
+      setState(() => _problem = tr(context, 'Use at least 8 characters'));
       return;
     }
     if (widget.confirm && value != _again.text) {
-      setState(() => _problem = 'The two entries do not match');
+      setState(() => _problem = tr(context, 'The two entries do not match'));
       return;
     }
     Navigator.pop(context, value);
@@ -688,7 +684,7 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.confirm ? 'Choose a recovery passphrase' : 'Enter your recovery passphrase'),
+      title: Text(tr(context, widget.confirm ? 'Choose a recovery passphrase' : 'Enter your recovery passphrase')),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -699,8 +695,7 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
               Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'Write it down and keep it somewhere you will still have it after '
-                  'losing this phone. It cannot be reset.',
+                  tr(context, 'Write it down and keep it somewhere you will still have it after losing this phone. It cannot be reset.'),
                   style: TextStyle(fontSize: 12),
                 ),
               ),
@@ -708,7 +703,7 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
               controller: _passphrase,
               obscureText: true,
               autofocus: true,
-              decoration: InputDecoration(labelText: 'Passphrase'),
+              decoration: InputDecoration(labelText: tr(context, 'Passphrase')),
               onSubmitted: widget.confirm ? null : (_) => _submit(),
             ),
             if (widget.confirm) ...[
@@ -716,7 +711,7 @@ class _PassphraseDialogState extends State<_PassphraseDialog> {
               TextField(
                 controller: _again,
                 obscureText: true,
-                decoration: InputDecoration(labelText: 'Passphrase again'),
+                decoration: InputDecoration(labelText: tr(context, 'Passphrase again')),
                 onSubmitted: (_) => _submit(),
               ),
             ],

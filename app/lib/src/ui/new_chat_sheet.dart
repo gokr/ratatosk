@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../gen/ratatosk/v1/common.pb.dart';
@@ -32,10 +33,10 @@ class NewChatSheet extends StatelessWidget {
         height: height,
         child: Column(
           children: [
-            const TabBar(
+            TabBar(
               tabs: [
-                Tab(text: 'Find people'),
-                Tab(text: 'New group'),
+                Tab(text: tr(context, 'Find people')),
+                Tab(text: tr(context, 'New group')),
               ],
             ),
             Expanded(
@@ -110,8 +111,8 @@ class _FindPeopleTabState extends State<_FindPeopleTab> {
             controller: _query,
             autofocus: true,
             onChanged: (value) => _search(value),
-            decoration: const InputDecoration(
-              hintText: 'Search by username or name',
+            decoration: InputDecoration(
+              hintText: tr(context, 'Search by username or name'),
               prefixIcon: Icon(Icons.search),
             ),
           ),
@@ -129,7 +130,7 @@ class _FindPeopleTabState extends State<_FindPeopleTab> {
                             Icon(Icons.person_search_outlined,
                                 size: 40, color: RatatoskTheme.of(context).timestamp),
                             const SizedBox(height: 12),
-                            const Text('Nobody found'),
+                            Text(tr(context, 'Nobody found')),
                             const SizedBox(height: 8),
                             // The two ways to reach someone who is not on this
                             // server yet.
@@ -139,7 +140,7 @@ class _FindPeopleTabState extends State<_FindPeopleTab> {
                                 showInviteSheet(context);
                               },
                               icon: const Icon(Icons.link, size: 18),
-                              label: const Text('Invite them instead'),
+                              label: Text(tr(context, 'Invite them instead')),
                             ),
                           ],
                         ),
@@ -232,8 +233,8 @@ class _NewGroupTabState extends State<_NewGroupTab> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: TextField(
             controller: _title,
-            decoration: const InputDecoration(
-              hintText: 'Group name',
+            decoration: InputDecoration(
+              hintText: tr(context, 'Group name'),
               prefixIcon: Icon(Icons.groups_outlined),
             ),
             onChanged: (_) => setState(() {}),
@@ -244,8 +245,8 @@ class _NewGroupTabState extends State<_NewGroupTab> {
           child: TextField(
             controller: _search,
             onChanged: _load,
-            decoration: const InputDecoration(
-              hintText: 'Add people',
+            decoration: InputDecoration(
+              hintText: tr(context, 'Add people'),
               prefixIcon: Icon(Icons.person_add_alt),
             ),
           ),
@@ -307,7 +308,7 @@ class _NewGroupTabState extends State<_NewGroupTab> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text('Create group (${_selected.length})'),
+                  : Text(trp(context, 'Create group ({0})', [_selected.length])),
             ),
           ),
         ),

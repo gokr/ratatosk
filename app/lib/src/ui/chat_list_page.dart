@@ -64,7 +64,7 @@ class ChatListPage extends WatchingWidget {
               ),
             ),
           IconButton(
-            tooltip: 'Invite someone',
+            tooltip: tr(context, 'Invite someone'),
             icon: Icon(Icons.person_add_alt),
             onPressed: () => showInviteSheet(context),
           ),
@@ -79,7 +79,7 @@ class ChatListPage extends WatchingWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showNewChatSheet(context),
-        tooltip: 'New conversation',
+        tooltip: tr(context, 'New conversation'),
         child: Icon(Icons.edit_outlined),
       ),
       body: RefreshIndicator(
@@ -289,10 +289,10 @@ class _EmptyList extends StatelessWidget {
                 children: [
                   Icon(Icons.forum_outlined, size: 56, color: RatatoskTheme.of(context).timestamp),
                   SizedBox(height: 16),
-                  Text('No conversations yet', style: Theme.of(context).textTheme.titleMedium),
+                  Text(tr(context, 'No conversations yet'), style: Theme.of(context).textTheme.titleMedium),
                   SizedBox(height: 8),
                   Text(
-                    'Start a chat with someone, or send them an invitation link.',
+                    tr(context, 'Start a chat with someone, or send them an invitation link.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(color: RatatoskTheme.of(context).timestamp),
                   ),
@@ -300,13 +300,13 @@ class _EmptyList extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: onStart,
                     icon: Icon(Icons.add_comment_outlined),
-                    label: Text('New conversation'),
+                    label: Text(tr(context, 'New conversation')),
                   ),
                   SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => showInviteSheet(context),
                     icon: Icon(Icons.link),
-                    label: Text('Create an invitation link'),
+                    label: Text(tr(context, 'Create an invitation link')),
                   ),
                 ],
               ),

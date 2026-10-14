@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:watch_it/watch_it.dart';
 
 import '../state/app_state.dart';
@@ -18,13 +19,13 @@ class ConversationDetailsPage extends WatchingWidget {
     final state = watchIt<AppState>();
     final conversation = state.conversation(conversationId);
     if (conversation == null) {
-      return const Scaffold(body: Center(child: Text('This conversation is gone.')));
+      return Scaffold(body: Center(child: Text(tr(context, 'This conversation is gone.'))));
     }
     final isGroup = conversation.kind == 'group';
     final me = state.me;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Details')),
+      appBar: AppBar(title: Text(tr(context, 'Details'))),
       body: ListView(
         children: [
           Padding(
@@ -53,7 +54,7 @@ class ConversationDetailsPage extends WatchingWidget {
                     ),
                     if (isGroup)
                       IconButton(
-                        tooltip: 'Rename',
+                        tooltip: tr(context, 'Rename'),
                         icon: const Icon(Icons.edit_outlined, size: 20),
                         onPressed: () => _rename(context),
                       ),
@@ -71,21 +72,21 @@ class ConversationDetailsPage extends WatchingWidget {
           const Divider(),
           SwitchListTile(
             secondary: Icon(conversation.muted ? Icons.notifications_off : Icons.notifications_none),
-            title: const Text('Muted'),
+            title: Text(tr(context, 'Muted')),
             value: conversation.muted,
             onChanged: (value) => state.setConversationFlags(conversation.id, muted: value),
           ),
           SwitchListTile(
             secondary: Icon(conversation.pinned ? Icons.push_pin : Icons.push_pin_outlined),
-            title: const Text('Pinned'),
-            subtitle: const Text('Pinned conversations stay at the top of the list'),
+            title: Text(tr(context, 'Pinned')),
+            subtitle: Text(tr(context, 'Pinned conversations stay at the top of the list')),
             value: conversation.pinned,
             onChanged: (value) => state.setConversationFlags(conversation.id, pinned: value),
           ),
           const Divider(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text('Members', style: Theme.of(context).textTheme.titleMedium),
+            child: Text(tr(context, 'Members'), style: Theme.of(context).textTheme.titleMedium),
           ),
           ...conversation.members.map((member) {
             final isMe = member.user.id == me?.id;
@@ -106,7 +107,7 @@ class ConversationDetailsPage extends WatchingWidget {
                     Padding(
                       padding: const EdgeInsets.only(left: 6),
                       child: Chip(
-                        label: const Text('owner', style: TextStyle(fontSize: 10)),
+                        label: Text(tr(context, 'owner'), style: TextStyle(fontSize: 10)),
                         visualDensity: VisualDensity.compact,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         padding: EdgeInsets.zero,
@@ -117,7 +118,7 @@ class ConversationDetailsPage extends WatchingWidget {
               subtitle: Text('@${member.user.username}'),
               trailing: isGroup && !isMe
                   ? IconButton(
-                      tooltip: 'Remove from group',
+                      tooltip: tr(context, 'Remove from group'),
                       icon: const Icon(Icons.person_remove_outlined),
                       onPressed: () => _remove(context, member.user.displayName, member.user.id),
                     )
@@ -130,7 +131,7 @@ class ConversationDetailsPage extends WatchingWidget {
           if (isGroup)
             ListTile(
               leading: const Icon(Icons.person_add_alt),
-              title: const Text('Add members'),
+              title: Text(tr(context, 'Add members')),
               onTap: () => _addMembers(context),
             ),
           const Divider(),
@@ -156,13 +157,13 @@ class ConversationDetailsPage extends WatchingWidget {
     final title = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Group name'),
+        title: Text(tr(context, 'Group name')),
         content: TextField(controller: controller, autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr(context, 'Cancel'))),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
+            child: Text(tr(context, 'Save')),
           ),
         ],
       ),
@@ -178,17 +179,17 @@ class ConversationDetailsPage extends WatchingWidget {
     final username = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add someone'),
+        title: Text(tr(context, 'Add someone')),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Username'),
+          decoration: InputDecoration(hintText: tr(context, 'Username')),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr(context, 'Cancel'))),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Add'),
+            child: Text(tr(context, 'Add')),
           ),
         ],
       ),
@@ -202,11 +203,11 @@ class ConversationDetailsPage extends WatchingWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Remove $name?'),
-        content: const Text('They keep their copy of the messages they already saw.'),
+        title: Text(trp(context, 'Remove {0}?', [name])),
+        content: Text(tr(context, 'They keep their copy of the messages they already saw.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr(context, 'Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(tr(context, 'Remove'))),
         ],
       ),
     );
@@ -221,11 +222,11 @@ class ConversationDetailsPage extends WatchingWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Leave this group?'),
-          content: const Text('You will stop receiving its messages.'),
+          title: Text(tr(context, 'Leave this group?')),
+          content: Text(tr(context, 'You will stop receiving its messages.')),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Leave')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr(context, 'Cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(tr(context, 'Leave'))),
           ],
         ),
       );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'language.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:watch_it/watch_it.dart';
@@ -80,7 +81,7 @@ class _InviteSheetState extends State<InviteSheet> {
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invitation link copied')),
+      SnackBar(content: Text(tr(context, 'Invitation link copied'))),
     );
   }
 
@@ -117,12 +118,12 @@ class _InviteSheetState extends State<InviteSheet> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
           Text(
-            'Invite someone',
+            tr(context, 'Invite someone'),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
-            'Show the QR, or send the link — either makes you contacts when they accept.',
+            tr(context, 'Show the QR, or send the link — either makes you contacts when they accept.'),
             style: TextStyle(color: RatatoskTheme.of(context).timestamp),
           ),
           const SizedBox(height: 16),
@@ -161,35 +162,35 @@ class _InviteSheetState extends State<InviteSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.add_link),
-                  label: Text(_fresh == null ? 'Create a link' : 'Create another'),
+                  label: Text(tr(context, _fresh == null ? 'Create a link' : 'Create another')),
                 ),
               ),
               IconButton(
                 onPressed: () => setState(() => _showOptions = !_showOptions),
-                tooltip: 'Options',
+                tooltip: tr(context, 'Options'),
                 icon: Icon(_showOptions ? Icons.tune : Icons.tune_outlined),
               ),
             ],
           ),
           const Divider(height: 32),
-          Text('Have an invitation?', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr(context, 'Have an invitation?'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _codeField,
-                  decoration: const InputDecoration(hintText: 'Paste a link or code'),
+                  decoration: InputDecoration(hintText: tr(context, 'Paste a link or code')),
                   onSubmitted: (_) => _pasteCode(),
                 ),
               ),
               const SizedBox(width: 8),
-              FilledButton.tonal(onPressed: _pasteCode, child: const Text('Accept')),
+              FilledButton.tonal(onPressed: _pasteCode, child: Text(tr(context, 'Accept'))),
             ],
           ),
           if (invites.isNotEmpty) ...[
             const Divider(height: 32),
-            Text('Your links', style: Theme.of(context).textTheme.titleMedium),
+            Text(tr(context, 'Your links'), style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             ...invites.map((invite) => _InviteRow(
                   invite: invite,
@@ -249,7 +250,7 @@ class _InviteLinkCard extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              'Have them scan this',
+              tr(context, 'Have them scan this'),
               style: TextStyle(
                 color: scheme.onPrimaryContainer,
                 fontWeight: FontWeight.w600,
@@ -275,7 +276,7 @@ class _InviteLinkCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            _describeUses(invite),
+            _describeUses(context, invite),
             style: TextStyle(color: scheme.onPrimaryContainer.withValues(alpha: 0.85), fontSize: 12),
           ),
           const SizedBox(height: 12),
@@ -284,13 +285,13 @@ class _InviteLinkCard extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onCopy,
                 icon: const Icon(Icons.copy, size: 18),
-                label: const Text('Copy link'),
+                label: Text(tr(context, 'Copy link')),
               ),
               const SizedBox(width: 8),
               FilledButton.tonalIcon(
                 onPressed: onShare,
                 icon: const Icon(Icons.share, size: 18),
-                label: const Text('Share'),
+                label: Text(tr(context, 'Share')),
               ),
             ],
           ),
@@ -299,8 +300,8 @@ class _InviteLinkCard extends StatelessWidget {
     );
   }
 
-  static String _describeUses(Invite invite) {
-    final uses = invite.maxUses <= 0 ? 'Unlimited uses' : '${invite.maxUses} use(s)';
+  static String _describeUses(BuildContext context, Invite invite) {
+    final uses = invite.maxUses <= 0 ? tr(context, 'Unlimited uses') : trp(context, '{0} use(s)', [invite.maxUses]);
     // `ChatFormat.expiry` rather than a list timestamp: a future date rendered through
     // the "when did this happen" formatter collapses to a bare time of day, which read
     // as though the link had already expired.
@@ -354,22 +355,22 @@ class _InviteRow extends StatelessWidget {
         invite.valid
             // The expiry belongs beside the uses: "3 uses left" is useless without
             // "until Tuesday".
-            ? '${invite.uses} of ${invite.maxUses <= 0 ? '∞' : invite.maxUses} used · '
+            ? '${trp(context, '{0} of {1} used', [invite.uses, invite.maxUses <= 0 ? '∞' : invite.maxUses])} · '
                 '${ChatFormat.expiry(invite.hasExpiresAt() ? invite.expiresAt.toDateTime() : null)}'
-            : _invalidLabel(invite),
+            : tr(context, _invalidLabel(invite)),
         style: TextStyle(color: timestamp, fontSize: 12),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: 'Copy',
+            tooltip: tr(context, 'Copy'),
             onPressed: onCopy,
             icon: const Icon(Icons.copy, size: 18),
           ),
           if (invite.valid)
             IconButton(
-              tooltip: 'Revoke',
+              tooltip: tr(context, 'Revoke'),
               onPressed: onRevoke,
               icon: const Icon(Icons.cancel_outlined, size: 18),
             ),
@@ -401,14 +402,14 @@ class _OptionRow<T> extends StatelessWidget {
         children: [
           SizedBox(
             width: 70,
-            child: Text(label, style: TextStyle(color: RatatoskTheme.of(context).timestamp)),
+            child: Text(tr(context, label), style: TextStyle(color: RatatoskTheme.of(context).timestamp)),
           ),
           Expanded(
             child: Wrap(
               spacing: 8,
               children: options.entries
                   .map((entry) => ChoiceChip(
-                        label: Text(entry.value),
+                        label: Text(tr(context, entry.value)),
                         selected: entry.key == value,
                         onSelected: (_) => onChanged(entry.key),
                       ))
