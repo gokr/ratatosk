@@ -38,7 +38,11 @@ class _InviteSheetState extends State<InviteSheet> {
   Invite? _fresh;
   bool _creating = false;
   int _expiresInHours = 24 * 7;
-  int _maxUses = 1;
+  /// Five, not one. An invitation is usually meant for a *person*, and they will tap
+  /// the same link again on another device or forward it to the person they live with.
+  /// At one use it is dead after the first attempt, and the second person is told it
+  /// expired — which is how a link that works came to look broken.
+  int _maxUses = 5;
   bool _showOptions = false;
 
   @override
