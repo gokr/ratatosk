@@ -297,9 +297,11 @@ class _InviteLinkCard extends StatelessWidget {
 
   static String _describeUses(Invite invite) {
     final uses = invite.maxUses <= 0 ? 'Unlimited uses' : '${invite.maxUses} use(s)';
-    final expiry = invite.hasExpiresAt()
-        ? 'expires ${ChatFormat.listTimestamp(invite.expiresAt.toDateTime(), use24Hour: di<AppState>().use24Hour)}'
-        : 'never expires';
+    // `ChatFormat.expiry` rather than a list timestamp: a future date rendered through
+    // the "when did this happen" formatter collapses to a bare time of day, which read
+    // as though the link had already expired.
+    final expiry = ChatFormat.expiry(
+        invite.hasExpiresAt() ? invite.expiresAt.toDateTime() : null);
     return '$uses · $expiry';
   }
 }
@@ -346,7 +348,10 @@ class _InviteRow extends StatelessWidget {
       ),
       subtitle: Text(
         invite.valid
-            ? '${invite.uses} of ${invite.maxUses <= 0 ? '∞' : invite.maxUses} used'
+            // The expiry belongs beside the uses: "3 uses left" is useless without
+            // "until Tuesday".
+            ? '${invite.uses} of ${invite.maxUses <= 0 ? '∞' : invite.maxUses} used · '
+                '${ChatFormat.expiry(invite.hasExpiresAt() ? invite.expiresAt.toDateTime() : null)}'
             : _invalidLabel(invite),
         style: TextStyle(color: timestamp, fontSize: 12),
       ),
